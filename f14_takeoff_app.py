@@ -1,5 +1,8 @@
 # f14_takeoff_app_dcs.py
-import io, os, math, numpy as np, pandas as pd, streamlit as st
+import io, os, math
+import numpy as np
+import pandas as pd
+import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import portrait
@@ -76,7 +79,7 @@ def auto_flap(weight_lbs, runway_ft):
 # NATOPS/Heatblur performance tables
 # Expected CSV columns:
 # model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft
-# thrust ∈ {"Minimum Required","Military","Afterburner"} (we use only MIL & AB rows; "Minimum" solved dynamically)
+# thrust ∈ {"Minimum Required","Military","Afterburner"} (we use MIL & AB rows; "Minimum" solved dynamically)
 # =========================================
 STARTER_PERF_CSV = """model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft
 F-14D,20,Military,60000,0,15,122,135,144,156,4200,4700
@@ -121,7 +124,6 @@ def load_perf_tables():
 def nearest_row(df, flap_deg, thrust, gw_lbs, pa_ft, oat_c):
     sub = df[(df["flap_deg"]==flap_deg) & (df["thrust"]==thrust)].copy()
     if sub.empty:
-        # try nearest flap available
         flaps = df[df["thrust"]==thrust]["flap_deg"].dropna().unique()
         if len(flaps)==0: return None
         flap_deg = int(sorted(flaps, key=lambda x:abs(x-flap_deg))[0])
@@ -134,55 +136,44 @@ def nearest_row(df, flap_deg, thrust, gw_lbs, pa_ft, oat_c):
     return None if row.empty else row.iloc[0].to_dict()
 
 def blend_linear(mil_val, ab_val, alpha):
-    # alpha: 0 → MIL, 1 → AB, <0 → below-MIL extrapolation
+    # alpha: 0 → MIL, 1 → AB, <0 → below-MIL (penalized extrapolation)
     if alpha >= 0:
         return mil_val + alpha*(ab_val - mil_val)
     else:
-        # below MIL: extrapolate distances assuming they grow faster below MIL
-        # Weight the slope by factor (>1) to penalize below-MIL more than linear
-        slope = (ab_val - mil_val)  # typically negative for distances
-        penalty = 1.8  # how much steeper below MIL behaves vs MIL→AB trend
+        slope = (ab_val - mil_val)
+        penalty = 1.8
         return mil_val + alpha * penalty * slope
 
 def rpm_from_alpha(alpha):
     if alpha >= 0:
         return RPM_MIL + alpha*(RPM_AB - RPM_MIL)
     else:
-        # below MIL: interpolate from MIL down to RPM_MIN
         return RPM_MIL + alpha*(RPM_MIL - RPM_MIN)
 
-def solve_min_required_dynamic(perf_df, flap_deg, gw_lbs, pa_ft, oat_c, runway_available_ft, rpm_floor=RPM_MIN):
+def solve_min_required_dynamic(perf_df, flap_deg, gw_lbs, pa_ft, oat_c, runway_available_ft):
     """
     Minimum Required thrust solves for AGD(α)*1.15 <= 0.60 * runway_available_ft
-    · α < 0 → below MIL; α = 0 → MIL; α = 1 → AB
-    Returns dict or None if infeasible even at AB.
+    α < 0 → below MIL; α = 0 → MIL; α = 1 → AB
     """
     mil = nearest_row(perf_df, flap_deg, "Military", gw_lbs, pa_ft, oat_c)
     ab  = nearest_row(perf_df, flap_deg, "Afterburner", gw_lbs, pa_ft, oat_c)
     if not mil or not ab:
         return None
 
-    target_agd = 0.60 * runway_available_ft
+    target_agd = 0.60 * float(runway_available_ft)
+    def agd_of(alpha): return blend_linear(mil["AGD_ft"], ab["AGD_ft"], alpha) * 1.15
 
-    def agd_of(alpha):
-        # Blend AGD raw then apply +15% safety factor
-        agd = blend_linear(mil["AGD_ft"], ab["AGD_ft"], alpha) * 1.15
-        return agd
-
-    # Quick checks
+    # If AB can't meet 60%, infeasible
     if agd_of(1.0) > target_agd:
-        # even AB can't meet the 60% criterion
         return None
 
-    # If MIL already passes, search below MIL (down to alpha_min where rpm=RPM_MIN)
+    # If MIL meets 60%, search below MIL down to RPM_MIN
     alpha_min = (RPM_MIN - RPM_MIL) / (RPM_AB - RPM_MIL)  # negative
     if agd_of(0.0) <= target_agd:
         lo, hi = alpha_min, 0.0
     else:
-        # MIL fails; solve between MIL and AB
         lo, hi = 0.0, 1.0
 
-    # Binary search α
     for _ in range(28):
         mid = 0.5*(lo+hi)
         if agd_of(mid) <= target_agd:
@@ -192,25 +183,15 @@ def solve_min_required_dynamic(perf_df, flap_deg, gw_lbs, pa_ft, oat_c, runway_a
     alpha = hi
     rpm   = int(round(rpm_from_alpha(alpha)))
 
-    # Build blended Vs/V1/Vr/V2 & ASD/AGD (+15% applied to both for display; BFL=max)
-    def vblend(k):
-        v = blend_linear(mil[k], ab[k], alpha)
-        return ceil_kn(v)
-
+    def vblend(k): return ceil_kn(blend_linear(mil[k], ab[k], alpha))
     asd = int(round(blend_linear(mil["ASD_ft"], ab["ASD_ft"], alpha) * 1.15))
     agd = int(round(blend_linear(mil["AGD_ft"], ab["AGD_ft"], alpha) * 1.15))
-    res = {
-        "Vs": vblend("Vs_kt"),
-        "V1": vblend("V1_kt"),
-        "Vr": vblend("Vr_kt"),
-        "V2": vblend("V2_kt"),
-        "stop_ft": asd,
-        "go_ft": agd,
-        "bfl_ft": max(asd, agd),
-        "rpm": rpm,
-        "alpha": alpha
+    return {
+        "Vs": vblend("Vs_kt"), "V1": vblend("V1_kt"),
+        "Vr": vblend("Vr_kt"), "V2": vblend("V2_kt"),
+        "stop_ft": asd, "go_ft": agd, "bfl_ft": max(asd, agd),
+        "rpm": rpm, "alpha": alpha
     }
-    return res
 
 # Toy fallback if no NATOPS CSVs provided
 def toy_perf(gw_lbs, oat_c, pa_ft, flap_deg, thrust_mode, headwind_kt, slope_pct, carrier, rpm=None):
@@ -221,33 +202,25 @@ def toy_perf(gw_lbs, oat_c, pa_ft, flap_deg, thrust_mode, headwind_kt, slope_pct
     trim = 8.0 + (gw_lbs-50000)/10000.0
     Vr, trim = carrier_adjust(Vr, trim, carrier)
     trim = max(5.0, min(12.0, trim))
-    # choose factor
+
     if thrust_mode == "Afterburner":
-        factor = THRUST_FACTOR["Afterburner"]
-        rpm_out = RPM_AB
+        factor = THRUST_FACTOR["Afterburner"]; rpm_out = RPM_AB
     elif thrust_mode == "Military":
-        factor = THRUST_FACTOR["Military"]
-        rpm_out = RPM_MIL
+        factor = THRUST_FACTOR["Military"]; rpm_out = RPM_MIL
     else:
-        # dynamic: map rpm to a factor between subMIL and MIL/AB
         rpm_out = rpm if rpm is not None else RPM_MIL
         if rpm_out < RPM_MIL:
-            # below MIL → between subMIL and MIL
-            # interpolate factors roughly (toy)
             t = (rpm_out - RPM_MIN) / (RPM_MIL - RPM_MIN + 1e-6)
             factor = THRUST_FACTOR["subMIL"]*(1-t) + THRUST_FACTOR["Military"]*t
         else:
-            # between MIL and AB
             t = (rpm_out - RPM_MIL) / (RPM_AB - RPM_MIL + 1e-6)
             factor = THRUST_FACTOR["Military"]*(1-t) + THRUST_FACTOR["Afterburner"]*t
 
     stop_m = accel_stop_m(V1)
     go_m   = accel_go_m(Vr,V2)*factor
-    # +15% safety factor
-    stop_m *= 1.15
-    go_m   *= 1.15
+    stop_m *= 1.15; go_m *= 1.15
 
-    slope_factor = 1 + slope_pct/100.0
+    slope_factor = 1 + float(slope_pct)/100.0
     stop_ft = stop_m*m2ft*slope_factor
     go_ft   = go_m*m2ft*slope_factor
     bfl_ft  = max(stop_ft, go_ft)
@@ -280,7 +253,7 @@ def kneeboard_png(results, weight, temp, alt, flap_name, thrust_label, carrier, 
     d.text((W//2,50),"F-14B TAKEOFF CARD",font=fb,fill=fg,anchor="mm")
     d.rectangle([m,100,W-m,220],outline=fg,width=6)
     d.text((m+10,110),f"GW: {int(weight):,} lbs",font=fn,fill=fg)
-    d.text((200,110),f"OAT: {temp} °C",font=fn,fill=fg)
+    d.text((200,110),f"OAT: {int(temp)} °C",font=fn,fill=fg)
     d.text((380,110),f"Elev: {int(alt)} ft",font=fn,fill=fg)
     d.text((m+10,170),f"Flaps: {flap_name}",font=fn,fill=fg)
     d.text((300,170),f"Thrust: {thrust_label}",font=fn,fill=fg)
@@ -288,7 +261,7 @@ def kneeboard_png(results, weight, temp, alt, flap_name, thrust_label, carrier, 
     d.text((50,y+120),f"Vs {results['Vs']}  V1 {results['V1']}  Vr {results['Vr']}  V2 {results['V2']}",font=fb,fill=fg)
     d.text((50,400),f"BFL: {results['bfl_ft']:,} ft",font=fb,fill=fg)
     d.text((50,460),f"Accel-Go: {results['go_ft']:,}   Accel-Stop: {results['stop_ft']:,}",font=fb,fill=fg)
-    d.text((50,540),f"Trim: {results['trim']}°  RPM: {results.get('rpm','--')}%",font=fb,fill=fg)
+    d.text((50,540),f"Trim: {results.get('trim','--')}°  RPM: {results.get('rpm','--')}%",font=fb,fill=fg)
     if carrier: d.text((50,600),"CARRIER MODE",font=fb,fill="red")
     img=img.resize((512,768),resample=Image.LANCZOS)
     buf=io.BytesIO(); img.save(buf,"PNG"); buf.seek(0); return buf
@@ -321,13 +294,13 @@ for col in ["length_ft","slope_percent","le_elev_ft","he_elev_ft"]:
 
 # 1) Theatre / Airport / Runway (Field Elevation here)
 st.header("1) DCS Theatre / Airport / Runway")
-theatres = sorted(dcs["map"].dropna().unique())
+theatres = sorted([t for t in dcs["map"].dropna().unique()])
 theatre = st.selectbox("Theatre", theatres)
 df_map = dcs[dcs["map"]==theatre]
-airports = sorted(df_map["airport_name"].dropna().unique())
+airports = sorted([a for a in df_map["airport_name"].dropna().unique()])
 airport = st.selectbox("Airport", airports)
 df_ap = df_map[df_map["airport_name"]==airport]
-rwy_pair = st.selectbox("Runway (pair)", df_ap["runway_id"].dropna().unique())
+rwy_pair = st.selectbox("Runway (pair)", [r for r in df_ap["runway_id"].dropna().unique()])
 
 endA,endB,hdgA,hdgB = runway_heads_from_id(rwy_pair)
 end = st.radio("Runway End (departure)", [f"{endA} ({hdgA}°)", f"{endB} ({hdgB}°)"], horizontal=True)
@@ -344,28 +317,31 @@ else:
     slope_dir = float(row["slope_percent"]) if not np.isnan(row["slope_percent"]) else 0.0
     field_elev_auto = int(le_elev if not np.isnan(le_elev) else (he_elev if not np.isnan(he_elev) else 0))
 if length_ft == 0:
-    length_ft = st.number_input("Runway Length missing — enter value (ft)", 1000, 20000, 8000, step=50)
-field_elev = st.number_input("Field Elevation (ft)", 0, 12000, int(field_elev_auto))
+    length_ft = st.number_input("Runway Length missing — enter value (ft)", min_value=1000, max_value=20000, value=8000, step=50)
+field_elev = st.number_input("Field Elevation (ft)", min_value=0, max_value=12000, value=int(field_elev_auto), step=1)
 st.caption(f"Runway length: **{length_ft:,} ft**  |  Slope (takeoff dir): **{slope_dir:.1f}%**  |  Elevation: **{field_elev} ft**")
 
 # 2) Weather (OAT here)
 st.header("2) Weather")
-oat = st.number_input("OAT (°C)", -40, 55, 15)
+oat = st.number_input("OAT (°C)", min_value=-40, max_value=55, value=15, step=1)
 wind_mode = st.radio("Headwind input", ["Manual (head/tailwind in kt)","From DCS Mission Briefing"], index=0)
 if wind_mode == "Manual (head/tailwind in kt)":
-    headwind_kt = st.number_input("Headwind (+) / Tailwind (-) (kt)", -40, 40, 0.0)
-    crosswind_kt = 0.0; cross_from = "n/a"
+    headwind_kt = st.number_input("Headwind (+) / Tailwind (-) (kt)", min_value=-40.0, max_value=40.0, value=0.0, step=1.0)
+    crosswind_kt = 0.0
+    cross_from = "n/a"
 else:
     c1,c2 = st.columns(2)
-    with c1: wind_dir = st.number_input("Wind Direction (° FROM, briefing)", 0, 359, 0)
-    with c2: wind_spd = st.number_input("Wind Speed (kt)", 0, 100, 0)
+    with c1:
+        wind_dir = st.number_input("Wind Direction (° FROM, briefing)", min_value=0, max_value=359, value=0, step=1)
+    with c2:
+        wind_spd = st.number_input("Wind Speed (kt)", min_value=0, max_value=100, value=0, step=1)
     headwind_kt, crosswind_kt, cross_from = wind_components(dep_hdg, wind_dir, wind_spd)
     headwind_kt = round(headwind_kt,1); crosswind_kt = round(crosswind_kt,1)
     if headwind_kt >= 0:
         st.info(f"Headwind: **+{headwind_kt} kt**  |  Crosswind: **{crosswind_kt} kt from {cross_from}**")
     else:
         st.warning(f"Tailwind: **{headwind_kt} kt**  |  Crosswind: **{crosswind_kt} kt from {cross_from}**")
-max_cx = st.number_input("Max crosswind advisory (kt)", 0, 50, 20)
+max_cx = st.number_input("Max crosswind advisory (kt)", min_value=0, max_value=50, value=20, step=1)
 if wind_mode!="Manual (head/tailwind in kt)" and crosswind_kt>max_cx:
     st.error(f"⚠ MAX CROSSWIND EXCEEDED: {crosswind_kt} kt (limit {max_cx} kt)")
 if headwind_kt<0 and abs(headwind_kt)>TAILWIND_LIMIT_KT:
@@ -375,10 +351,10 @@ if headwind_kt<0 and abs(headwind_kt)>TAILWIND_LIMIT_KT:
 st.header("3) Weight & Balance")
 use_gw = st.checkbox("Enter Gross Weight directly?", value=False)
 if use_gw:
-    gross = st.number_input("Gross Weight (lbs)", 30000, 80000, 72000, step=100)
+    gross = st.number_input("Gross Weight (lbs)", min_value=30000, max_value=80000, value=72000, step=100)
 else:
-    fuel = st.number_input("Fuel Load (lbs)", 0, 20000, 5000, step=100)
-    ordn = st.number_input("Ordnance Load (lbs)", 0, 20000, 2000, step=100)
+    fuel = st.number_input("Fuel Load (lbs)", min_value=0, max_value=20000, value=5000, step=100)
+    ordn = st.number_input("Ordnance Load (lbs)", min_value=0, max_value=20000, value=2000, step=100)
     gross = EMPTY_WEIGHT_LBS + fuel + ordn
 st.caption(f"Computed Gross Weight: **{int(gross):,} lbs**")
 
@@ -394,95 +370,85 @@ flap_deg = FLAP_OPTIONS[flap_name]
 thrust_choice = st.selectbox("Thrust Rating", THRUST_LEVELS, index=0)
 template = st.selectbox("Kneeboard Template", ["Day","Night","High Contrast"])
 
-# 5) Auto Intersection feasibility (we use full length for the solver; you can add the auto-offset loop as before)
+# 5) Intersection Feasibility (auto) — using full length here
 st.header("5) Intersection Feasibility (auto)")
-margin = st.number_input("Extra safety margin beyond BFL (ft)", 0, 2000, 0, step=50)
-runway_available_ft = length_ft  # (If you add intersections, reduce available ft here)
+margin = st.number_input("Extra safety margin beyond BFL (ft)", min_value=0, max_value=2000, value=0, step=50)
+runway_available_ft = int(length_ft)  # adjust if you later implement intersection offsets
 
 # ======== PERFORMANCE CALCULATION ========
-pa_ft = field_elev  # proxy for PA in DCS
+pa_ft = int(field_elev)  # proxy for PA in DCS
 
 def with_15pct(asd_ft, agd_ft):
     return int(round(asd_ft*1.15)), int(round(agd_ft*1.15))
 
-def compute_static(thrust_mode, rpm_override=None):
+def compute_static(thrust_mode):
     if perf_df is not None and thrust_mode in ("Military","Afterburner"):
-        row = nearest_row(perf_df, flap_deg, thrust_mode, gross, pa_ft, oat)
+        row = nearest_row(perf_df, flap_deg, thrust_mode, int(gross), pa_ft, int(oat))
         if row:
             asd, agd = with_15pct(row["ASD_ft"], row["AGD_ft"])
-            res = {
-                "Vs": ceil_kn(row["Vs_kt"]),
-                "V1": ceil_kn(row["V1_kt"]),
-                "Vr": ceil_kn(row["Vr_kt"]),
-                "V2": ceil_kn(row["V2_kt"]),
+            return {
+                "Vs": ceil_kn(row["Vs_kt"]), "V1": ceil_kn(row["V1_kt"]),
+                "Vr": ceil_kn(row["Vr_kt"]), "V2": ceil_kn(row["V2_kt"]),
                 "stop_ft": asd, "go_ft": agd, "bfl_ft": max(asd,agd),
-                "trim": max(5.0, min(12.0, round(8.0 + (gross-50000)/10000.0,1))),
+                "trim": max(5.0, min(12.0, round(8.0 + (int(gross)-50000)/10000.0,1))),
                 "rpm": int(RPM_AB if thrust_mode=="Afterburner" else RPM_MIL),
                 "source": f"NATOPS ({perf_source})"
             }
-            return res
     # fallback toy:
-    toy = toy_perf(gross, oat, pa_ft, flap_deg,
+    toy = toy_perf(int(gross), int(oat), pa_ft, flap_deg,
                    "Afterburner" if thrust_mode=="Afterburner" else "Military",
-                   headwind_kt, slope_dir, carrier, rpm=None)
+                   float(headwind_kt), float(slope_dir), carrier, rpm=None)
     toy["source"] = "TOY"
     return toy
 
 # Compute based on selection
 if thrust_choice == "Minimum Required (dynamic)":
     if perf_df is not None:
-        dyn = solve_min_required_dynamic(perf_df, flap_deg, gross, pa_ft, oat, runway_available_ft)
+        dyn = solve_min_required_dynamic(perf_df, flap_deg, int(gross), pa_ft, int(oat), int(runway_available_ft))
         if dyn is None:
             st.error("⛔ Not feasible to reach Vr by 60% runway even at AB (with +15% safety). Try lighter weight, cooler temps, opposite runway, or flaps full.")
-            # show AB static for awareness
             base = compute_static("Afterburner")
         else:
             base = dyn
-            base["trim"] = max(5.0, min(12.0, round(8.0 + (gross-50000)/10000.0,1)))
+            base["trim"] = max(5.0, min(12.0, round(8.0 + (int(gross)-50000)/10000.0,1)))
             base["source"] = f"NATOPS ({perf_source})"
             st.success(f"✅ Minimum Required thrust solved: ~**{base['rpm']}% RPM** (alpha={base['alpha']:+.3f}) meets AGD ≤ 60% of runway.")
     else:
         # toy dynamic: bisection on rpm to meet AGD ≤ 60% runway
         def meets(rpm):
-            r = toy_perf(gross, oat, pa_ft, flap_deg, "Minimum", headwind_kt, slope_dir, carrier, rpm=rpm)
-            return r["go_ft"] <= 0.60*runway_available_ft, r
-        # If AB doesn't meet, infeasible
+            r = toy_perf(int(gross), int(oat), pa_ft, flap_deg, "Minimum", float(headwind_kt), float(slope_dir), carrier, rpm=float(rpm))
+            return r["go_ft"] <= int(0.60*runway_available_ft), r
         ok_ab, r_ab = meets(RPM_AB)
         if not ok_ab:
             st.error("⛔ Not feasible to reach Vr by 60% runway even at AB (toy).")
-            base = r_ab
-            base["source"]="TOY"
+            base = r_ab; base["source"]="TOY"
         else:
-            # If MIL meets, search below MIL; else search MIL→AB
             ok_mil, r_mil = meets(RPM_MIL)
-            if ok_mil:
-                lo, hi = RPM_MIN, RPM_MIL
-            else:
-                lo, hi = RPM_MIL, RPM_AB
+            if ok_mil: lo, hi = RPM_MIN, RPM_MIL
+            else:      lo, hi = RPM_MIL, RPM_AB
+            r_best = r_mil if ok_mil else r_ab
             for _ in range(25):
                 mid = 0.5*(lo+hi)
                 ok, r_mid = meets(mid)
                 if ok: hi = mid; r_best = r_mid
                 else:  lo = mid
-            base = r_best
-            base["source"]="TOY"
+            base = r_best; base["source"]="TOY"
             st.success(f"✅ Minimum Required thrust solved (toy): ~**{base['rpm']}% RPM** meets AGD ≤ 60% of runway.")
 else:
     base = compute_static("Military" if thrust_choice=="Military" else "Afterburner")
-    # Feasibility banner for 60% rule (informational)
     target_agd = int(0.60*runway_available_ft)
     if base["go_ft"] <= target_agd:
         st.info(f"AGD {base['go_ft']:,} ft ≤ 60% runway ({target_agd:,} ft).")
     else:
         st.warning(f"AGD {base['go_ft']:,} ft > 60% runway ({target_agd:,} ft). Consider higher thrust or different config.")
 
-# BFL margin & intersection feasibility (based on full runway here; add intersection logic as needed)
-required_len = max(base["bfl_ft"], 0) + margin
+# BFL margin & intersection feasibility (based on full runway here)
+required_len = max(base["bfl_ft"], 0) + int(margin)
 if required_len <= runway_available_ft:
     max_offset = runway_available_ft - required_len
     st.success(f"Intersection feasible. Max allowable offset: **{int(max_offset):,} ft**  (Effective {int(required_len):,} ft).")
 else:
-    st.error(f"Intersection NOT feasible: need {int(required_len):,} ft; available {runway_available_ft:,} ft.")
+    st.error(f"Intersection NOT feasible: need {int(required_len):,} ft; available {int(runway_available_ft):,} ft.")
 
 safety_color = runway_safety_color(runway_available_ft, base["bfl_ft"])
 st.markdown(f"**Runway Safety:** <span style='color:{safety_color}'>{safety_color.upper()}</span>", unsafe_allow_html=True)
@@ -495,12 +461,12 @@ st.write(f"**Accel-Go:** {base['go_ft']:,} ft   **Accel-Stop:** {base['stop_ft']
 st.write(f"**Trim:** {base.get('trim','--')}° NU   **Target RPM:** {base.get('rpm','--')}%")
 st.caption(f"Performance source: **{base.get('source','')}**")
 
-png = kneeboard_png(base, gross, oat, field_elev, flap_name, thrust_choice, carrier, template)
+png = kneeboard_png(base, int(gross), int(oat), int(field_elev), flap_name, thrust_choice, carrier, template)
 st.image(png, caption="VR-Ready Kneeboard (512×768)", use_column_width=True)
 st.download_button("🖼️ Export Takeoff Card (PNG, VR-ready)",
                    data=png, file_name=f"F14_Takeoff_{theatre}_{airport}_{rwy_pair}_{dep_end}.png",
                    mime="image/png")
-pdf = kneeboard_pdf(base, gross, oat, field_elev, flap_name, thrust_choice, carrier, template)
+pdf = kneeboard_pdf(base, int(gross), int(oat), int(field_elev), flap_name, thrust_choice, carrier, template)
 st.download_button("📄 Export Takeoff Card (PDF, VR-ready)",
                    data=pdf, file_name=f"F14_Takeoff_{theatre}_{airport}_{rwy_pair}_{dep_end}.pdf",
                    mime="application/pdf")
