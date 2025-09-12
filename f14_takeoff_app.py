@@ -18,18 +18,23 @@ m2kt = 1.94384
 m2ft = 3.28084
 
 WING_AREA_M2 = 52.5
-# Simplified CLmax table by flap mode
-CLmax_by_flap = {0: 1.2, 20: 1.7, 40: 2.1}
+CLmax_by_flap = {0: 1.2, 20: 1.7, 40: 2.1}  # toy CLmax table
 
 brake_decel_g = 0.35
 rotation_time = 2.0
 empty_weight_lbs = 40000
 
-# Flap options (realistic nomenclature)
 flap_options = {"Flaps Full": 40, "Maneuvering Flaps": 20, "Flaps Up": 0}
+thrust_levels = ["Minimum Required", "Military", "Afterburner"]
+
+# Thrust effect on accelerate-go / BFL (toy multipliers)
+THRUST_FACTOR = {
+    "Minimum Required": 1.10,  # longer go distance
+    "Military": 1.00,          # baseline
+    "Afterburner": 0.80        # shorter go distance
+}
 
 def auto_flap(weight_lbs: float, runway_length_ft: float) -> str:
-    """Rule-of-thumb auto flap selection for the F-14 in DCS."""
     if runway_length_ft < 5000 or weight_lbs > 70000:
         return "Flaps Full"
     elif runway_length_ft < 8000 or weight_lbs > 60000:
@@ -38,7 +43,7 @@ def auto_flap(weight_lbs: float, runway_length_ft: float) -> str:
         return "Flaps Up"
 
 # =========================
-#  Performance Math (Toy model)
+#  Performance Math (Toy model for DCS kneeboard convenience)
 # =========================
 def air_density(alt_ft: float, oat_c: float) -> float:
     alt_m = alt_ft * ft2m
@@ -66,7 +71,7 @@ def runway_safety_color(runway_length_ft: float, balanced_field_ft: float) -> st
 
 def carrier_takeoff(Vr_mps: float, trim_deg: float, carrier_mode: bool):
     if carrier_mode:
-        Vr_mps -= 40 / m2kt  # ~40 kt lower rotate when on the cat
+        Vr_mps -= 40 / m2kt  # lower rotate when on cat
         trim_deg += 2
     return Vr_mps, trim_deg
 
@@ -81,30 +86,29 @@ def recommend_thrust(weight_lbs: float, flap_deg: int, runway_length_ft: float) 
 def find_takeoff_speeds(weight_lbs: float, oat_c: float, field_alt_ft: float,
                         flap_deg: int, thrust_mode: str, wind_kt: float = 0.0,
                         slope_percent: float = 0.0, carrier_mode: bool = False):
-    """Toy model for Vs/V1/Vr/V2 and distances. For DCS kneeboard convenience only."""
+    """
+    Toy model for Vs/V1/Vr/V2 & distances; accelerate-go scaled by THRUST_FACTOR.
+    """
     weight_kg = weight_lbs * lb2kg
     rho = air_density(field_alt_ft, oat_c)
     CLmax = CLmax_by_flap.get(flap_deg, 1.7)
 
     Vs_mps = v_stall(weight_kg, rho, WING_AREA_M2, CLmax)
-    # Headwind reduces reference speeds a bit (toy)
-    Vs_mps = max(0.0, Vs_mps - 0.5 * (wind_kt / m2kt))
+    Vs_mps = max(0.0, Vs_mps - 0.5 * (wind_kt / m2kt))  # simple head/tailwind effect
 
     Vr_mps = Vs_mps * 1.05
     V2_mps = Vs_mps * 1.20
     V1_mps = Vs_mps * 1.04
 
-    # Trim baseline from weight; tweak for carrier
     trim = 8.0 + (weight_lbs - 50000) / 10000.0
     Vr_mps, trim = carrier_takeoff(Vr_mps, trim, carrier_mode)
     trim = max(5.0, min(12.0, trim))
 
-    # Distances (meters) -> feet, include slope factor
     stop_m = accelerate_stop_distance(V1_mps)
-    go_m = accelerate_go_distance(Vr_mps, V2_mps)
+    go_m = accelerate_go_distance(Vr_mps, V2_mps) * THRUST_FACTOR[thrust_mode]  # thrust effect here
     bfl_m = max(stop_m, go_m)
-    slope_factor = 1 + (slope_percent / 100.0)
 
+    slope_factor = 1 + (slope_percent / 100.0)
     stop_ft = stop_m * m2ft * slope_factor
     go_ft = go_m * m2ft * slope_factor
     bfl_ft = bfl_m * m2ft * slope_factor
@@ -125,6 +129,43 @@ def find_takeoff_speeds(weight_lbs: float, oat_c: float, field_alt_ft: float,
     }
 
 # =========================
+#  Helpers: Headwind from briefing + runway heading
+# =========================
+def runway_heads_from_id(runway_id: str):
+    """
+    Parse runway_id like '13/31' into headings [130, 310] deg.
+    Falls back to [0, 180] if parsing fails.
+    """
+    try:
+        parts = runway_id.replace(" ", "").split("/")
+        heads = []
+        for p in parts:
+            num = ""
+            for ch in p:
+                if ch.isdigit():
+                    num += ch
+            if len(num) >= 2:
+                heads.append((int(num[:2]) % 36) * 10)
+            elif len(num) == 1:
+                heads.append((int(num) % 36) * 10)
+        if len(heads) == 1:
+            heads.append((heads[0] + 180) % 360)
+        if len(heads) >= 2:
+            return [heads[0], heads[1]]
+    except:
+        pass
+    return [0, 180]
+
+def headwind_component(runway_heading_deg: float, wind_dir_deg: float, wind_speed_kt: float) -> float:
+    """
+    Positive = headwind, negative = tailwind. Angles in degrees.
+    """
+    # angle between wind direction (from which it blows) and runway heading
+    theta = math.radians((wind_dir_deg - runway_heading_deg) % 360)
+    # Headwind component (wind is FROM direction; cos positive => headwind)
+    return wind_speed_kt * math.cos(theta)
+
+# =========================
 #  VR Kneeboard Graphics
 # =========================
 def draw_flap_indicator(draw: ImageDraw.ImageDraw, flap_name: str, position, size=100):
@@ -135,7 +176,7 @@ def draw_flap_indicator(draw: ImageDraw.ImageDraw, flap_name: str, position, siz
     draw.text((x + size / 2, y + size // 4 + 5), flap_name, fill="black", anchor="ms")
 
 def generate_png_image_vr(results, weight, temp, alt, flap_name, carrier_mode, template="Day"):
-    scale = 6  # big for VR; we downscale to 512x768 at the end (DCS kneeboard)
+    scale = 6  # draw large, downscale to 512x768 for DCS kneeboard
     width, height = 512 * scale, 768 * scale
     colors = {"Day": ("white", "black"), "Night": ("#111111", "#FFFFFF"), "High Contrast": ("#FFFF00", "#000000")}
     bg, fg = colors.get(template, ("white", "black"))
@@ -181,11 +222,9 @@ def generate_png_image_vr(results, weight, temp, alt, flap_name, carrier_mode, t
         font=font_bold,
         fill=fg,
     )
-
     if carrier_mode:
         draw.text((50, 600), "CARRIER MODE", font=font_bold, fill="red")
 
-    # Downscale to DCS kneeboard resolution
     img = img.resize((512, 768), resample=Image.LANCZOS)
     out = io.BytesIO()
     img.save(out, format="PNG")
@@ -204,14 +243,12 @@ def generate_pdf_vr(results, weight, temp, alt, flap_name, carrier_mode, templat
     return buf
 
 # =========================
-#  UI: App
+#  UI
 # =========================
 st.set_page_config(page_title="F-14B Takeoff Calculator (DCS VR)", layout="centered")
 st.title("F-14B Takeoff Calculator (DCS VR)")
 
-# -------------------------
-# Load DCS Airfields CSV (robust, blanks allowed)
-# -------------------------
+# Load DCS airfields CSV with blanks allowed
 dcs_df = pd.read_csv(
     "dcs_airports.csv",
     dtype={"map": "string", "airport_name": "string", "runway_id": "string"},
@@ -225,7 +262,7 @@ for col in ["length_ft", "slope_percent", "le_elev_ft", "he_elev_ft"]:
         dcs_df[col] = np.nan
 
 # -------------------------
-# Weight entry
+# Weight / Conditions
 # -------------------------
 st.subheader("Weight / Balance")
 use_gw = st.checkbox("Enter Gross Weight directly?", value=False)
@@ -237,150 +274,193 @@ else:
     weight = empty_weight_lbs + fuel_lbs + ordnance_lbs
 st.caption(f"Computed Gross Weight: **{int(weight):,} lbs**")
 
-# -------------------------
-# Atmosphere / Field
-# -------------------------
 st.subheader("Conditions")
 temp = st.number_input("OAT (°C)", -40, 55, 15)
 alt = st.number_input("Field Elevation (ft)", 0, 12000, 0)
-wind_kt = st.number_input("Headwind (+) / Tailwind (-) (kt)", -40, 40, 0)
+
+# -------------------------
+# Theatre → Airport → Runway
+# -------------------------
+st.subheader("DCS Theatre / Airport / Runway")
+theatres = sorted(dcs_df["map"].dropna().unique())
+selected_map = st.selectbox("Theatre", theatres)
+
+df_map = dcs_df[dcs_df["map"] == selected_map].copy()
+airports = sorted(df_map["airport_name"].dropna().unique())
+airport_name = st.selectbox("Airport", airports)
+
+df_airport = df_map[df_map["airport_name"] == airport_name].copy()
+runways = df_airport["runway_id"].dropna().unique()
+runway_id = st.selectbox("Runway", runways)
+
+# Choose runway end for headwind calc
+rwy_heads = runway_heads_from_id(runway_id)
+rwy_end = st.radio("Runway End (departure)", [f"{runway_id.split('/')[0]} ({rwy_heads[0]}°)", f"{runway_id.split('/')[1]} ({rwy_heads[1]}°)"], horizontal=True)
+runway_heading = rwy_heads[0] if rwy_end.startswith(runway_id.split('/')[0]) else rwy_heads[1]
+
+row = df_airport[df_airport["runway_id"] == runway_id].iloc[0]
+stored_length = row.get("length_ft", np.nan)
+stored_slope = row.get("slope_percent", np.nan)
+
+# -------------------------
+# Wind Input Mode
+# -------------------------
+st.subheader("Wind / Briefing")
+wind_mode = st.radio("Headwind input", ["Manual (head/tailwind in kt)", "From DCS Mission Briefing"], index=0)
+
+if wind_mode == "Manual (head/tailwind in kt)":
+    wind_kt = st.number_input("Headwind (+) / Tailwind (-) (kt)", -40, 40, 0)
+else:
+    colw1, colw2 = st.columns(2)
+    with colw1:
+        wind_dir_deg = st.number_input("Wind Direction (° FROM, briefing)", 0, 359, 0)
+    with colw2:
+        wind_speed_kt = st.number_input("Wind Speed (kt)", 0, 100, 0)
+    # Compute headwind component from briefing
+    wind_kt = round(headwind_component(runway_heading, wind_dir_deg, wind_speed_kt), 1)
+    if wind_kt >= 0:
+        st.info(f"Computed headwind component: **+{wind_kt} kt** (Runway {rwy_end.split()[0]})")
+    else:
+        st.warning(f"Computed tailwind component: **{wind_kt} kt** (Runway {rwy_end.split()[0]})")
+
 carrier_mode = st.checkbox("Carrier Ops Mode (Catapult)", value=False)
 
 # -------------------------
-# DCS Airport → Runway → Intersection
+# Intersection Takeoff Options
 # -------------------------
-st.subheader("DCS Airport / Runway")
-airport_name = st.selectbox("Airport", sorted(dcs_df["airport_name"].dropna().unique()))
-subset = dcs_df[dcs_df["airport_name"] == airport_name].copy()
-
-maps_for_airport = subset["map"].dropna().unique()
-selected_map = st.selectbox("Map / Theater", maps_for_airport) if len(maps_for_airport) > 1 else (maps_for_airport[0] if len(maps_for_airport)==1 else "DCS")
-if isinstance(selected_map, str):
-    subset = subset[subset["map"].fillna("DCS") == selected_map]
-
-runway_id = st.selectbox("Runway", subset["runway_id"].dropna().unique())
-row = subset[subset["runway_id"] == runway_id].iloc[0]
-
-stored_length = row.get("length_ft", np.nan)
-stored_slope = row.get("slope_percent", np.nan)
-le_elev = row.get("le_elev_ft", np.nan)
-he_elev = row.get("he_elev_ft", np.nan)
-
-st.markdown("#### Runway Data")
-c1, c2 = st.columns(2)
-with c1:
-    effective_length_base = st.number_input(
-        "Runway Length (ft)",
-        min_value=1000, max_value=20000,
-        value=int(stored_length) if pd.notna(stored_length) else 8000,
-        step=50
-    )
-with c2:
-    slope_percent = st.number_input(
-        "Runway Slope (%)",
-        min_value=-5.0, max_value=5.0, value=float(stored_slope) if pd.notna(stored_slope) else 0.0, step=0.1
-    )
-
-intersection_offset_ft = st.number_input(
-    "Intersection Offset (ft)",
-    min_value=0, max_value=effective_length_base, value=0, step=50
+st.subheader("Intersection Takeoff")
+# Base runway values (ask if missing)
+base_length_ft = int(stored_length) if not np.isnan(stored_length) else st.number_input(
+    "Runway Length missing — enter value (ft):", min_value=1000, max_value=20000, value=8000, step=50
 )
-effective_runway_ft = max(0, effective_length_base - intersection_offset_ft)
-st.caption(f"Effective runway available for takeoff: **{effective_runway_ft:,} ft**")
-if effective_runway_ft < 1500:
-    st.warning("Effective runway is very short. Verify your intersection offset/runway.")
-
-# Offer a downloadable one-row CSV “fix” if user corrected fields
-def _csv_escape(val):
-    if val is None or (isinstance(val, float) and np.isnan(val)):
-        return ""
-    s = str(val)
-    if any(ch in s for ch in [",", "\"", "\n"]):
-        s = "\"" + s.replace("\"", "\"\"") + "\""
-    return s
-
-updated_row = {
-    "map": row.get("map", selected_map if isinstance(selected_map, str) else "DCS"),
-    "airport_name": row.get("airport_name", airport_name),
-    "runway_id": row.get("runway_id", runway_id),
-    "length_ft": effective_length_base,
-    "slope_percent": slope_percent,
-    "le_elev_ft": le_elev if pd.notna(le_elev) else "",
-    "he_elev_ft": he_elev if pd.notna(he_elev) else "",
-}
-line = (
-    f"{_csv_escape(updated_row['map'])},"
-    f"{_csv_escape(updated_row['airport_name'])},"
-    f"{_csv_escape(updated_row['runway_id'])},"
-    f"{_csv_escape(updated_row['length_ft'])},"
-    f"{_csv_escape(updated_row['slope_percent'])},"
-    f"{_csv_escape(updated_row['le_elev_ft'])},"
-    f"{_csv_escape(updated_row['he_elev_ft'])}\n"
+slope_percent_val = float(stored_slope) if not np.isnan(stored_slope) else st.number_input(
+    "Runway Slope missing — enter value (%):", min_value=-5.0, max_value=5.0, value=0.0, step=0.1
 )
-st.markdown("##### Update your CSV")
-st.write("If you corrected values above, download this one-row CSV and paste it into your `dcs_airports.csv`:")
-st.code("map,airport_name,runway_id,length_ft,slope_percent,le_elev_ft,he_elev_ft\n" + line, language="csv")
-st.download_button(
-    "⬇️ Download updated CSV row",
-    data="map,airport_name,runway_id,length_ft,slope_percent,le_elev_ft,he_elev_ft\n" + line,
-    file_name=f"updated_{airport_name}_{runway_id}.csv",
-    mime="text/csv"
-)
+
+consider_intersection = st.checkbox("Consider intersection takeoff?", value=False)
+intersection_mode = "None"
+manual_offset_ft = 0
+auto_margin_ft = 0
+
+if consider_intersection:
+    intersection_mode = st.radio("Intersection mode", ["Manual offset", "Auto (most restrictive)"], index=1)
+    if intersection_mode == "Manual offset":
+        manual_offset_ft = st.number_input("Manual intersection offset (ft)", min_value=0, max_value=base_length_ft, value=0, step=50)
+    else:
+        auto_margin_ft = st.number_input("Auto margin (ft) — extra safety beyond BFL", min_value=0, max_value=2000, value=0, step=50)
 
 # -------------------------
 # Flaps / Thrust
 # -------------------------
 st.subheader("Configuration")
 auto_flap_sel = st.checkbox("Auto-select flap setting?", value=True)
-if auto_flap_sel:
-    flap_name = auto_flap(weight, effective_runway_ft)
-else:
-    flap_name = st.selectbox("Flap Setting", list(flap_options.keys()), index=1)
-flap_deg = flap_options[flap_name]
-
-thrust_mode = st.selectbox("Thrust Rating", ["Afterburner", "Military", "Minimum Required"], index=1)
+thrust_mode_user = st.selectbox("Thrust Rating (your selection)", thrust_levels, index=1)
 template = st.selectbox("Kneeboard Template", ["Day", "Night", "High Contrast"])
-
-auto_thrust = recommend_thrust(weight, flap_deg, effective_runway_ft)
-st.info(f"Auto Thrust Recommendation: {auto_thrust}")
 
 # =========================
 #  Calculate & Export
 # =========================
 if st.button("Calculate"):
-    res = find_takeoff_speeds(
-        weight_lbs=weight,
-        oat_c=temp,
-        field_alt_ft=alt,
-        flap_deg=flap_deg,
-        thrust_mode=thrust_mode,
-        wind_kt=wind_kt,
-        slope_percent=slope_percent,
-        carrier_mode=carrier_mode
-    )
+    # First pass: choose flaps based on base runway (will re-evaluate after intersection effective length)
+    flap_name_preview = auto_flap(weight, base_length_ft) if auto_flap_sel else None
+    flap_name = flap_name_preview if auto_flap_sel else st.session_state.get("flap_name_manual", None)
+    if not flap_name:
+        # If not auto and no previous manual, default Maneuvering
+        flap_name = "Maneuvering Flaps"
+    flap_deg = flap_options[flap_name]
 
+    # Initial performance with user's thrust to get BFL (no intersection yet)
+    res_initial = find_takeoff_speeds(
+        weight_lbs=weight, oat_c=temp, field_alt_ft=alt,
+        flap_deg=flap_deg, thrust_mode=thrust_mode_user,
+        wind_kt=wind_kt, slope_percent=slope_percent_val, carrier_mode=carrier_mode
+    )
+    bfl_needed_user = res_initial["Balanced Field Length (ft)"]
+
+    # Determine intersection
+    if consider_intersection:
+        if intersection_mode == "Manual offset":
+            effective_runway_ft = max(0, base_length_ft - manual_offset_ft)
+        else:
+            # AUTO: tightest effective runway that still meets BFL (with user's thrust initially)
+            required_len = max(0, bfl_needed_user + auto_margin_ft)
+            effective_runway_ft = max(0, min(base_length_ft, required_len))
+            manual_offset_ft = max(0, base_length_ft - effective_runway_ft)
+    else:
+        effective_runway_ft = base_length_ft
+        manual_offset_ft = 0
+
+    # Re-select flaps with effective runway (if auto)
+    if auto_flap_sel:
+        flap_name = auto_flap(weight, effective_runway_ft)
+        flap_deg = flap_options[flap_name]
+
+    # Now ensure thrust is sufficient for effective runway: try user, else auto-upgrade
+    thrust_final = thrust_mode_user
+    thrust_overridden = False
+
+    # Function to see if given thrust meets BFL within available runway
+    def meets_bfl(thrust_mode_chk: str) -> bool:
+        res_chk = find_takeoff_speeds(
+            weight_lbs=weight, oat_c=temp, field_alt_ft=alt,
+            flap_deg=flap_deg, thrust_mode=thrust_mode_chk,
+            wind_kt=wind_kt, slope_percent=slope_percent_val, carrier_mode=carrier_mode
+        )
+        return res_chk["Balanced Field Length (ft)"] <= effective_runway_ft, res_chk
+
+    ok, res_try = meets_bfl(thrust_final)
+    if not ok:
+        # Attempt minimal auto bump to next levels
+        for lvl in thrust_levels[thrust_levels.index(thrust_mode_user):] + thrust_levels:
+            ok2, res_try2 = meets_bfl(lvl)
+            if ok2:
+                if lvl != thrust_mode_user:
+                    thrust_overridden = True
+                thrust_final = lvl
+                res_try = res_try2
+                break
+
+    res = res_try  # final results with adequate thrust
+
+    # Display summary
     st.subheader("Results")
+    st.write(f"**Theatre:** {selected_map}   **Airport:** {airport_name}   **Runway:** {runway_id}   **Departure end:** {rwy_end}")
+    st.write(f"**Runway length (base):** {base_length_ft:,} ft   **Effective runway:** {effective_runway_ft:,} ft")
+    if consider_intersection:
+        st.write(f"**Intersection mode:** {intersection_mode}   **Offset:** {manual_offset_ft:,} ft   **Margin (auto):** {auto_margin_ft if intersection_mode!='Manual offset' else 0} ft")
+    st.write(f"**Slope:** {slope_percent_val:.1f}%   **Wind component used:** {wind_kt:+.1f} kt")
+
+    # Thrust line with override highlight
+    if thrust_overridden:
+        st.markdown(f"**Thrust (your selection):** <span style='color:#B00020;'>{thrust_mode_user}</span>  →  "
+                    f"**OVERRIDDEN to:** <span style='color:#00B050;'>{thrust_final}</span>",
+                    unsafe_allow_html=True)
+    else:
+        st.write(f"**Thrust:** {thrust_final}")
+
+    st.write(f"**Flaps:** {flap_name}")
+
     for k, v in res.items():
         st.write(f"**{k}:** {v}")
 
     safety_color = runway_safety_color(effective_runway_ft, res["Balanced Field Length (ft)"])
     st.markdown(f"**Runway Safety:** <span style='color:{safety_color}'>{safety_color.upper()}</span>", unsafe_allow_html=True)
 
-    # PNG
+    # PNG kneeboard
     png_bytes = generate_png_image_vr(res, weight, temp, alt, flap_name, carrier_mode, template)
     st.image(png_bytes, caption="VR-Ready Kneeboard (512×768)", use_column_width=True)
     st.download_button(
         "🖼️ Export Takeoff Card (PNG, VR-ready)",
         data=png_bytes,
-        file_name=f"F14_Takeoff_{airport_name}_{runway_id}.png",
+        file_name=f"F14_Takeoff_{selected_map}_{airport_name}_{runway_id}.png",
         mime="image/png"
     )
 
-    # PDF (same graphics as PNG)
+    # PDF kneeboard
     pdf_bytes = generate_pdf_vr(res, weight, temp, alt, flap_name, carrier_mode, template)
     st.download_button(
         "📄 Export Takeoff Card (PDF, VR-ready)",
         data=pdf_bytes,
-        file_name=f"F14_Takeoff_{airport_name}_{runway_id}.pdf",
+        file_name=f"F14_Takeoff_{selected_map}_{airport_name}_{runway_id}.pdf",
         mime="application/pdf"
     )
