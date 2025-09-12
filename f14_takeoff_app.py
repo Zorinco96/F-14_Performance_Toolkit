@@ -1,5 +1,5 @@
 import streamlit as st
-import math, io, os, requests, pandas as pd
+import math, io, pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import portrait
@@ -94,25 +94,8 @@ def find_takeoff_speeds(weight_lbs, oat_c, alt_ft, flap_deg, thrust_mode, wind_k
     }
 
 # -----------------------------
-# Download free OurAirports CSV if missing
+# Load Runway Data Locally
 # -----------------------------
-RUNWAYS_URL = "https://ourairports.com/data/runways.csv"
-AIRPORTS_URL = "https://ourairports.com/data/airports.csv"
-
-def ensure_csv(filename, url):
-    if not os.path.exists(filename):
-        st.info(f"{filename} not found, downloading...")
-        r = requests.get(url)
-        if r.status_code == 200:
-            with open(filename, "wb") as f:
-                f.write(r.content)
-            st.success(f"{filename} downloaded successfully!")
-        else:
-            st.error(f"Failed to download {filename}. Check URL or internet connection.")
-
-ensure_csv("runways.csv", RUNWAYS_URL)
-ensure_csv("airports.csv", AIRPORTS_URL)
-
 runways_df = pd.read_csv("runways.csv")
 
 def get_runway_data_free(icao_code, runway_id):
@@ -195,13 +178,13 @@ alt = st.number_input("Field Elevation (ft)",0,8000,0)
 # Airport + Runway
 dep_airport = st.text_input("Departure Airport ICAO","KJFK")
 dep_runway = st.text_input("Runway ID","04L")
-if st.button("Fetch Runway Data (Free CSV)"):
+if st.button("Fetch Runway Data"):
     runway_info = get_runway_data_free(dep_airport, dep_runway)
     if runway_info:
         st.session_state.runway_length_ft = runway_info["length_ft"]
         st.session_state.slope_percent = runway_info["slope_percent"]
         st.success(f"Runway Length: {runway_info['length_ft']} ft, Slope: {runway_info['slope_percent']}%")
-    else: st.error("Runway data not found in free database.")
+    else: st.error("Runway data not found in CSV database.")
 
 runway_length_ft = st.number_input("Runway Length (ft)",3000,12000,st.session_state.get("runway_length_ft",8000))
 slope_percent = st.number_input("Runway Slope (%)",-5,5,st.session_state.get("slope_percent",0))
