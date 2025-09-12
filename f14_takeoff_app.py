@@ -94,15 +94,9 @@ def find_takeoff_speeds(weight_lbs, oat_c, alt_ft, flap_deg, thrust_mode, wind_k
     }
 
 # -----------------------------
-# Load Runway Data Locally
+# Load DCS Airport/Runway Data
 # -----------------------------
-runways_df = pd.read_csv("runways.csv")
-
-def get_runway_data_free(icao_code, runway_id):
-    matches = runways_df[(runways_df['airport_ident']==icao_code) & (runways_df['le_ident']==runway_id)]
-    if len(matches)==0: return None
-    rwy = matches.iloc[0]
-    return {"length_ft":int(rwy['length_ft']), "slope_percent":0.0}  # slope not available
+dcs_df = pd.read_csv("dcs_airports.csv")
 
 # -----------------------------
 # VR Graphics Functions
@@ -160,7 +154,7 @@ def generate_pdf_vr(results, weight, temp, alt, flap_name, carrier_mode, templat
 # Streamlit UI
 # -----------------------------
 st.set_page_config(layout="centered")
-st.title("F-14B Takeoff Calculator (VR)")
+st.title("F-14B Takeoff Calculator (DCS VR)")
 
 # Weight
 use_gw = st.checkbox("Enter Gross Weight directly?", value=False)
@@ -175,24 +169,24 @@ else:
 temp = st.number_input("OAT (°C)", -30, 50, 15)
 alt = st.number_input("Field Elevation (ft)",0,8000,0)
 
-# Airport + Runway
-dep_airport = st.text_input("Departure Airport ICAO","KJFK")
-dep_runway = st.text_input("Runway ID","04L")
-if st.button("Fetch Runway Data"):
-    runway_info = get_runway_data_free(dep_airport, dep_runway)
-    if runway_info:
-        st.session_state.runway_length_ft = runway_info["length_ft"]
-        st.session_state.slope_percent = runway_info["slope_percent"]
-        st.success(f"Runway Length: {runway_info['length_ft']} ft, Slope: {runway_info['slope_percent']}%")
-    else: st.error("Runway data not found in CSV database.")
+# -----------------------------
+# DCS Airport & Runway Selection
+# -----------------------------
+airport_name = st.selectbox("Select DCS Airport", sorted(dcs_df["airport_name"].unique()))
+runways = dcs_df[dcs_df["airport_name"]==airport_name]
+runway_id = st.selectbox("Select Runway", runways["runway_id"])
+selected_runway = runways[runways["runway_id"]==runway_id].iloc[0]
+runway_length_ft = selected_runway["length_ft"]
+slope_percent = selected_runway["slope_percent"]
 
-runway_length_ft = st.number_input("Runway Length (ft)",3000,12000,st.session_state.get("runway_length_ft",8000))
-slope_percent = st.number_input("Runway Slope (%)",-5,5,st.session_state.get("slope_percent",0))
+# Intersection Takeoff
+intersection_offset_ft = st.number_input("Intersection Offset (ft)", 0, runway_length_ft, 0)
+effective_runway_ft = runway_length_ft - intersection_offset_ft
 
 # Flaps
 auto_flap_sel = st.checkbox("Auto-select flap setting?", value=True)
 if auto_flap_sel:
-    flap_name = auto_flap(weight, runway_length_ft)
+    flap_name = auto_flap(weight, effective_runway_ft)
 else:
     flap_name = st.selectbox("Flap Setting", list(flap_options.keys()), index=1)
 flap_deg = flap_options[flap_name]
@@ -202,7 +196,7 @@ thrust_mode = st.selectbox("Thrust Rating", ["Afterburner","Military","Minimum R
 carrier_mode = st.checkbox("Carrier Ops Mode (Catapult)", value=False)
 template = st.selectbox("Kneeboard Template", ["Day","Night","High Contrast"])
 wind_kt = st.number_input("Headwind (+) / Tailwind (-) (kt)", -30,30,0)
-auto_thrust = recommend_thrust(weight, flap_deg, runway_length_ft)
+auto_thrust = recommend_thrust(weight, flap_deg, effective_runway_ft)
 st.info(f"Auto Thrust Recommendation: {auto_thrust}")
 
 # Calculation
@@ -210,14 +204,9 @@ if st.button("Calculate"):
     res = find_takeoff_speeds(weight,temp,alt,flap_deg,thrust_mode,wind_kt,slope_percent,carrier_mode)
     st.subheader("Results")
     for k,v in res.items(): st.write(f"**{k}:** {v}")
-    color = runway_safety_color(runway_length_ft,res["Balanced Field Length (ft)"])
+    color = runway_safety_color(effective_runway_ft,res["Balanced Field Length (ft)"])
     st.markdown(f"**Runway Safety:** <span style='color:{color}'>{color.upper()}</span>",unsafe_allow_html=True)
 
     # PNG VR Export
     png_bytes = generate_png_image_vr(res,weight,temp,alt,flap_name,carrier_mode,template)
-    st.image(png_bytes, caption="VR-Ready Kneeboard Preview", use_column_width=True)
-    st.download_button("🖼️ Export Takeoff Card (PNG, VR-ready)", data=png_bytes, file_name="F14_Takeoff_Card_VR.png", mime="image/png")
-
-    # PDF VR Export
-    pdf_bytes = generate_pdf_vr(res,weight,temp,alt,flap_name,carrier_mode,template)
-    st.download_button("📄 Export Takeoff Card (PDF, VR-ready)", data=pdf_bytes, file_name="F14_Takeoff_Card_VR.pdf", mime="application/pdf")
+    st.image(png
