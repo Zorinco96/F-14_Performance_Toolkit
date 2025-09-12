@@ -1,0 +1,122 @@
+map,airport_name,runway_id,length_ft,slope_percent,le_elev_ft,he_elev_ft
+Caucasus,Anapa - Vityazevo,04/22,8202,0,141,141
+Caucasus,Batumi,13/31,8050,0,33,33
+Caucasus,Beslan,10/28,9890,0,1722,1722
+Caucasus,Gelendzhik,01/19,6560,0,72,72
+Caucasus,Gudauta,15/33,8200,0,69,69
+Caucasus,Kobuleti,07/25,7870,0,59,59
+Caucasus,Krasnodar-Center,09/27,7215,0,98,98
+Caucasus,Krasnodar-Pashkovsky,05R/23L,10170,0,112,112
+Caucasus,Krymsk,04/22,8530,0,66,66
+Caucasus,Kutaisi,07/25,8202,0,148,148
+Caucasus,Maykop-Khanskaya,04/22,10495,0,591,591
+Caucasus,Mineralnye Vody,12/30,13350,0,1050,1050
+Caucasus,Mozdok,08/26,9850,0,512,512
+Caucasus,Nalchik,06/24,7545,0,1410,1410
+Caucasus,Novorossiysk,04/22,4590,0,114,114
+Caucasus,Senaki-Kolkhi,09/27,7790,0,43,43
+Caucasus,Sochi-Adler,06/24,10170,0,98,98
+Caucasus,Sukhumi-Babushara,12/30,11800,0,43,43
+Caucasus,Tbilisi-Lochini,13/31,11800,0,1624,1624
+Caucasus,Tbilisi-Soganlug,13/31,8120,0,1464,1464
+Caucasus,Vaziani,13/31,8150,0,1478,1478
+Persian Gulf,Abu Dhabi Intl,13R/31L,"",,"",""
+Persian Gulf,Abu Dhabi Intl,13L/31R,"",,"",""
+Persian Gulf,Al Ain Intl,01/19,"",,"",""
+Persian Gulf,Al Bateen,13/31,"",,"",""
+Persian Gulf,Al Dhafra AB,13R/31L,"",,"",""
+Persian Gulf,Al Dhafra AB,13L/31R,"",,"",""
+Persian Gulf,Al Maktoum (DWC),12/30,"",,"",""
+Persian Gulf,Al Minhad AB,09/27,"",,"",""
+Persian Gulf,Bandar Abbas,08/26,"",,"",""
+Persian Gulf,Bandar Lengeh,08/26,"",,"",""
+Persian Gulf,Dubai Intl,12R/30L,"",,"",""
+Persian Gulf,Dubai Intl,12L/30R,"",,"",""
+Persian Gulf,Dubai Intl,12C/30C,"",,"",""
+Persian Gulf,Fujairah Intl,11/29,"",,"",""
+Persian Gulf,Khasab,08/26,6000,0,20,20
+Persian Gulf,Kish Intl,09/27,"",,"",""
+Persian Gulf,Lar AB,11/29,"",,"",""
+Persian Gulf,Lavan Island,11/29,"",,"",""
+Persian Gulf,Liwa AB,13/31,"",,"",""
+Persian Gulf,Qeshm Intl,14/32,"",,"",""
+Persian Gulf,Ras Al Khaimah,16/34,"",,"",""
+Persian Gulf,Sharjah Intl,12/30,"",,"",""
+Persian Gulf,Sir Abu Nuayr,16/34,"",,"",""
+Persian Gulf,Sirri Island,12/30,"",,"",""
+Syria,Aleppo Intl,09/27,"",,"",""
+Syria,Bassel Al-Assad (Latakia),17/35,"",,"",""
+Syria,Beirut Rafic Hariri,03/21,"",,"",""
+Syria,Beirut Rafic Hariri,16/34,"",,"",""
+Syria,Damascus Intl,05L/23R,"",,"",""
+Syria,Damascus Intl,05R/23L,"",,"",""
+Syria,Hama,09/27,"",,"",""
+Syria,Hatay,04/22,"",,"",""
+Syria,Incirlik AB,05/23,"",,"",""
+Syria,Khalkhalah,08/26,"",,"",""
+Syria,Marj Ruhayyil,10/28,"",,"",""
+Syria,Palmyra,03/21,"",,"",""
+Syria,Ramat David,09/27,"",,"",""
+Syria,Rayak,03/21,"",,"",""
+Syria,Tabqa,08/26,"",,"",""
+Syria,Tiyas (T-4),08/26,"",,"",""
+NTTR (Nevada),Nellis AFB,03L/21R,"",,"",""
+NTTR (Nevada),Nellis AFB,03R/21L,"",,"",""
+NTTR (Nevada),Creech AFB,08/26,"",,"",""
+NTTR (Nevada),Groom Lake (Homey),14/32,"",,"",""
+NTTR (Nevada),Beatty,16/34,"",,"",""
+NTTR (Nevada),Boulder City,09L/27R,"",,"",""
+NTTR (Nevada),Boulder City,09R/27L,"",,"",""
+NTTR (Nevada),Henderson Exec,17L/35R,"",,"",""
+NTTR (Nevada),Henderson Exec,17R/35L,"",,"",""
+NTTR (Nevada),Jean,02L/20R,"",,"",""
+NTTR (Nevada),Jean,02R/20L,"",,"",""
+NTTR (Nevada),Laughlin/Bullhead,16/34,"",,"",""
+NTTR (Nevada),Lincoln County,09/27,"",,"",""
+NTTR (Nevada),Mesquite,01/19,"",,"",""
+NTTR (Nevada),North Las Vegas,12L/30R,"",,"",""
+NTTR (Nevada),North Las Vegas,12R/30L,"",,"",""
+NTTR (Nevada),North Las Vegas,07/25,"",,"",""
+NTTR (Nevada),Tonopah Test Range,14/32,"",,"",""
+NTTR (Nevada),Tonopah (KTNX),12/30,"",,"",""
+Marianas,Andersen AFB,06L/24R,"",,"",""
+Marianas,Andersen AFB,06R/24L,"",,"",""
+Marianas,Antonio B. Won Pat,06L/24R,"",,"",""
+Marianas,Antonio B. Won Pat,06R/24L,"",,"",""
+Marianas,Saipan Intl,07/25,"",,"",""
+Marianas,Tinian Intl,08/26,"",,"",""
+Sinai,Cairo Intl,05L/23R,"",,"",""
+Sinai,Cairo Intl,05C/23C,"",,"",""
+Sinai,Cairo Intl,05R/23L,"",,"",""
+Sinai,El Arish Intl,10/28,"",,"",""
+Sinai,Sharm El Sheikh,04L/22R,"",,"",""
+Sinai,Sharm El Sheikh,04R/22L,"",,"",""
+Sinai,Hatzor,10/28,"",,"",""
+Sinai,Hatzor,05/23,"",,"",""
+Sinai,Hatzerim,08/26,"",,"",""
+Sinai,Habonim (Ramat David Aux),03/21,"",,"",""
+Sinai,Ramon Intl,01/19,"",,"",""
+Sinai,Ovda,03/21,"",,"",""
+Normandy 2.0,Beauvais-Tillé,12/30,"",,"",""
+Normandy 2.0,Deauville,12/30,"",,"",""
+Normandy 2.0,Evreux-Fauville,04/22,"",,"",""
+Normandy 2.0,Le Havre Octeville,04/22,"",,"",""
+Normandy 2.0,Orly,08/26,"",,"",""
+Normandy 2.0,Orly,02/20,"",,"",""
+Normandy 2.0,Le Bourget,09/27,"",,"",""
+Normandy 2.0,Le Bourget,07/25,"",,"",""
+Normandy 2.0,Le Bourget,03/21,"",,"",""
+The Channel,Abbeville,02/20,"",,"",""
+The Channel,Manston,10/28,"",,"",""
+The Channel,Lympne,04/22,"",,"",""
+The Channel,High Halden,12/30,"",,"",""
+South Atlantic,Mount Pleasant,10/28,"",,"",""
+South Atlantic,Mount Pleasant,03/21,"",,"",""
+South Atlantic,Port Stanley (CAPA),09/27,"",,"",""
+South Atlantic,San Carlos FOB,01/19,"",,"",""
+South Atlantic,Puerto Santa Cruz,10/28,"",,"",""
+Kola,Sorkamon,18/36,"",,"",""
+Kola,Monchegorsk,09/27,"",,"",""
+Kola,Severomorsk-1,15/33,"",,"",""
+Kola,Severomorsk-3,03/21,"",,"",""
+Kola,Apatity (Khibiny),02/20,"",,"",""
