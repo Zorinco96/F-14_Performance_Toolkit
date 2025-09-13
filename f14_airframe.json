@@ -1,0 +1,5 @@
+{
+  "le_mac_in":  (LEMAC position in inches),
+  "mac_in":     (MAC length in inches),
+  "empty_weight_lb": 41780
+}
