@@ -1,0 +1,14 @@
+station_id,name,arm_in,unit_weight_lb,max_qty
+1A-AIM9,Left Glove Rail (AIM-9),290,190,1
+1B-AIM7,Left Glove Pylon (AIM-7),300,510,1
+1B-TANK,Left External Tank (267 gal),300,1900,1
+2-AIM7,Forward Fuselage Left (AIM-7),310,510,1
+3-AIM54,Fuselage Pallet Left Fwd (AIM-54),330,1000,1
+4-AIM54,Fuselage Pallet Left Aft (AIM-54),350,1000,1
+5-AIM54,Fuselage Pallet Right Aft (AIM-54),350,1000,1
+6-AIM54,Fuselage Pallet Right Fwd (AIM-54),330,1000,1
+7-AIM7,Forward Fuselage Right (AIM-7),310,510,1
+8B-AIM7,Right Glove Pylon (AIM-7),300,510,1
+8B-TANK,Right External Tank (267 gal),300,1900,1
+8A-AIM9,Right Glove Rail (AIM-9),290,190,1
+8B-LTP,Right Glove Pylon (LANTIRN Pod),300,440,1
