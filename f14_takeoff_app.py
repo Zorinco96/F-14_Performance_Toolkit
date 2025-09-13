@@ -34,11 +34,19 @@ def classify_thrust(rpm_value: float) -> str:
         return "Military"
     return "Reduced"
 
-# Config options
+# Flap options (auto-select defaults to Maneuvering)
 FLAP_OPTIONS = {"Flaps Up": 0, "Maneuvering Flaps": 20, "Flaps Full": 40}
 TAILWIND_LIMIT_KT = 10  # “Max tailwind” advisory
 
 def ceil_kn(x): return int(math.ceil(float(x)))
+
+# ======== Below-MIL extrapolation controls ========
+# Distances expand exponentially below MIL, scaled from the MIL↔AB contrast.
+BELOW_MIL_DISTANCE_BETA = 1.8   # 1.5–2.5 typical; higher = more conservative
+# Speeds drop gently below MIL (fraction of MIL↔AB delta per unit |alpha|).
+BELOW_MIL_SPEED_BETA    = 0.35  # 0.2–0.5 typical
+# Don’t let speeds drop more than this fraction below MIL (sanity clamp).
+MAX_SPEED_DROP_FRAC     = 0.06  # e.g., max 6% under MIL
 
 # =========================
 # Performance-table loading (NATOPS digitized CSVs)
@@ -101,16 +109,31 @@ def nearest_row(df, flap_deg, thrust, gw_lbs, pa_ft, oat_c):
     row = sub.sort_values("dist").head(1)
     return None if row.empty else row.iloc[0].to_dict()
 
-def blend_linear(mil_val, ab_val, alpha):
+# ---- Interpolation / Extrapolation (MIL↔AB and below-MIL) ----
+def blend_metric(mil_val, ab_val, alpha, kind="distance"):
     """
-    alpha: 0 → MIL, 1 → AB, <0 → below-MIL with steeper penalty on distances.
+    Interpolate/extrapolate metric between MIL (alpha=0) and AB (alpha=1).
+      - kind="distance": AGD/ASD → linear on [0,1], exponential growth for alpha<0
+      - kind="speed":    Vs/V1/Vr/V2 → linear on [0,1], gentle linear drop for alpha<0 with clamp
     """
-    if alpha >= 0:
-        return mil_val + alpha*(ab_val - mil_val)
-    # below-MIL: distances worsen faster; speeds slightly lower than MIL
-    slope = (ab_val - mil_val)
-    penalty = 1.8
-    return mil_val + alpha * penalty * slope
+    if mil_val is None or ab_val is None or (isinstance(mil_val, float) and math.isnan(mil_val)) or (isinstance(ab_val, float) and math.isnan(ab_val)):
+        return mil_val
+
+    if alpha >= 0.0:
+        return mil_val + alpha * (ab_val - mil_val)
+
+    a = -alpha  # magnitude below-MIL
+    if kind == "distance":
+        if ab_val > 0 and mil_val > 0 and mil_val > ab_val:
+            k = math.log(mil_val / ab_val)  # AB helps vs MIL
+            return mil_val * math.exp(k * a * BELOW_MIL_DISTANCE_BETA)
+        # conservative fallback
+        return mil_val * (1.0 + a * 2.0 * BELOW_MIL_DISTANCE_BETA)
+    else:  # kind == "speed"
+        delta = (mil_val - ab_val)  # typically small
+        raw = mil_val + (-a) * BELOW_MIL_SPEED_BETA * delta
+        min_allowed = mil_val * (1.0 - MAX_SPEED_DROP_FRAC)
+        return max(raw, min_allowed)
 
 def rpm_from_alpha(alpha):
     """Map alpha to nominal %RPM across MIN–MIL–AB anchors."""
@@ -118,38 +141,11 @@ def rpm_from_alpha(alpha):
         return RPM_MIL + alpha*(RPM_AB - RPM_MIL)
     return RPM_MIL + alpha*(RPM_MIL - RPM_MIN)
 
-def solve_min_required_dynamic(perf_df, flap_deg, gw_lbs, pa_ft, oat_c, runway_available_ft):
-    """
-    Solve for Minimum Required thrust (may be below MIL) such that:
-    AGD(α)*1.15 <= 0.60 * runway_available_ft
-    """
-    mil = nearest_row(perf_df, flap_deg, "Military", int(gw_lbs), int(pa_ft), int(oat_c))
-    ab  = nearest_row(perf_df, flap_deg, "Afterburner", int(gw_lbs), int(pa_ft), int(oat_c))
-    if not mil or not ab:
-        return None
-    target_agd = 0.60 * float(runway_available_ft)
-    def agd_of(alpha): return blend_linear(mil["AGD_ft"], ab["AGD_ft"], alpha) * 1.15
-    # If even AB can't make 60% rule → infeasible
-    if agd_of(1.0) > target_agd:
-        return None
-    # Bracket search region
-    alpha_min = (RPM_MIN - RPM_MIL) / (RPM_AB - RPM_MIL)  # negative
-    if agd_of(0.0) <= target_agd:
-        lo, hi = alpha_min, 0.0  # search below-MIL
-    else:
-        lo, hi = 0.0, 1.0        # search MIL→AB
-    # Binary search for minimal alpha meeting target
-    for _ in range(28):
-        mid = 0.5*(lo+hi)
-        if agd_of(mid) <= target_agd: hi = mid
-        else:                          lo = mid
-    alpha = hi
-    rpm   = int(round(rpm_from_alpha(alpha)))
-    def vblend(k): return ceil_kn(blend_linear(mil[k], ab[k], alpha))
-    asd = int(round(blend_linear(mil["ASD_ft"], ab["ASD_ft"], alpha) * 1.15))
-    agd = int(round(blend_linear(mil["AGD_ft"], ab["AGD_ft"], alpha) * 1.15))
-    return {"Vs": vblend("Vs_kt"), "V1": vblend("V1_kt"), "Vr": vblend("Vr_kt"), "V2": vblend("V2_kt"),
-            "stop_ft": asd, "go_ft": agd, "bfl_ft": max(asd, agd), "rpm": rpm, "alpha": alpha}
+def alpha_from_rpm(rpm):
+    """Inverse of rpm_from_alpha to support 'Custom RPM'."""
+    if rpm >= RPM_MIL:
+        return (rpm - RPM_MIL) / (RPM_AB - RPM_MIL)
+    return (rpm - RPM_MIL) / (RPM_MIL - RPM_MIN)
 
 # =========================
 # Part 121 gating
@@ -170,50 +166,107 @@ def part121_pass(runway_ft, asd_ft, agd_ft, condition, stopway_ft=0, clearway_ft
     tor_ok = aeo_tr_proxy <= tora
     return asd_ok and oei_tod_ok and tor_ok
 
+def find_min_feasible_alpha(check_fn, alpha_hi, alpha_min_bound):
+    """
+    Given a check_fn(alpha)->bool (Part 121 pass/fail),
+    find the minimal alpha in [alpha_min_bound, alpha_hi] that still passes.
+    Coarse descend + binary refine.
+    """
+    if not check_fn(alpha_hi):
+        return None
+    step = 0.05
+    a_pass = alpha_hi
+    a = alpha_hi
+    while a > alpha_min_bound:
+        a_next = max(alpha_min_bound, a - step)
+        if check_fn(a_next):
+            a_pass = a_next
+            a = a_next
+        else:
+            break
+        if a == alpha_min_bound:
+            break
+    left = max(alpha_min_bound, a_pass - step)
+    right = a_pass
+    if check_fn(left):
+        left = max(alpha_min_bound - 1e-6, left - 0.001)
+    for _ in range(32):
+        mid = 0.5 * (left + right)
+        if check_fn(mid):
+            right = mid
+        else:
+            left = mid
+    return right
+
 def evaluate_combo_for_121(perf_df, flap_deg, gw, pa_ft, oat_c, runway_ft, condition, stopway_ft, clearway_ft):
     """
     For a given flap, find minimal thrust alpha (may be below MIL) satisfying Part 121 gates
     using NATOPS MIL/AB rows blended with +15% safety.
     """
-    dyn = solve_min_required_dynamic(perf_df, flap_deg, gw, pa_ft, oat_c, runway_ft)
-    trial_alphas = []
-    if dyn: trial_alphas.append(dyn["alpha"])
-    alpha_min = (RPM_MIN - RPM_MIL) / (RPM_AB - RPM_MIL)
-    trial_alphas += [alpha_min, 0.0, 0.5, 1.0]
     mil = nearest_row(perf_df, flap_deg, "Military", gw, pa_ft, oat_c)
     ab  = nearest_row(perf_df, flap_deg, "Afterburner", gw, pa_ft, oat_c)
-    if not mil or not ab: return None
+    if not mil or not ab:
+        return None
 
-    def results_at(alpha):
-        asd = blend_linear(mil["ASD_ft"], ab["ASD_ft"], alpha) * 1.15
-        agd = blend_linear(mil["AGD_ft"], ab["AGD_ft"], alpha) * 1.15
-        vs  = ceil_kn(blend_linear(mil["Vs_kt"], ab["Vs_kt"], alpha))
-        v1  = ceil_kn(blend_linear(mil["V1_kt"], ab["V1_kt"], alpha))
-        vr  = ceil_kn(blend_linear(mil["Vr_kt"], ab["Vr_kt"], alpha))
-        v2  = ceil_kn(blend_linear(mil["V2_kt"], ab["V2_kt"], alpha))
-        return dict(Vs=vs, V1=v1, Vr=vr, V2=v2,
+    def metrics_at(alpha):
+        asd = blend_metric(mil["ASD_ft"], ab["ASD_ft"], alpha, "distance") * 1.15
+        agd = blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15
+        vs  = ceil_kn(blend_metric(mil["Vs_kt"], ab["Vs_kt"], alpha, "speed"))
+        v1  = ceil_kn(blend_metric(mil["V1_kt"], ab["V1_kt"], alpha, "speed"))
+        vr  = ceil_kn(blend_metric(mil["Vr_kt"], ab["Vr_kt"], alpha, "speed"))
+        v2  = ceil_kn(blend_metric(mil["V2_kt"], ab["V2_kt"], alpha, "speed"))
+        return dict(Vs=vs,V1=v1,Vr=vr,V2=v2,
                     stop_ft=int(round(asd)), go_ft=int(round(agd)),
                     bfl_ft=int(round(max(asd, agd))),
-                    rpm=int(round(rpm_from_alpha(alpha))), alpha=alpha)
+                    rpm=round(rpm_from_alpha(alpha),1), alpha=alpha)
 
-    feasible = []
-    for a in trial_alphas:
-        r = results_at(a)
-        if part121_pass(runway_ft, r["stop_ft"], r["go_ft"], condition, stopway_ft, clearway_ft):
-            feasible.append((a, r))
-    if not feasible: return None
+    def pass_121(alpha):
+        m = metrics_at(alpha)
+        return part121_pass(runway_ft, m["stop_ft"], m["go_ft"], condition, stopway_ft, clearway_ft)
 
-    lo = min(a for a,_ in feasible) - 0.05
-    hi = min(a for a,_ in feasible)
-    best = results_at(hi)
-    for _ in range(30):
+    alpha_min = (RPM_MIN - RPM_MIL) / (RPM_AB - RPM_MIL)  # negative
+    seeds = [0.0, 0.5, 1.0, -0.1, -0.2]
+    a_pass = None
+    for s in seeds:
+        if s >= alpha_min and pass_121(s):
+            a_pass = s
+            break
+    if a_pass is None:
+        return None
+
+    a_min = find_min_feasible_alpha(pass_121, a_pass, alpha_min)
+    if a_min is None: a_min = a_pass
+    return metrics_at(a_min)
+
+def solve_min_required_dynamic(perf_df, flap_deg, gw_lbs, pa_ft, oat_c, runway_available_ft):
+    """
+    Solve for Minimum Required thrust (may be below MIL) such that:
+    AGD(α)*1.15 <= 0.60 * runway_available_ft
+    """
+    mil = nearest_row(perf_df, flap_deg, "Military", int(gw_lbs), int(pa_ft), int(oat_c))
+    ab  = nearest_row(perf_df, flap_deg, "Afterburner", int(gw_lbs), int(pa_ft), int(oat_c))
+    if not mil or not ab:
+        return None
+    target_agd = 0.60 * float(runway_available_ft)
+    def agd_of(alpha): return blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15
+    if agd_of(1.0) > target_agd:
+        return None
+    alpha_min = (RPM_MIN - RPM_MIL) / (RPM_AB - RPM_MIL)
+    if agd_of(0.0) <= target_agd:
+        lo, hi = alpha_min, 0.0
+    else:
+        lo, hi = 0.0, 1.0
+    for _ in range(28):
         mid = 0.5*(lo+hi)
-        r = results_at(mid)
-        if part121_pass(runway_ft, r["stop_ft"], r["go_ft"], condition, stopway_ft, clearway_ft):
-            hi = mid; best = r
-        else:
-            lo = mid
-    return best
+        if agd_of(mid) <= target_agd: hi = mid
+        else:                          lo = mid
+    alpha = hi
+    rpm   = round(rpm_from_alpha(alpha), 1)
+    def vblend(k): return ceil_kn(blend_metric(mil[k], ab[k], alpha, "speed"))
+    asd = int(round(blend_metric(mil["ASD_ft"], ab["ASD_ft"], alpha, "distance") * 1.15))
+    agd = int(round(blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15))
+    return {"Vs": vblend("Vs_kt"), "V1": vblend("V1_kt"), "Vr": vblend("Vr_kt"), "V2": vblend("V2_kt"),
+            "stop_ft": asd, "go_ft": agd, "bfl_ft": max(asd, agd), "rpm": rpm, "alpha": alpha}
 
 # =========================
 # DCS airport data
@@ -300,7 +353,6 @@ else:
     c1,c2 = st.columns(2)
     with c1: wind_dir = st.number_input("Wind Direction (° FROM, briefing)", min_value=0, max_value=359, value=0, step=1)
     with c2: wind_spd = st.number_input("Wind Speed (kt)", min_value=0, max_value=100, value=0, step=1)
-    # compute components
     rel = (wind_dir - dep_hdg) % 360
     th  = math.radians(rel)
     headwind_kt = round(wind_spd*math.cos(th),1)
@@ -345,24 +397,33 @@ st.caption(f"Computed Gross Weight: **{int(gross):,} lbs** (max {MAX_GW:,})")
 
 # 4) Configuration
 st.header("4) Configuration")
-auto_flaps = st.checkbox("Auto-select flap setting?", value=True)
+auto_flaps = st.checkbox("Auto-select flap setting? (prefers Maneuvering)", value=True)
+# Auto-flap policy: bias = Maneuvering (20°) by default, up/down only when clear:
 if auto_flaps:
-    # simple heuristic: shorter runways or heavier weights → more flap
-    if int(tora_ft) < 5000 or gross > 70000: flap_name = "Flaps Full"
-    elif int(tora_ft) < 8000 or gross > 60000: flap_name = "Maneuvering Flaps"
-    else: flap_name = "Flaps Up"
+    if int(tora_ft) < 5000 or gross > 70000:
+        flap_name = "Flaps Full"           # short/Heavy → more flap
+    elif int(tora_ft) > 9000 and gross < 60000:
+        flap_name = "Flaps Up"             # long/Light → less flap
+    else:
+        flap_name = "Maneuvering Flaps"    # default bias
 else:
     flap_name = st.selectbox("Flap Setting", list(FLAP_OPTIONS.keys()), index=1)
 flap_deg = FLAP_OPTIONS[flap_name]
 
-thrust_choice = st.selectbox(
-    "Thrust Rating (manual mode only)",
-    ["Minimum Required (dynamic)", "Military", "Afterburner"],
-    index=0
-)
+# Thrust mode: Auto vs Set
+thrust_mode = st.radio("Thrust Mode", ["Auto-select most efficient thrust", "Set thrust manually"], index=0)
+custom_rpm = None
+if thrust_mode == "Set thrust manually":
+    choice = st.selectbox("Manual Thrust", ["Military", "Afterburner", "Custom RPM (%)"], index=0)
+    if choice == "Custom RPM (%)":
+        custom_rpm = st.number_input("Custom Target RPM (%)", min_value=88.0, max_value=102.0, value=96.0, step=0.1)
+    thrust_choice = choice
+else:
+    thrust_choice = "Auto"
 
-# 5) Intersection feasibility – we use TORA as available
-st.header("5) Intersection Feasibility (auto)")
+# 5) Intersection feasibility – optional
+st.header("5) Intersection Feasibility")
+run_intersection = st.checkbox("Run intersection feasibility check", value=True)
 margin = st.number_input("Extra safety margin beyond BFL (ft)", min_value=0, max_value=2000, value=0, step=50)
 runway_available_ft = int(tora_ft)
 pa_ft = int(field_elev)  # pressure altitude proxy
@@ -382,7 +443,7 @@ def compute_static(thrust_mode):
                 "Vr": ceil_kn(row["Vr_kt"]), "V2": ceil_kn(row["V2_kt"]),
                 "stop_ft": asd, "go_ft": agd, "bfl_ft": max(asd,agd),
                 "trim": max(5.0, min(12.0, round(8.0 + (int(gross)-50000)/10000.0,1))),
-                "rpm": int(RPM_AB if thrust_mode=="Afterburner" else RPM_MIL),
+                "rpm": round(RPM_AB if thrust_mode=="Afterburner" else RPM_MIL,1),
                 "source": f"NATOPS ({perf_source})"
             }
     # Minimal fallback if no tables; strongly recommend providing perf_f14b.csv
@@ -393,36 +454,74 @@ def compute_static(thrust_mode):
             "trim":8.0,"rpm":(RPM_AB if thrust_mode=="Afterburner" else RPM_MIL),"source":"FALLBACK"}
 
 selected = None
-selected_flap_name = None
-selected_flap_deg = None
+selected_flap_name = flap_name
+selected_flap_deg = flap_deg
 
+# Choose thrust according to mode
 if apply_part121 and perf_df is not None:
-    # Try each flap to find the minimal RPM that passes Part 121
-    flap_candidates = [("Flaps Up", 0), ("Maneuvering Flaps", 20), ("Flaps Full", 40)] if auto_flaps else [(flap_name, flap_deg)]
-    best = None
-    for fname, fdeg in flap_candidates:
-        cand = evaluate_combo_for_121(perf_df, fdeg, int(gross), pa_ft, int(oat),
-                                      int(runway_available_ft), runway_cond,
-                                      int(stopway_ft), int(clearway_cap_ft))
-        if cand:
-            key = (cand["rpm"], cand["bfl_ft"])  # minimize RPM, then BFL
-            if (best is None) or (key < best[0]):
-                best = (key, cand, fname, fdeg)
-    if best:
-        _, selected, selected_flap_name, selected_flap_deg = best
-        base = selected.copy()
-        base["trim"] = max(5.0, min(12.0, round(8.0 + (int(gross)-50000)/10000.0,1)))
-        base["source"] = f"NATOPS ({perf_source})"
-        st.success(f"✅ Part 121 PASS — Selected **{selected_flap_name}**, Target RPM ≈ **{base['rpm']}%**")
+    if thrust_mode == "Auto-select most efficient thrust":
+        # Try each flap to find minimal RPM that passes
+        flap_candidates = [("Flaps Up", 0), ("Maneuvering Flaps", 20), ("Flaps Full", 40)] if auto_flaps else [(flap_name, flap_deg)]
+        best = None
+        for fname, fdeg in flap_candidates:
+            cand = evaluate_combo_for_121(perf_df, fdeg, int(gross), pa_ft, int(oat),
+                                          int(runway_available_ft), runway_cond,
+                                          int(stopway_ft), int(clearway_cap_ft))
+            if cand:
+                key = (cand["rpm"], cand["bfl_ft"])  # minimize RPM, then BFL
+                if (best is None) or (key < best[0]):
+                    best = (key, cand, fname, fdeg)
+        if best:
+            _, selected, selected_flap_name, selected_flap_deg = best
+            base = selected.copy()
+            base["trim"] = max(5.0, min(12.0, round(8.0 + (int(gross)-50000)/10000.0,1)))
+            base["source"] = f"NATOPS ({perf_source})"
+            st.success(f"✅ Part 121 PASS — Selected **{selected_flap_name}**, Target RPM ≈ **{base['rpm']}%**")
+        else:
+            st.error("⛔ Part 121 not satisfied for any flap with available thrust (even AB). Adjust weight/temp/runway/wind.")
+            base = compute_static("Afterburner")
     else:
-        st.error("⛔ Part 121 not satisfied for any flap with available thrust (even AB). Adjust weight/temp/runway/wind.")
-        base = compute_static("Afterburner")
-        selected_flap_name, selected_flap_deg = flap_name, flap_deg
+        # Manual thrust under Part 121
+        if thrust_choice == "Custom RPM (%)" and custom_rpm is not None:
+            alpha = alpha_from_rpm(custom_rpm)
+            # Compute metrics at this alpha for the selected flap
+            mil = nearest_row(perf_df, selected_flap_deg, "Military", int(gross), pa_ft, int(oat))
+            ab  = nearest_row(perf_df, selected_flap_deg, "Afterburner", int(gross), pa_ft, int(oat))
+            if mil and ab:
+                asd = blend_metric(mil["ASD_ft"], ab["ASD_ft"], alpha, "distance") * 1.15
+                agd = blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15
+                vs  = ceil_kn(blend_metric(mil["Vs_kt"], ab["Vs_kt"], alpha, "speed"))
+                v1  = ceil_kn(blend_metric(mil["V1_kt"], ab["V1_kt"], alpha, "speed"))
+                vr  = ceil_kn(blend_metric(mil["Vr_kt"], ab["Vr_kt"], alpha, "speed"))
+                v2  = ceil_kn(blend_metric(mil["V2_kt"], ab["V2_kt"], alpha, "speed"))
+                base = dict(Vs=vs,V1=v1,Vr=vr,V2=v2,
+                            stop_ft=int(round(asd)), go_ft=int(round(agd)),
+                            bfl_ft=int(round(max(asd,agd))),
+                            rpm=round(custom_rpm,1), alpha=alpha,
+                            trim=max(5.0, min(12.0, round(8.0 + (int(gross)-50000)/10000.0,1))),
+                            source=f"NATOPS ({perf_source})")
+                ok = part121_pass(int(runway_available_ft), base["stop_ft"], base["go_ft"], runway_cond, int(stopway_ft), int(clearway_cap_ft))
+                if ok:
+                    st.success("✅ Part 121 PASS at your custom RPM.")
+                else:
+                    st.error("⛔ Part 121 FAIL at your custom RPM — increase thrust, change flaps, or reduce weight.")
+            else:
+                st.warning("Performance tables not found for custom RPM interpolation; falling back to MIL.")
+                base = compute_static("Military")
+        else:
+            # Military / Afterburner fixed
+            fixed = "Military" if thrust_choice=="Military" else "Afterburner"
+            base = compute_static(fixed)
+            ok = part121_pass(int(runway_available_ft), base["stop_ft"], base["go_ft"], runway_cond, int(stopway_ft), int(clearway_cap_ft))
+            if ok:
+                st.success(f"✅ Part 121 PASS at fixed thrust: {fixed}")
+            else:
+                st.error(f"⛔ Part 121 FAIL at fixed thrust: {fixed}")
 else:
-    # Manual / no-121 mode
-    if thrust_choice == "Minimum Required (dynamic)":
+    # No Part 121 constraints
+    if thrust_mode == "Auto-select most efficient thrust":
         if perf_df is not None:
-            dyn = solve_min_required_dynamic(perf_df, flap_deg, int(gross), pa_ft, int(oat), int(runway_available_ft))
+            dyn = solve_min_required_dynamic(perf_df, selected_flap_deg, int(gross), pa_ft, int(oat), int(runway_available_ft))
             if dyn is None:
                 st.error("⛔ Not feasible to reach Vr by 60% runway even at AB (+15% safety).")
                 base = compute_static("Afterburner")
@@ -435,36 +534,57 @@ else:
             st.warning("No performance CSVs found — using rough fallback values.")
             base = compute_static("Military")
     else:
-        base = compute_static("Military" if thrust_choice=="Military" else "Afterburner")
-    selected_flap_name, selected_flap_deg = flap_name, flap_deg
+        if thrust_choice == "Custom RPM (%)" and custom_rpm is not None and perf_df is not None:
+            alpha = alpha_from_rpm(custom_rpm)
+            mil = nearest_row(perf_df, selected_flap_deg, "Military", int(gross), pa_ft, int(oat))
+            ab  = nearest_row(perf_df, selected_flap_deg, "Afterburner", int(gross), pa_ft, int(oat))
+            if mil and ab:
+                asd = blend_metric(mil["ASD_ft"], ab["ASD_ft"], alpha, "distance") * 1.15
+                agd = blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15
+                vs  = ceil_kn(blend_metric(mil["Vs_kt"], ab["Vs_kt"], alpha, "speed"))
+                v1  = ceil_kn(blend_metric(mil["V1_kt"], ab["V1_kt"], alpha, "speed"))
+                vr  = ceil_kn(blend_metric(mil["Vr_kt"], ab["Vr_kt"], alpha, "speed"))
+                v2  = ceil_kn(blend_metric(mil["V2_kt"], ab["V2_kt"], alpha, "speed"))
+                base = dict(Vs=vs,V1=v1,Vr=vr,V2=v2,
+                            stop_ft=int(round(asd)), go_ft=int(round(agd)),
+                            bfl_ft=int(round(max(asd,agd))),
+                            rpm=round(custom_rpm,1), alpha=alpha,
+                            trim=max(5.0, min(12.0, round(8.0 + (int(gross)-50000)/10000.0,1))),
+                            source=f"NATOPS ({perf_source})")
+            else:
+                st.warning("Performance tables not found for custom RPM interpolation; falling back to MIL.")
+                base = compute_static("Military")
+        else:
+            fixed = "Military" if thrust_choice=="Military" else "Afterburner"
+            base = compute_static(fixed)
 
-# Required vs Available & Intersection Feasibility
+# ---- Optional intersection feasibility ----
 required_len = max(base["bfl_ft"], 0) + int(margin)
 available_len = int(runway_available_ft)
-if required_len <= available_len:
-    max_offset = available_len - required_len
-    st.success(f"Intersection feasible. Max allowable offset: **{int(max_offset):,} ft**  (Effective {int(required_len):,} ft).")
-else:
-    st.error(f"Intersection NOT feasible: need {int(required_len):,} ft; available {int(available_len):,} ft.")
+if run_intersection:
+    if required_len <= available_len:
+        max_offset = available_len - required_len
+        st.success(f"Intersection feasible. Max allowable offset: **{int(max_offset):,} ft**  (Effective {int(required_len):,} ft).")
+    else:
+        st.error(f"Intersection NOT feasible: need {int(required_len):,} ft; available {int(available_len):,} ft.")
 
 # =========================
 # Final Numbers (text only)
 # =========================
 st.subheader("Final Numbers")
 
-# Optional debug info: alpha & RPM
+# Debug info: alpha and rpm if available
 if "alpha" in base:
     st.caption(f"Debug: alpha={base['alpha']:+.3f}, rpm={base.get('rpm','--')}%")
 
-# Classify thrust purely by RPM and show label + RPM together
 rpm_val = base.get("rpm", None)
 thrust_label = classify_thrust(rpm_val)
-thrust_display = f"{thrust_label} ({'--' if rpm_val is None else f'{rpm_val}%'} )"
+rpm_str = f"{rpm_val:.1f}%" if rpm_val is not None else "--"
 
 st.write(f"**Selected Flap:** {selected_flap_name} ({selected_flap_deg}°)")
 st.write(
-    f"**Thrust:** {thrust_display}  |  "
-    f"**Runway Required (BFL + margin):** {required_len:,} ft  |  **Available (TORA):** {available_len:,} ft"
+    f"**Thrust:** {thrust_label} ({rpm_str})  "
+    f"|  **Runway Required (BFL + margin):** {required_len:,} ft  |  **Available (TORA):** {available_len:,} ft"
 )
 st.write(f"**Vs:** {base['Vs']} kt   **V1:** {base['V1']} kt   **Vr:** {base['Vr']} kt   **V2:** {base['V2']} kt")
 st.write(f"**Balanced Field Length:** {base['bfl_ft']:,} ft")
@@ -474,3 +594,32 @@ st.caption(
     f"Source: **{base.get('source','')}**  |  121 Mode: {'ON' if apply_part121 else 'OFF'}  "
     f"|  RWY: {runway_cond}, Stopway {int(stopway_ft):,} ft, Clearway {int(clearway_cap_ft):,} ft"
 )
+
+# ---- Comparison table: minimum passing RPM per flap (Part 121) ----
+if apply_part121 and perf_df is not None:
+    rows_cmp = []
+    for fname, fdeg in [("Flaps Up",0),("Maneuvering Flaps",20),("Flaps Full",40)]:
+        res = evaluate_combo_for_121(perf_df, fdeg, int(gross), int(field_elev), int(oat),
+                                     int(runway_available_ft), runway_cond,
+                                     int(stopway_ft), int(clearway_cap_ft))
+        if res:
+            label = classify_thrust(res["rpm"])
+            rows_cmp.append({
+                "Flap": f"{fname} ({fdeg}°)",
+                "Min RPM (121 pass)": f'{res["rpm"]:.1f}',
+                "Thrust Label": label,
+                "Vs": res["Vs"], "V1": res["V1"], "Vr": res["Vr"], "V2": res["V2"],
+                "BFL (ft)": res["bfl_ft"], "AG (ft)": res["go_ft"], "AS (ft)": res["stop_ft"]
+            })
+        else:
+            rows_cmp.append({
+                "Flap": f"{fname} ({fdeg}°)",
+                "Min RPM (121 pass)": "—",
+                "Thrust Label": "No pass",
+                "Vs": "—", "V1": "—", "Vr": "—", "V2": "—",
+                "BFL (ft)": "—", "AG (ft)": "—", "AS (ft)": "—"
+            })
+    st.subheader("Part 121: Minimum Passing RPM by Flap")
+    st.dataframe(pd.DataFrame(rows_cmp), use_container_width=True)
+
+# End of file
