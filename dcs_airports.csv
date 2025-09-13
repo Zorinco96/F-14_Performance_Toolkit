@@ -1,122 +1,27 @@
-map,airport_name,runway_id,length_ft,slope_percent,le_elev_ft,he_elev_ft
-Caucasus,Anapa - Vityazevo,04/22,8202,0,141,141
-Caucasus,Batumi,13/31,8050,0,33,33
-Caucasus,Beslan,10/28,9890,0,1722,1722
-Caucasus,Gelendzhik,01/19,6560,0,72,72
-Caucasus,Gudauta,15/33,8200,0,69,69
-Caucasus,Kobuleti,07/25,7870,0,59,59
-Caucasus,Krasnodar-Center,09/27,7215,0,98,98
-Caucasus,Krasnodar-Pashkovsky,05R/23L,10170,0,112,112
-Caucasus,Krymsk,04/22,8530,0,66,66
-Caucasus,Kutaisi,07/25,8202,0,148,148
-Caucasus,Maykop-Khanskaya,04/22,10495,0,591,591
-Caucasus,Mineralnye Vody,12/30,13350,0,1050,1050
-Caucasus,Mozdok,08/26,9850,0,512,512
-Caucasus,Nalchik,06/24,7545,0,1410,1410
-Caucasus,Novorossiysk,04/22,4590,0,114,114
-Caucasus,Senaki-Kolkhi,09/27,7790,0,43,43
-Caucasus,Sochi-Adler,06/24,10170,0,98,98
-Caucasus,Sukhumi-Babushara,12/30,11800,0,43,43
-Caucasus,Tbilisi-Lochini,13/31,11800,0,1624,1624
-Caucasus,Tbilisi-Soganlug,13/31,8120,0,1464,1464
-Caucasus,Vaziani,13/31,8150,0,1478,1478
-Persian Gulf,Abu Dhabi Intl,13R/31L,13123,0,88,88
-Persian Gulf,Abu Dhabi Intl,13L/31R,13123,0,88,88
-Persian Gulf,Al Ain Intl,01/19,13124,0,867,867
-Persian Gulf,Al Bateen,13/31,10200,0,16,16
-Persian Gulf,Al Dhafra AB,13R/31L,12100,0,77,77
-Persian Gulf,Al Dhafra AB,13L/31R,12100,0,77,77
-Persian Gulf,Al Maktoum (DWC),12/30,14500,0,114,114
-Persian Gulf,Al Minhad AB,09/27,10000,0,108,108
-Persian Gulf,Bandar Abbas,08/26,12000,0,22,22
-Persian Gulf,Bandar Lengeh,08/26,6500,0,67,67
-Persian Gulf,Dubai Intl,12R/30L,13124,0,62,62
-Persian Gulf,Dubai Intl,12L/30R,13124,0,62,62
-Persian Gulf,Dubai Intl,12C/30C,13124,0,62,62
-Persian Gulf,Fujairah Intl,11/29,12467,0,151,151
-Persian Gulf,Khasab,08/26,7970,0,100,100
-Persian Gulf,Kish Intl,09/27,12000,0,102,102
-Persian Gulf,Lar AB,11/29,13100,0,2635,2635
-Persian Gulf,Lavan Island,11/29,8268,0,76,76
-Persian Gulf,Liwa AB,13/31,12000,0,490,490
-Persian Gulf,Qeshm Intl,14/32,13300,0,45,45
-Persian Gulf,Ras Al Khaimah,16/34,12467,0,102,102
-Persian Gulf,Sharjah Intl,12/30,13123,0,111,111
-Persian Gulf,Sir Abu Nuayr,16/34,5249,0,14,14
-Persian Gulf,Sirri Island,12/30,8000,0,43,43
-Syria,Aleppo Intl,09/27,9620,0,1276,1276
-Syria,Bassel Al-Assad (Latakia),17/35,9350,0,157,157
-Syria,Beirut Rafic Hariri,03/21,10447,0,87,87
-Syria,Beirut Rafic Hariri,16/34,10499,0,87,87
-Syria,Damascus Intl,05L/23R,11811,0,2020,2020
-Syria,Damascus Intl,05R/23L,11811,0,2020,2020
-Syria,Hama,09/27,9850,0,1034,1034
-Syria,Hatay,04/22,9843,0,265,265
-Syria,Incirlik AB,05/23,10001,0,238,238
-Syria,Khalkhalah,08/26,10170,0,2436,2436
-Syria,Marj Ruhayyil,10/28,9980,0,2231,2231
-Syria,Palmyra,03/21,9340,0,1325,1325
-Syria,Ramat David,09/27,8366,0,151,151
-Syria,Rayak,03/21,4920,0,3018,3018
-Syria,Tabqa,08/26,10500,0,1082,1082
-Syria,Tiyas (T-4),08/26,10300,0,1570,1570
-NTTR (Nevada),Nellis AFB,03L/21R,10051,0,1870,1870
-NTTR (Nevada),Nellis AFB,03R/21L,10051,0,1870,1870
-NTTR (Nevada),Creech AFB,08/26,10000,0,3130,3130
-NTTR (Nevada),Groom Lake (Homey),14/32,12000,0,4462,4462
-NTTR (Nevada),Beatty,16/34,5715,0,3170,3170
-NTTR (Nevada),Boulder City,09L/27R,5000,0,2020,2020
-NTTR (Nevada),Boulder City,09R/27L,3800,0,2020,2020
-NTTR (Nevada),Henderson Executive,17L/35R,6501,0,2492,2492
-NTTR (Nevada),Henderson Executive,17R/35L,5001,0,2492,2492
-NTTR (Nevada),Jean,02L/20R,4200,0,2833,2833
-NTTR (Nevada),Jean,02R/20L,3100,0,2833,2833
-NTTR (Nevada),Laughlin/Bullhead,16/34,8725,0,701,701
-NTTR (Nevada),Lincoln County,09/27,5108,0,5314,5314
-NTTR (Nevada),Mesquite,01/19,5200,0,1978,1978
-NTTR (Nevada),North Las Vegas,12L/30R,5003,0,2205,2205
-NTTR (Nevada),North Las Vegas,12R/30L,4044,0,2205,2205
-NTTR (Nevada),North Las Vegas,07/25,5084,0,2205,2205
-NTTR (Nevada),Tonopah Test Range,14/32,12000,0,5541,5541
-NTTR (Nevada),Tonopah (KTNX),12/30,7800,0,5438,5438
-Marianas,Andersen AFB,06L/24R,11000,0,627,627
-Marianas,Andersen AFB,06R/24L,11000,0,627,627
-Marianas,Antonio B. Won Pat,06L/24R,10018,0,298,298
-Marianas,Antonio B. Won Pat,06R/24L,10018,0,298,298
-Marianas,Saipan Intl,07/25,8700,0,215,215
-Marianas,Tinian Intl,08/26,8600,0,271,271
-Sinai,Cairo Intl,05L/23R,13124,0,382,382
-Sinai,Cairo Intl,05C/23C,13124,0,382,382
-Sinai,Cairo Intl,05R/23L,13124,0,382,382
-Sinai,El Arish Intl,10/28,9843,0,121,121
-Sinai,Sharm El Sheikh,04L/22R,10007,0,143,143
-Sinai,Sharm El Sheikh,04R/22L,10007,0,143,143
-Sinai,Hatzor,10/28,9984,0,148,148
-Sinai,Hatzor,05/23,6562,0,148,148
-Sinai,Hatzerim,08/26,10660,0,659,659
-Sinai,Habonim (Ramat David Aux),03/21,6560,0,84,84
-Sinai,Ramon Intl,01/19,11938,0,782,782
-Sinai,Ovda,03/21,9852,0,1490,1490
-Normandy 2.0,Beauvais-Tillé,12/30,7874,0,359,359
-Normandy 2.0,Deauville,12/30,8366,0,479,479
-Normandy 2.0,Evreux-Fauville,04/22,7874,0,464,464
-Normandy 2.0,Le Havre Octeville,04/22,7546,0,310,310
-Normandy 2.0,Paris-Orly,08/26,12000,0,291,291
-Normandy 2.0,Paris-Orly,02/20,11976,0,291,291
-Normandy 2.0,Le Bourget,09/27,8924,0,218,218
-Normandy 2.0,Le Bourget,07/25,8530,0,218,218
-Normandy 2.0,Le Bourget,03/21,6509,0,218,218
-The Channel,Abbeville,02/20,4921,0,220,220
-The Channel,Manston,10/28,9170,0,178,178
-The Channel,Lympne,04/22,4593,0,262,262
-The Channel,High Halden,12/30,4080,0,165,165
-South Atlantic,Mount Pleasant,10/28,8530,0,244,244
-South Atlantic,Mount Pleasant,03/21,8530,0,244,244
-South Atlantic,Port Stanley (CAPA),09/27,3346,0,75,75
-South Atlantic,San Carlos FOB,01/19,3300,0,50,50
-South Atlantic,Puerto Santa Cruz,10/28,8202,0,108,108
-Kola,Sorkamon,18/36,8200,0,381,381
-Kola,Monchegorsk,09/27,8200,0,440,440
-Kola,Severomorsk-1,15/33,8200,0,184,184
-Kola,Severomorsk-3,03/21,8200,0,102,102
-Kola,Apatity (Khibiny),02/20,8200,0,548,548
+map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,opp_threshold_elev_ft,slope_percent,notes
+Caucasus,Batumi,13/31,13,126,8530,8530,8530,8530,33,39,,Sample; verify displaced thresholds if any
+Caucasus,Batumi,13/31,31,306,8530,8530,8530,8530,39,33,,
+Caucasus,Kobuleti,07/25,07,73,8080,8080,8080,8080,59,58,,Sample
+Caucasus,Kobuleti,07/25,25,253,8080,8080,8080,8080,58,59,,
+Caucasus,Senaki-Kolkhi,09/27,09,94,7870,7870,7870,7870,98,98,,Sample
+Caucasus,Senaki-Kolkhi,09/27,27,274,7870,7870,7870,7870,98,98,,
+Syria,Beirut-Rafic Hariri,16/34,16,157,10660,10660,11800,10660,87,64,,Sample; TODA includes clearway; confirm values in DCS
+Syria,Beirut-Rafic Hariri,16/34,34,337,10660,10660,11800,10660,64,87,,
+Syria,Damascus,05/23,05,47,11500,11500,11500,11500,2050,2025,,Sample
+Syria,Damascus,05/23,23,227,11500,11500,11500,11500,2025,2050,,
+Syria,Khmeimim,17/35,17,168,9730,9730,9730,9730,43,47,,Sample
+Syria,Khmeimim,17/35,35,348,9730,9730,9730,9730,47,43,,
+Persian Gulf,Al Dhafra AB,13L/31R,13L,128,12400,12400,12400,12400,77,79,,Sample
+Persian Gulf,Al Dhafra AB,13L/31R,31R,308,12400,12400,12400,12400,79,77,,
+Marianas,Andersen AFB,06L/24R,06L,62,11000,11000,11000,11000,610,631,,Sample
+Marianas,Andersen AFB,06L/24R,24R,242,11000,11000,11000,11000,631,610,,
+Sinai,Cairo Intl,05R/23L,05R,52,13100,13100,13100,13100,382,455,,Sample
+Sinai,Cairo Intl,05R/23L,23L,232,13100,13100,13100,13100,455,382,,
+South Atlantic,Mount Pleasant,09/27,09,93,10000,10000,10000,10000,246,247,,Sample
+South Atlantic,Mount Pleasant,09/27,27,273,10000,10000,10000,10000,247,246,,
+Nevada,Nellis AFB,03L/21R,03L,34,10050,10050,10050,10050,1870,1873,,Sample
+Nevada,Nellis AFB,03L/21R,21R,214,10050,10050,10050,10050,1873,1870,,
+Normandy 2.0,Carpiquet,13/31,13,130,6234,6234,6234,6234,256,272,,Sample
+Normandy 2.0,Carpiquet,13/31,31,310,6234,6234,6234,6234,272,256,,
+The Channel,Manston,10/28,10,100,9010,9010,9010,9010,178,178,,Sample
+The Channel,Manston,10/28,28,280,9010,9010,9010,9010,178,178,,
