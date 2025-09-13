@@ -1,25 +1,20 @@
-# app.py — DCS F‑14B/D Takeoff Performance (Streamlit)
-# Fully self‑contained: runway & performance data embedded (no external CSVs)
-#
-# Notes
-# • Uses your provided dcs_airports.csv, perf_f14b.csv, perf_f14d.csv embedded below.
-# • Balanced‑field style check with current single‑V1 rows: Required = max(ASD, AGD)
-# • Wind/slope simple adjustments; refine with NATOPS corrections if desired.
-# • For DCS sim planning only.
+# app.py — DCS F-14B Takeoff Performance (Streamlit)
+# Fully self-contained: runway & performance data embedded (no external CSVs)
 
 import math
+import re
 from io import StringIO
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Dict
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="DCS F‑14B/D Takeoff Performance", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="DCS F-14B Takeoff Performance", page_icon="✈️", layout="wide")
 
 # ==========================
-# Embedded CSV data (verbatim)
+# Embedded CSV data (from your files)
 # ==========================
 RUNWAYS_CSV = """map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,opp_threshold_elev_ft,slope_percent,notes
 Caucasus,Batumi,13/31,13,126,8530,8530,8530,8530,33,39,,Public real-world data; verify TORA/TODA/ASDA in DCS
@@ -215,9 +210,8 @@ F-14D,40,Afterburner,70000,5000,30,125,138,149,162,5900,7300,PLACEHOLDER_EST
 """
 
 # ==========================
-# Utility functions
+# Helpers & physics-ish utilities
 # ==========================
-
 def hpa_to_inhg(hpa: float) -> float:
     return hpa * 0.0295299830714
 
@@ -230,12 +224,62 @@ def headwind_component(knots_wind: float, wind_dir_deg: float, rwy_heading_deg: 
 
 def apply_wind_slope(distance_ft: float, headwind_kn: float, slope_pct: float) -> float:
     adj = distance_ft
+    # crude: 1% per 2 kt (cap ±0.5 = ±50%), uphill +20% per 1% slope
     adj *= 1.0 - 0.01 * min(0.5, max(-0.5, headwind_kn / 2.0))
     adj *= 1.0 + 0.20 * max(0.0, slope_pct)
     return adj
 
+KNOTS_PER_MS = 1.943844
+FT_PER_NM = 6076.115
+
+def ms_to_knots(ms: float) -> float:
+    return ms * KNOTS_PER_MS
+
+def nm_to_ft(nm: float) -> float:
+    return nm * FT_PER_NM
+
+# Weather parsing from a DCS mission briefing (best-effort)
+BRIEF_PATTERNS = {
+    "temp": re.compile(r"(?i)(temp|temperature|OAT)\s*[:=]?\s*(-?\d+)\s*[cC]"),
+    "qnh_inhg": re.compile(r"(?i)QNH\s*[:=]?\s*(\d{2}\.\d{2})\s*inHg"),
+    "qnh_hpa": re.compile(r"(?i)QNH\s*[:=]?\s*(\d{3,4})\s*h?Pa"),
+    "wind_ms": re.compile(r"(?i)wind\s*[:=]?\s*(\d+(?:\.\d+)?)\s*m/?s\s*(\d{1,3})"),
+    "wind_kts": re.compile(r"(?i)wind\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(kts?|knots?)\s*(\d{1,3})"),
+}
+
+def parse_briefing(text: str):
+    oat_c = None; qnh_inhg = None; wind_kn = None; wind_dir = None
+    if m := BRIEF_PATTERNS["temp"].search(text):
+        oat_c = float(m.group(2))
+    if m := BRIEF_PATTERNS["qnh_inhg"].search(text):
+        qnh_inhg = float(m.group(1))
+    elif m := BRIEF_PATTERNS["qnh_hpa"].search(text):
+        qnh_inhg = float(m.group(1)) * 0.0295299830714
+    if m := BRIEF_PATTERNS["wind_ms"].search(text):
+        wind_kn = ms_to_knots(float(m.group(1))); wind_dir = float(m.group(2))
+    elif m := BRIEF_PATTERNS["wind_kts"].search(text):
+        wind_kn = float(m.group(1)); wind_dir = float(m.group(3))
+    return oat_c, qnh_inhg, wind_kn, wind_dir
+
+# Flap + thrust models (heuristics reflecting trends)
+FLAP_MIN_N1 = {"UP": 0.90, "MANEUVER": 0.92, "FULL": 0.95}
+
+def flap_to_deg(flap_sel: str) -> int:
+    s = flap_sel.upper()
+    if s in ("UP", "0"): return 0
+    if s in ("MAN", "MANEUVER", "MANEUVERING", "20"): return 20
+    return 40
+
+def flap_corrections(flap_deg: int) -> Dict[str, float]:
+    # Distance multiplier and V-speed deltas
+    if flap_deg == 0:
+        return {"dist_mult": 1.10, "vspd_delta": +5}
+    if flap_deg == 20:
+        return {"dist_mult": 1.00, "vspd_delta": 0}
+    return {"dist_mult": 0.92, "vspd_delta": -3}
+
 # ==========================
-# Data loaders (from embedded strings)
+# Data loaders (embedded)
 # ==========================
 @st.cache_data
 def load_runways() -> pd.DataFrame:
@@ -246,8 +290,11 @@ def load_runways() -> pd.DataFrame:
 
 @st.cache_data
 def load_perf() -> pd.DataFrame:
+    # Treat all rows as F-14B to densify the grid as requested
     p_b = pd.read_csv(StringIO(PERF_F14B_CSV))
     p_d = pd.read_csv(StringIO(PERF_F14D_CSV))
+    p_b["model"] = "F-14B"
+    p_d["model"] = "F-14B"
     perf = pd.concat([p_b, p_d], ignore_index=True)
     perf["model"] = perf["model"].str.upper()
     perf["thrust"] = perf["thrust"].str.upper()
@@ -258,7 +305,6 @@ def load_perf() -> pd.DataFrame:
 # ==========================
 @dataclass
 class Inputs:
-    model: str
     theatre: str
     airport: str
     runway_label: str
@@ -269,14 +315,20 @@ class Inputs:
     elev_ft: float
     slope_pct: float
     shorten_ft: float
+    shorten_nm: float
+
+    weather_mode: str  # Manual or Mission Briefing
     oat_c: float
     qnh_inhg: float
     wind_knots: float
     wind_dir_deg: float
+
     gw_lbs: float
-    cg_percent_mac: Optional[float]
-    flap_sel: str
-    thrust_sel: str
+    weight_mode: str  # "GW (direct)" or "Fuel + Loadout (beta)"
+
+    flap_sel: str  # Auto-Select / UP / MANEUVER / FULL
+    thrust_sel: str  # Auto / MIL / AB / DERATED
+    n1_pct: float
 
 @dataclass
 class PerfResult:
@@ -289,32 +341,17 @@ class PerfResult:
     req_distance_ft: float
     avail_distance_ft: float
     limiting: str
+    notes: str = ""
 
 def auto_flaps(gw_lbs: float, pa_ft: float, oat_c: float) -> str:
+    # Bias toward MANEUVER; step up to FULL if heavy/hot/high
     if gw_lbs >= 70000 or pa_ft > 3000 or oat_c > 30:
         return "FULL"
-    elif gw_lbs >= 62000:
-        return "MAN"
-    return "UP"
+    return "MANEUVER"
 
 def auto_thrust(oat_c: float, pa_ft: float) -> str:
-    if pa_ft > 3000 or oat_c > 30:
-        return "MIL"
+    # Default to MIL (AB could be auto-selected later with higher fidelity)
     return "MIL"
-
-def flap_to_deg(flap_sel: str) -> int:
-    s = flap_sel.upper()
-    if s in ("UP", "0"):
-        return 0
-    if s in ("MAN", "MANEUVERING", "20"):
-        return 20
-    return 40
-
-def thrust_label_to_table_mode(label: str) -> str:
-    lab = label.upper()
-    if lab in ("MIL", "MILITARY"): return "MILITARY"
-    if lab in ("AB", "AFTERBURNER"): return "AFTERBURNER"
-    return "MILITARY"
 
 def nearest_perf_row(perf: pd.DataFrame, model: str, flap_deg: int, thrust_mode: str,
                      gw_lbs: float, pa_ft: float, oat_c: float) -> pd.Series:
@@ -332,42 +369,65 @@ def nearest_perf_row(perf: pd.DataFrame, model: str, flap_deg: int, thrust_mode:
     )
     return sub.sort_values(["d_w", "d_pa", "d_t"]).iloc[0]
 
+def get_thrust_lookup_and_factor(thrust_sel: str, n1_pct: float, flap_label: str):
+    lab = thrust_sel.upper()
+    if lab in ("AB", "AFTERBURNER"):
+        return "AFTERBURNER", None  # use AB row as-is
+    if lab in ("MIL", "MILITARY", "AUTO"):
+        return "MILITARY", None     # use MIL row as-is
+    if lab in ("DERATED", "DERATE"):
+        floor = FLAP_MIN_N1.get(flap_label.upper(), 0.90)
+        eff = max(floor, n1_pct / 100.0)  # clamp to flap floors
+        return "MILITARY", eff
+    return "MILITARY", None
+
 def compute_performance(inp: Inputs, perfdb: pd.DataFrame) -> PerfResult:
     pa_ft = pressure_altitude_ft(inp.elev_ft, inp.qnh_inhg)
     headwind = headwind_component(inp.wind_knots, inp.wind_dir_deg, inp.heading_deg)
 
-    flap = inp.flap_sel if inp.flap_sel != "Auto" else auto_flaps(inp.gw_lbs, pa_ft, inp.oat_c)
-    thrust = inp.thrust_sel if inp.thrust_sel != "Auto" else auto_thrust(inp.oat_c, pa_ft)
+    # Flaps
+    flap_label = inp.flap_sel if inp.flap_sel != "Auto-Select" else auto_flaps(inp.gw_lbs, pa_ft, inp.oat_c)
+    flap_deg = flap_to_deg(flap_label)
 
-    flap_deg = flap_to_deg(flap)
-    if flap_deg == 0:
-        # Promote to 20 if no 0° rows exist
-        if not ((perfdb["flap_deg"] == 0) & (perfdb["model"] == inp.model.upper())).any():
-            flap_deg = 20
-            flap = "MAN"
+    # Thrust
+    thrust_choice = inp.thrust_sel if inp.thrust_sel != "Auto" else auto_thrust(inp.oat_c, pa_ft)
+    base_mode, derate_factor = get_thrust_lookup_and_factor(thrust_choice, inp.n1_pct, flap_label)
 
-    thrust_mode = thrust_label_to_table_mode(thrust)
+    # Lookup row (if DERATED, we still look up MIL row then scale)
+    lookup_mode = "MILITARY" if base_mode in ("MILITARY", "DERATED") else "AFTERBURNER"
+    row = nearest_perf_row(perfdb, "F-14B", flap_deg, lookup_mode, inp.gw_lbs, pa_ft, inp.oat_c)
 
-    row = nearest_perf_row(perfdb, inp.model, flap_deg, thrust_mode, inp.gw_lbs, pa_ft, inp.oat_c)
+    V1 = float(row["V1_kt"]); Vr = float(row["Vr_kt"]); V2 = float(row["V2_kt"]); Vs = float(row.get("Vs_kt", np.nan))
+    ASD = float(row["ASD_ft"]); AGD = float(row["AGD_ft"])
 
-    V1 = float(row["V1_kt"])
-    Vr = float(row["Vr_kt"])
-    V2 = float(row["V2_kt"])
-    Vs = float(row.get("Vs_kt", np.nan))
+    notes = ""
 
-    ASD = apply_wind_slope(float(row["ASD_ft"]), headwind, inp.slope_pct)
-    AGD = apply_wind_slope(float(row["AGD_ft"]), headwind, inp.slope_pct)
+    # Apply de-rate scaling if present (scale distances from MIL row)
+    if derate_factor is not None:
+        ASD /= derate_factor
+        AGD /= derate_factor
+        notes += f"Derated to {derate_factor*100:.0f}% N1; scaled from MIL row. "
+
+    # Flap effects
+    fcor = flap_corrections(flap_deg)
+    ASD *= fcor["dist_mult"]; AGD *= fcor["dist_mult"]
+    V1 += fcor["vspd_delta"]; Vr += fcor["vspd_delta"]; V2 += fcor["vspd_delta"]
+
+    # Wind/slope
+    ASD = apply_wind_slope(ASD, headwind, inp.slope_pct)
+    AGD = apply_wind_slope(AGD, headwind, inp.slope_pct)
 
     req_ft = max(ASD, AGD)
-    avail_ft = max(0.0, float(inp.tora_ft) - float(inp.shorten_ft))
+    avail_ft = max(0.0, inp.tora_ft - inp.shorten_ft - nm_to_ft(inp.shorten_nm))
     limiting = "ASD" if ASD >= AGD else "AGD"
+    thrust_disp = f"DERATED {derate_factor*100:.0f}% N1" if derate_factor is not None else base_mode
 
-    return PerfResult(V1, Vr, V2, Vs, flap, thrust, req_ft, avail_ft, limiting)
+    return PerfResult(V1, Vr, V2, Vs, flap_label, thrust_disp, req_ft, avail_ft, limiting, notes=notes)
 
 # ==========================
 # UI
 # ==========================
-st.title("DCS F‑14B/D Takeoff Performance")
+st.title("DCS F-14B Takeoff Performance")
 
 rwy_df = load_runways()
 perfdb = load_perf()
@@ -385,44 +445,79 @@ with st.sidebar:
     st.metric("TODA (ft)", f"{int(row_rwy['toda_ft']):,}")
     st.metric("ASDA (ft)", f"{int(row_rwy['asda_ft']):,}")
 
-    shorten_ft = st.number_input("Manually shorten available runway (ft)", min_value=0.0, value=0.0, step=100.0)
+    st.subheader("Runway Shortening")
+    shorten_ft = st.number_input("Shorten by (feet)", min_value=0.0, value=0.0, step=50.0)
+    shorten_nm = st.number_input("Shorten by (NM)", min_value=0.0, value=0.0, step=0.1)
 
     st.header("Weather")
-    oat_c = st.number_input("OAT (°C)", value=15.0, step=1.0)
-    qnh_mode = st.selectbox("QNH Input", ["inHg", "hPa"], index=0)
-    if qnh_mode == "inHg":
-        qnh_inhg = st.number_input("QNH (inHg)", value=29.92, step=0.01, format="%.2f")
+    weather_mode = st.radio("Source", ["Manual", "Mission Briefing"], horizontal=True)
+    if weather_mode == "Mission Briefing":
+        txt = st.text_area("Paste briefing text", height=140, placeholder="Paste mission briefing snippet…")
+        oat_c_d, qnh_inhg_d, wind_kn_d, wind_dir_d = parse_briefing(txt) if txt else (None, None, None, None)
+        oat_c = st.number_input("OAT (°C)", value=float(oat_c_d) if oat_c_d is not None else 15.0, step=1.0)
+        qnh_unit = st.selectbox("QNH Unit", ["inHg", "hPa"], index=0 if qnh_inhg_d else 1)
+        if qnh_unit == "inHg":
+            qnh_inhg = st.number_input("QNH (inHg)", value=float(qnh_inhg_d) if qnh_inhg_d else 29.92, step=0.01)
+        else:
+            qnh_hpa = st.number_input("QNH (hPa)", value=1013.0, step=1.0)
+            qnh_inhg = hpa_to_inhg(qnh_hpa)
+        wind_unit = st.selectbox("Wind speed unit", ["kts", "m/s"], index=0)
+        wv = st.number_input("Wind speed", value=float(wind_kn_d) if wind_kn_d is not None else 0.0, step=1.0)
+        wind_knots = wv if wind_unit == "kts" else ms_to_knots(wv)
+        wind_dir_deg = st.number_input("Wind direction (deg true)", value=float(wind_dir_d) if wind_dir_d is not None else float(row_rwy["heading_deg"]))
     else:
-        qnh_hpa = st.number_input("QNH (hPa)", value=1013.0, step=1.0)
-        qnh_inhg = hpa_to_inhg(qnh_hpa)
-    wind_knots = st.number_input("Surface wind (kts)", value=0.0, step=1.0)
-    wind_dir_deg = st.number_input("Wind direction (deg true)", value=float(row_rwy["heading_deg"]), step=1.0, min_value=0.0, max_value=359.9)
+        oat_c = st.number_input("OAT (°C)", value=15.0, step=1.0)
+        qnh_unit = st.selectbox("QNH Unit", ["inHg", "hPa"], index=0)
+        if qnh_unit == "inHg":
+            qnh_inhg = st.number_input("QNH (inHg)", value=29.92, step=0.01)
+        else:
+            qnh_hpa = st.number_input("QNH (hPa)", value=1013.0, step=1.0)
+            qnh_inhg = hpa_to_inhg(qnh_hpa)
+        wind_unit = st.selectbox("Wind speed unit", ["kts", "m/s"], index=0)
+        wv = st.number_input("Wind speed", value=0.0, step=1.0)
+        wind_knots = wv if wind_unit == "kts" else ms_to_knots(wv)
+        wind_dir_deg = st.number_input("Wind direction (deg true)", value=float(row_rwy["heading_deg"]))
 
-    st.header("Weight & Config")
-    model = st.selectbox("Model", ["F-14B", "F-14D"], index=0)
-    gw_lbs = st.number_input("Gross Weight (lb)", value=70000.0, step=500.0)
-    cg_percent_mac = st.number_input("CG (%MAC) — optional", value=25.0, step=0.5)
+    st.header("Weight")
+    weight_mode = st.radio("How to enter weight", ["GW (direct)", "Fuel + Loadout (beta)"])
+    if weight_mode.startswith("GW"):
+        gw_lbs = st.number_input("Gross Weight (lb)", value=70000.0, step=500.0)
+    else:
+        BASE_EMPTY = 42000.0
+        fuel_lbs = st.number_input("Fuel (lb)", value=10000.0, step=500.0)
+        st.caption("Loadout weights are approximate; CG calculator will be added once station geometry is provided.")
+        c1,c2,c3 = st.columns(3)
+        with c1:
+            aim54 = st.number_input("AIM-54 qty", min_value=0, max_value=6, value=0)
+            aim7  = st.number_input("AIM-7 qty",  min_value=0, max_value=6, value=0)
+        with c2:
+            aim9  = st.number_input("AIM-9 qty",  min_value=0, max_value=4, value=0)
+            lantirn = st.number_input("LANTIRN qty", min_value=0, max_value=1, value=0)
+        with c3:
+            tanks = st.number_input("External tanks qty", min_value=0, max_value=2, value=0)
+        # rough masses (lb)
+        gw_lbs = BASE_EMPTY + fuel_lbs + aim54*1000 + aim7*500 + aim9*190 + lantirn*450 + tanks*1700
+        st.metric("Computed GW (lb)", f"{gw_lbs:,.0f}")
 
-    flap_sel = st.selectbox("Takeoff Flaps", ["Auto", "UP", "MAN", "FULL"], index=0)
-    thrust_sel = st.selectbox("Takeoff Thrust", ["Auto", "MIL", "AB"], index=0)
+    st.header("Configuration")
+    flap_sel = st.selectbox("Takeoff Flaps", ["Auto-Select", "UP", "MANEUVER", "FULL"], index=0)
+    thrust_sel = st.selectbox("Takeoff Thrust", ["Auto", "MIL", "AB", "DERATED"], index=0)
+    n1_pct = 100.0
+    if thrust_sel == "DERATED":
+        n1_pct = st.slider("Derated N1 (%)", min_value=90, max_value=100, value=95)
 
+# Compute
 if st.button("Compute Takeoff Performance", type="primary"):
     inp = Inputs(
-        model=model,
-        theatre=theatre,
-        airport=airport,
-        runway_label=rw,
-        heading_deg=float(row_rwy["heading_deg"]),
-        tora_ft=float(row_rwy["tora_ft"]),
-        toda_ft=float(row_rwy["toda_ft"]),
-        asda_ft=float(row_rwy["asda_ft"]),
-        elev_ft=float(row_rwy["threshold_elev_ft"]),
-        slope_pct=float(row_rwy.get("slope_percent", 0.0) or 0.0),
-        shorten_ft=float(shorten_ft),
-        oat_c=float(oat_c), qnh_inhg=float(qnh_inhg),
+        theatre=theatre, airport=airport, runway_label=rw,
+        heading_deg=float(row_rwy["heading_deg"]), tora_ft=float(row_rwy["tora_ft"]),
+        toda_ft=float(row_rwy["toda_ft"]), asda_ft=float(row_rwy["asda_ft"]),
+        elev_ft=float(row_rwy["threshold_elev_ft"]), slope_pct=float(row_rwy.get("slope_percent", 0.0) or 0.0),
+        shorten_ft=float(shorten_ft), shorten_nm=float(shorten_nm),
+        weather_mode=weather_mode, oat_c=float(oat_c), qnh_inhg=float(qnh_inhg),
         wind_knots=float(wind_knots), wind_dir_deg=float(wind_dir_deg),
-        gw_lbs=float(gw_lbs), cg_percent_mac=float(cg_percent_mac),
-        flap_sel=flap_sel, thrust_sel=thrust_sel,
+        gw_lbs=float(gw_lbs), weight_mode=weight_mode,
+        flap_sel=flap_sel, thrust_sel=thrust_sel, n1_pct=float(n1_pct)
     )
     try:
         perf = compute_performance(inp, perfdb)
@@ -430,7 +525,7 @@ if st.button("Compute Takeoff Performance", type="primary"):
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.subheader("V‑Speeds")
+            st.subheader("V-Speeds")
             st.metric("V1 (kt)", f"{perf.v1:.0f}")
             st.metric("Vr (kt)", f"{perf.vr:.0f}")
             st.metric("V2 (kt)", f"{perf.v2:.0f}")
@@ -440,10 +535,11 @@ if st.button("Compute Takeoff Performance", type="primary"):
             st.subheader("Settings")
             st.metric("Flaps", perf.flap_setting)
             st.metric("Thrust", perf.thrust_setting)
-            st.caption("Trim lookup can be added later via a trim table.")
+            if perf.notes:
+                st.caption(perf.notes)
         with col3:
             st.subheader("Runway")
-            st.metric("Req. Distance (ft)", f"{perf.req_distance_ft:.0f}", help="max(ASD, AGD) with wind/slope adjustments")
+            st.metric("Req. Distance (ft)", f"{perf.req_distance_ft:.0f}", help="max(ASD, AGD) w/ wind & slope adj")
             st.metric("Avail. Distance (ft)", f"{perf.avail_distance_ft:.0f}")
             st.metric("Limiting", perf.limiting)
 
@@ -451,11 +547,15 @@ if st.button("Compute Takeoff Performance", type="primary"):
         if not ok:
             st.warning("Try AB, more flap, lower weight, cooler conditions, or a longer runway.")
 
-        with st.expander("Debug details"):
-            st.json(vars(inp))
+        with st.expander("Notes & Assumptions"):
+            st.write(
+                "- This planner is for DCS training only. Tables are placeholder estimates blended from F-14B/D data you provided.\n"
+                "- DERATE scales MIL distances; flap-dependent minimum N1 floors: UP≥90, MAN≥92, FULL≥95.\n"
+                "- Flap heuristics: UP +10% distance (+5 kt), FULL −8% distance (−3 kt). Wind/slope adjustments are coarse.\n"
+                "- CG calculation framework is stubbed until stations/arms are supplied; performance does not use CG yet."
+            )
 
     except Exception as e:
         st.error(f"Computation failed: {e}")
-        st.stop()
 else:
-    st.info("Set inputs and click **Compute Takeoff Performance**.")
+    st.info("Set inputs (you can paste a DCS briefing) and click **Compute Takeoff Performance**.")
