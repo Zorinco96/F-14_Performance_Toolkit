@@ -21,6 +21,19 @@ RPM_MIN = 88.0     # practical lower bound for below-MIL search (reduced thrust)
 RPM_MIL = 96.0     # nominal Military
 RPM_AB  = 102.0    # nominal full afterburner
 
+# Thrust classification helper (RPM → label)
+AB_THRESH = 101.0   # >= this → Afterburner
+MIL_MIN   = 96.0    # >= this and < AB_THRESH → Military
+def classify_thrust(rpm_value: float) -> str:
+    """Classify thrust setting purely from target RPM."""
+    if rpm_value is None:
+        return "Military"  # safe fallback
+    if rpm_value >= AB_THRESH:
+        return "Afterburner"
+    if rpm_value >= MIL_MIN:
+        return "Military"
+    return "Reduced"
+
 # Config options
 FLAP_OPTIONS = {"Flaps Up": 0, "Maneuvering Flaps": 20, "Flaps Full": 40}
 TAILWIND_LIMIT_KT = 10  # “Max tailwind” advisory
@@ -439,16 +452,19 @@ else:
 # =========================
 st.subheader("Final Numbers")
 
-thrust_label = (
-    "Reduced" if (apply_part121 and perf_df is not None and selected)
-    or thrust_choice.startswith("Minimum")
-    else ("Military" if base.get("rpm", RPM_MIL) <= RPM_MIL+0.5 else "Afterburner")
-)
+# Optional debug info: alpha & RPM
+if "alpha" in base:
+    st.caption(f"Debug: alpha={base['alpha']:+.3f}, rpm={base.get('rpm','--')}%")
+
+# Classify thrust purely by RPM and show label + RPM together
+rpm_val = base.get("rpm", None)
+thrust_label = classify_thrust(rpm_val)
+thrust_display = f"{thrust_label} ({'--' if rpm_val is None else f'{rpm_val}%'} )"
 
 st.write(f"**Selected Flap:** {selected_flap_name} ({selected_flap_deg}°)")
 st.write(
-    f"**Thrust:** {thrust_label}  |  **Target RPM:** {base.get('rpm','--')}%  "
-    f"|  **Runway Required (BFL + margin):** {required_len:,} ft  |  **Available (TORA):** {available_len:,} ft"
+    f"**Thrust:** {thrust_display}  |  "
+    f"**Runway Required (BFL + margin):** {required_len:,} ft  |  **Available (TORA):** {available_len:,} ft"
 )
 st.write(f"**Vs:** {base['Vs']} kt   **V1:** {base['V1']} kt   **Vr:** {base['Vr']} kt   **V2:** {base['V2']} kt")
 st.write(f"**Balanced Field Length:** {base['bfl_ft']:,} ft")
