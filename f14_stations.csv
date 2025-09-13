@@ -1,4 +1,5 @@
 station_id,name,arm_in,unit_weight_lb,max_qty
+
 1A-AIM9,Left Glove Rail (AIM-9),290,190,1
 1B-AIM7,Left Glove Pylon (AIM-7),300,510,1
 1B-TANK,Left External Tank (267 gal),300,1900,1
