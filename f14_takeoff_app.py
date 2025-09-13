@@ -53,30 +53,61 @@ def headwind_component(knots_wind: float, wind_dir_deg: float, rwy_heading_deg: 
 
 DATA_DIR = pathlib.Path(__file__).parent / "data"
 
+# Safer readers that return None instead of crashing if files are missing
+
+def read_csv_if_exists(path: pathlib.Path) -> Optional[pd.DataFrame]:
+    try:
+        if path.exists():
+            return pd.read_csv(path)
+    except Exception as e:
+        st.warning(f"Failed reading {path.name}: {e}")
+    return None
+
+def find_path_ignore_case(filename: str) -> Optional[pathlib.Path]:
+    """Return a Path in DATA_DIR matching filename regardless of case."""
+    direct = DATA_DIR / filename
+    if direct.exists():
+        return direct
+    # Try common case variations
+    for cand in [filename.lower(), filename.upper(), filename.title()]:
+        p = DATA_DIR / cand
+        if p.exists():
+            return p
+    # Full scan fallback
+    target = filename.lower()
+    for p in DATA_DIR.glob("*.csv"):
+        if p.name.lower() == target:
+            return p
+    return None
+
 # Runway DB: DCS_Airports.csv
 # map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,opp_threshold_elev_ft,slope_percent,notes
 
 @st.cache_data
-def load_runways() -> pd.DataFrame:
-    path = DATA_DIR / "DCS_Airports.csv"
-    df = pd.read_csv(path)
-    # Compute per‑end runway key, heading numeric, elevations feet
+def load_runways() -> Optional[pd.DataFrame]:
+    path = find_path_ignore_case("DCS_Airports.csv") or find_path_ignore_case("dcs_airports.csv")
+    df = read_csv_if_exists(path) if path else None
+    if df is None:
+        return None
     df["rw_key"] = df["airport_name"] + " — " + df["runway_pair"].astype(str) + "/" + df["runway_end"].astype(str)
-    # Make nice labels like "Batumi 13 (13/31)"
-    df["runway_label"] = df["airport_name"] + f" " + df["runway_end"].astype(str) + " (" + df["runway_pair"].astype(str) + ")"
+    df["runway_label"] = df["airport_name"] + " " + df["runway_end"].astype(str) + " (" + df["runway_pair"].astype(str) + ")"
     return df
 
 # Performance: perf_f14b.csv and perf_f14d.csv
 # model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft
 
 @st.cache_data
-def load_perf() -> pd.DataFrame:
-    p_b = pd.read_csv(DATA_DIR / "perf_f14b.csv")
-    p_d = pd.read_csv(DATA_DIR / "perf_f14d.csv")
-    perf = pd.concat([p_b, p_d], ignore_index=True)
-    # Normalize text casing
-    perf["model"] = perf["model"].str.upper()  # F-14B/D
-    perf["thrust"] = perf["thrust"].str.upper()  # MILITARY / AFTERBURNER (and maybe REDUCED later)
+def load_perf() -> Optional[pd.DataFrame]:
+    p_b_path = find_path_ignore_case("perf_f14b.csv")
+    p_d_path = find_path_ignore_case("perf_f14d.csv")
+    p_b = read_csv_if_exists(p_b_path) if p_b_path else None
+    p_d = read_csv_if_exists(p_d_path) if p_d_path else None
+    if p_b is None and p_d is None:
+        return None
+    parts = [df for df in [p_b, p_d] if df is not None]
+    perf = pd.concat(parts, ignore_index=True)
+    perf["model"] = perf["model"].str.upper()
+    perf["thrust"] = perf["thrust"].str.upper()
     return perf
 
 ################################################################################
@@ -239,6 +270,32 @@ st.title("DCS F‑14B/D Takeoff Performance")
 
 rwy_df = load_runways()
 perfdb = load_perf()
+
+# Upload fallbacks
+if rwy_df is None:
+    st.warning("data/DCS_Airports.csv not found. Upload it below or add it to the repo.")
+    up = st.file_uploader("Upload DCS_Airports.csv", type=["csv"], key="rwy_csv")
+    if up is not None:
+        rwy_df = pd.read_csv(up)
+        rwy_df["rw_key"] = rwy_df["airport_name"] + " — " + rwy_df["runway_pair"].astype(str) + "/" + rwy_df["runway_end"].astype(str)
+        rwy_df["runway_label"] = rwy_df["airport_name"] + " " + rwy_df["runway_end"].astype(str) + " (" + rwy_df["runway_pair"].astype(str) + ")"
+
+if perfdb is None:
+    st.warning("Performance CSVs not found. Upload perf_f14b.csv / perf_f14d.csv (one or both).")
+    up_b = st.file_uploader("Upload perf_f14b.csv", type=["csv"], key="perf_b")
+    up_d = st.file_uploader("Upload perf_f14d.csv", type=["csv"], key="perf_d")
+    frames = []
+    if up_b is not None:
+        frames.append(pd.read_csv(up_b))
+    if up_d is not None:
+        frames.append(pd.read_csv(up_d))
+    if frames:
+        perfdb = pd.concat(frames, ignore_index=True)
+        perfdb["model"] = perfdb["model"].str.upper()
+        perfdb["thrust"] = perfdb["thrust"].str.upper()
+
+if rwy_df is None or perfdb is None:
+    st.stop()
 
 with st.sidebar:
     st.header("Runway")
