@@ -1,483 +1,342 @@
-# f14_takeoff_app_dcs.py
-import os, math
+# app.py — DCS F‑14B/D Takeoff Performance (Streamlit) — v0.2 wired to your CSVs
+#
+# CHANGELOG v0.2
+# • Ingests your exact runway file: data/DCS_Airports.csv (feet, headings, slopes, TORA/TODA/ASDA, elevations)
+# • Ingests your perf grids: data/perf_f14b.csv and data/perf_f14d.csv (single‑V1 rows)
+# • Maps UI flaps to 0/20/40 deg (UP/MAN/FULL). Your CSVs currently include 20 and 40 only.
+# • Uses TORA as the default “available distance”, with manual shortening. Also displays TODA/ASDA for info.
+# • Balanced‑field note: because your perf rows include only one V1 per condition, we currently set
+#   Required Distance = max(ASD, AGD) (after wind/slope). True V1 balancing requires multiple rows per
+#   (weight, flap, PA, OAT) with different V1_kt; you can add those later and we’ll switch logic automatically.
+#
+# IMPORTANT
+# This is a sim planning tool based on public/manual data. Not for real‑world aviation use.
+
+import math
+import pathlib
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 import streamlit as st
 
-APP_TITLE = "F-14 Takeoff Performance (DCS • Part 121 • Dynamic Min Thrust)"
+################################################################################
+# Atmosphere & helpers
+################################################################################
 
-# ---------------- Core aircraft / tuning ----------------
-EMPTY_WEIGHT_LBS = 40000
-MAX_GW = 74349
-MIN_GW = 30000
+def hpa_to_inhg(hpa: float) -> float:
+    return hpa * 0.0295299830714
 
-# Engine %RPM anchors
-RPM_MIN = 90.0     # raised lower bound for reduced thrust
-RPM_MIL = 96.0
-RPM_AB  = 102.0
+def ft_to_m(ft: float) -> float:
+    return ft * 0.3048
 
-# Thrust labels
-AB_THRESH = 101.0
-MIL_MIN   = 96.0
-def classify_thrust(rpm_value: float) -> str:
-    if rpm_value is None: return "Military"
-    if rpm_value >= AB_THRESH: return "Afterburner"
-    if rpm_value >= MIL_MIN:   return "Military"
-    return "Reduced"
+def m_to_ft(m: float) -> float:
+    return m / 0.3048
 
-# Flaps
-FLAP_OPTIONS = {"Flaps Up": 0, "Maneuvering Flaps": 20, "Flaps Full": 40}
-TAILWIND_LIMIT_KT = 10
+def pressure_altitude_ft(field_elev_ft: float, qnh_inhg: float) -> float:
+    return field_elev_ft + (29.92 - qnh_inhg) * 1000.0
 
-def ceil_kn(x): return int(math.ceil(float(x)))
+def density_altitude_ft(pa_ft: float, oat_c: float) -> float:
+    ISA_SEA_LEVEL_T_C = 15.0
+    LAPSE_RATE_C_PER_M = 0.0065
+    isa_c = ISA_SEA_LEVEL_T_C - (LAPSE_RATE_C_PER_M * ft_to_m(pa_ft))
+    return pa_ft + 120.0 * (oat_c - isa_c)
 
-# -------- Below-MIL extrapolation knobs (conservative) --------
-BELOW_MIL_DISTANCE_BETA = 2.2
-BELOW_MIL_SPEED_BETA    = 0.30
-MAX_SPEED_DROP_FRAC     = 0.05
+def headwind_component(knots_wind: float, wind_dir_deg: float, rwy_heading_deg: float) -> float:
+    delta = math.radians((wind_dir_deg - rwy_heading_deg) % 360)
+    return knots_wind * math.cos(delta)
 
-# ---------------- NATOPS tables (starter) ----------------
-STARTER_PERF_CSV = """model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft
-F-14D,20,Military,60000,0,15,122,135,144,156,4200,4700
-F-14D,20,Afterburner,60000,0,15,120,132,141,154,3800,3900
-F-14D,20,Military,70000,0,15,128,142,152,166,5200,6100
-F-14D,20,Afterburner,70000,0,15,126,139,148,163,4600,4700
-F-14D,40,Military,70000,0,15,118,131,140,152,4800,5600
-F-14D,40,Afterburner,70000,0,15,116,128,137,150,4300,4400
-F-14D,20,Military,70000,2000,30,132,146,157,172,6400,7300
-F-14D,20,Afterburner,70000,2000,30,130,143,154,169,5600,5900
-"""
+################################################################################
+# Data IO: EXACTLY your files & schema
+################################################################################
 
-@st.cache_data(show_spinner=False)
-def ensure_starter_perf():
-    if not os.path.exists("perf_f14b.csv") and not os.path.exists("perf_f14d.csv"):
-        with open("perf_f14d.csv", "w", encoding="utf-8") as f:
-            f.write(STARTER_PERF_CSV)
+DATA_DIR = pathlib.Path(__file__).parent / "data"
 
-@st.cache_data(show_spinner=False)
-def load_perf_tables():
-    for fname in ["perf_f14b.csv", "perf_f14d.csv"]:
-        try:
-            df = pd.read_csv(fname)
-            df["flap_deg"] = pd.to_numeric(df["flap_deg"], errors="coerce")
-            df["gw_lbs"]   = pd.to_numeric(df["gw_lbs"], errors="coerce")
-            df["press_alt_ft"] = pd.to_numeric(df["press_alt_ft"], errors="coerce")
-            df["oat_c"]    = pd.to_numeric(df["oat_c"], errors="coerce")
-            for c in ["Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]:
-                df[c] = pd.to_numeric(df[c], errors="coerce")
-            df["thrust"] = df["thrust"].map({
-                "Minimum Required":"Minimum Required","minimum":"Minimum Required","min":"Minimum Required",
-                "Military":"Military","military":"Military","mil":"Military",
-                "Afterburner":"Afterburner","afterburner":"Afterburner","ab":"Afterburner"
-            })
-            return df, fname
-        except Exception:
-            continue
-    return None, None
+# Runway DB: DCS_Airports.csv
+# map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,opp_threshold_elev_ft,slope_percent,notes
 
-def nearest_row(df, flap_deg, thrust, gw_lbs, pa_ft, oat_c):
-    sub = df[(df["flap_deg"]==flap_deg) & (df["thrust"]==thrust)].copy()
-    if sub.empty:
-        flaps = df[df["thrust"]==thrust]["flap_deg"].dropna().unique()
-        if len(flaps)==0: return None
-        flap_deg = int(sorted(flaps, key=lambda x:abs(x-flap_deg))[0])
-        sub = df[(df["flap_deg"]==flap_deg) & (df["thrust"]==thrust)].copy()
-        if sub.empty: return None
-    sub["dist"] = (abs(sub["gw_lbs"]-gw_lbs)
-                   + abs(sub["press_alt_ft"]-pa_ft)
-                   + abs(sub["oat_c"]-oat_c))
-    row = sub.sort_values("dist").head(1)
-    return None if row.empty else row.iloc[0].to_dict()
-
-# -------- Interp/Extrap (MIL↔AB and below-MIL) --------
-def blend_metric(mil_val, ab_val, alpha, kind="distance"):
-    if mil_val is None or ab_val is None or (isinstance(mil_val,float) and math.isnan(mil_val)) or (isinstance(ab_val,float) and math.isnan(ab_val)):
-        return mil_val
-    if alpha >= 0.0:
-        return mil_val + alpha*(ab_val - mil_val)
-    a = -alpha
-    if kind == "distance":
-        if ab_val > 0 and mil_val > 0 and mil_val > ab_val:
-            k = math.log(mil_val/ab_val)
-            return mil_val * math.exp(k * a * BELOW_MIL_DISTANCE_BETA)
-        return mil_val * (1.0 + a * 2.0 * BELOW_MIL_DISTANCE_BETA)
-    else:  # speed
-        delta = (mil_val - ab_val)
-        raw = mil_val + (-a) * BELOW_MIL_SPEED_BETA * delta
-        min_allowed = mil_val * (1.0 - MAX_SPEED_DROP_FRAC)
-        return max(raw, min_allowed)
-
-def rpm_from_alpha(alpha):
-    if alpha >= 0:
-        return RPM_MIL + alpha*(RPM_AB - RPM_MIL)
-    return RPM_MIL + alpha*(RPM_MIL - RPM_MIN)
-
-def alpha_from_rpm(rpm):
-    rpm = max(RPM_MIN, min(RPM_AB, rpm))
-    if rpm >= RPM_MIL:
-        return (rpm - RPM_MIL) / (RPM_AB - RPM_MIL)
-    return (rpm - RPM_MIL) / (RPM_MIL - RPM_MIN)
-
-# ---------------- Part 121 gating (no RTO spare) ----------------
-def part121_pass(runway_ft, asd_ft, agd_ft, condition, stopway_ft=0, clearway_ft=0, extra_margin_ft=0):
-    """121.189 / 25.113 checks with user margin included."""
-    tora = float(runway_ft)
-    asda = tora + float(stopway_ft)
-    toda = tora + float(min(clearway_ft, tora/2.0))
-    asd_ok = float(asd_ft) + extra_margin_ft <= asda
-    oei_tod_ok = float(agd_ft) + extra_margin_ft <= toda
-    aeo_tr_proxy = (0.85 if condition=="Dry" else 0.90) * float(agd_ft)
-    tor_ok = aeo_tr_proxy + extra_margin_ft <= tora
-    return asd_ok and oei_tod_ok and tor_ok
-
-def find_min_feasible_alpha(check_fn, alpha_hi, alpha_min_bound):
-    if not check_fn(alpha_hi): return None
-    step = 0.05
-    a_pass = alpha_hi
-    a = alpha_hi
-    while a > alpha_min_bound:
-        a_next = max(alpha_min_bound, a - step)
-        if check_fn(a_next): a_pass = a_next; a = a_next
-        else: break
-        if a == alpha_min_bound: break
-    left = max(alpha_min_bound, a_pass - step)
-    right = a_pass
-    if check_fn(left): left = max(alpha_min_bound - 1e-6, left - 0.001)
-    for _ in range(32):
-        mid = 0.5*(left+right)
-        if check_fn(mid): right = mid
-        else: left = mid
-    return right
-
-def evaluate_combo_for_121(perf_df, flap_deg, gw, pa_ft, oat_c, runway_ft, condition, stopway_ft, clearway_ft, extra_margin_ft=0):
-    mil = nearest_row(perf_df, flap_deg, "Military", gw, pa_ft, oat_c)
-    ab  = nearest_row(perf_df, flap_deg, "Afterburner", gw, pa_ft, oat_c)
-    if not mil or not ab: return None
-
-    def metrics_at(alpha):
-        asd = blend_metric(mil["ASD_ft"], ab["ASD_ft"], alpha, "distance") * 1.15
-        agd = blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15
-        vs  = ceil_kn(blend_metric(mil["Vs_kt"], ab["Vs_kt"], alpha, "speed"))
-        v1  = ceil_kn(blend_metric(mil["V1_kt"], ab["V1_kt"], alpha, "speed"))
-        vr  = ceil_kn(blend_metric(mil["Vr_kt"], ab["Vr_kt"], alpha, "speed"))
-        v2  = ceil_kn(blend_metric(mil["V2_kt"], ab["V2_kt"], alpha, "speed"))
-        rpm = round(max(RPM_MIN, min(RPM_AB, rpm_from_alpha(alpha))), 1)
-        ok = part121_pass(runway_ft, asd, agd, condition, stopway_ft, clearway_ft, extra_margin_ft)
-        return dict(Vs=vs,V1=v1,Vr=vr,V2=v2,
-                    stop_ft=int(round(asd)), go_ft=int(round(agd)),
-                    bfl_ft=int(round(max(asd, agd))), rpm=rpm, alpha=alpha, ok=ok)
-
-    alpha_min = (RPM_MIN - RPM_MIL) / (RPM_AB - RPM_MIL)
-    for s in [1.0, 0.5, 0.0, -0.1, -0.2]:
-        if s >= alpha_min and metrics_at(s)["ok"]:
-            a_pass = s; break
-    else:
-        return None
-
-    a_min = find_min_feasible_alpha(lambda a: metrics_at(a)["ok"], a_pass, alpha_min)
-    if a_min is None: a_min = a_pass
-    return metrics_at(a_min)
-
-def solve_min_required_dynamic(perf_df, flap_deg, gw_lbs, pa_ft, oat_c, runway_available_ft, extra_margin_ft=0, vr_target_frac=0.50):
-    # Target: AGD*(1.15) ≤ vr_target_frac × (runway_available_ft – extra_margin_ft)
-    mil = nearest_row(perf_df, flap_deg, "Military", int(gw_lbs), int(pa_ft), int(oat_c))
-    ab  = nearest_row(perf_df, flap_deg, "Afterburner", int(gw_lbs), int(pa_ft), int(oat_c))
-    if not mil or not ab: return None
-    usable = max(0.0, float(runway_available_ft) - float(extra_margin_ft))
-    target_agd = max(0.0, float(vr_target_frac) * usable)
-    def agd_of(alpha): return blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15
-    if agd_of(1.0) > target_agd: return None
-    alpha_min = (RPM_MIN - RPM_MIL) / (RPM_AB - RPM_MIL)
-    lo, hi = (alpha_min, 0.0) if agd_of(0.0) <= target_agd else (0.0, 1.0)
-    for _ in range(28):
-        mid = 0.5*(lo+hi)
-        if agd_of(mid) <= target_agd: hi = mid
-        else: lo = mid
-    alpha = hi
-    rpm   = round(max(RPM_MIN, min(RPM_AB, rpm_from_alpha(alpha))), 1)
-    def vblend(k): return ceil_kn(blend_metric(mil[k], ab[k], alpha, "speed"))
-    asd = int(round(blend_metric(mil["ASD_ft"], ab["ASD_ft"], alpha, "distance") * 1.15))
-    agd = int(round(blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15))
-    return {"Vs": vblend("Vs_kt"), "V1": vblend("V1_kt"), "Vr": vblend("Vr_kt"), "V2": vblend("V2_kt"),
-            "stop_ft": asd, "go_ft": agd, "bfl_ft": max(asd, agd), "rpm": rpm, "alpha": alpha}
-
-# ---------------- DCS airports ----------------
-@st.cache_data(show_spinner=False)
-def load_dcs_airports():
-    df = pd.read_csv(
-        "dcs_airports.csv",
-        dtype={"map":"string","airport_name":"string","runway_pair":"string","runway_end":"string","notes":"string"},
-        keep_default_na=True, na_values=["","NA","N/A","null","None"]
-    )
-    for col in ["heading_deg","length_ft","tora_ft","toda_ft","asda_ft","threshold_elev_ft","opp_threshold_elev_ft","slope_percent"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+@st.cache_data
+def load_runways() -> pd.DataFrame:
+    path = DATA_DIR / "DCS_Airports.csv"
+    df = pd.read_csv(path)
+    # Compute per‑end runway key, heading numeric, elevations feet
+    df["rw_key"] = df["airport_name"] + " — " + df["runway_pair"].astype(str) + "/" + df["runway_end"].astype(str)
+    # Make nice labels like "Batumi 13 (13/31)"
+    df["runway_label"] = df["airport_name"] + f" " + df["runway_end"].astype(str) + " (" + df["runway_pair"].astype(str) + ")"
     return df
 
-# ---------------- Trim model (target V2, gear selected up) ----------------
-def compute_takeoff_trim_deg_for_v2(gross_lbs: int, flap_deg: int, vs_kt: float, v2_kt: float) -> float:
-    """
-    Trim for a hands-off V2 climb (gear selected up). Tuned to avoid over-NU.
-    Heuristics:
-      - Heavier  -> more NU
-      - Less flap -> more NU
-      - Higher V2/Vs -> less NU
-    """
-    base = 6.5  # lower base to avoid nose-high bias
-    wt_term = 0.5 * max(0.0, (gross_lbs - 50000) / 5000.0)   # ~0.5 deg per +5k
-    if flap_deg >= 35: flap_term = 0.0                       # Full
-    elif flap_deg >= 10: flap_term = 0.5                     # Maneuver
-    else: flap_term = 1.5                                    # Up
+# Performance: perf_f14b.csv and perf_f14d.csv
+# model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft
 
-    ratio = max(1.05, float(v2_kt) / max(1.0, float(vs_kt)))
-    v2_term = -4.0 * (ratio - 1.20)  # stronger negative to counter high V2
+@st.cache_data
+def load_perf() -> pd.DataFrame:
+    p_b = pd.read_csv(DATA_DIR / "perf_f14b.csv")
+    p_d = pd.read_csv(DATA_DIR / "perf_f14d.csv")
+    perf = pd.concat([p_b, p_d], ignore_index=True)
+    # Normalize text casing
+    perf["model"] = perf["model"].str.upper()  # F-14B/D
+    perf["thrust"] = perf["thrust"].str.upper()  # MILITARY / AFTERBURNER (and maybe REDUCED later)
+    return perf
 
-    gear_up_nudge = 0.2              # tiny nudge only
+################################################################################
+# Core calculation using your current single‑V1 rows
+################################################################################
 
-    trim_nu = base + wt_term + flap_term + v2_term + gear_up_nudge
-    return max(4.0, min(14.0, round(trim_nu, 1)))  # tighter clamp to avoid over-trim
+@dataclass
+class Inputs:
+    model: str  # F-14B or F-14D
+    theatre: str
+    airport: str
+    runway_label: str
+    heading_deg: float
+    tora_ft: float
+    toda_ft: float
+    asda_ft: float
+    elev_ft: float
+    slope_pct: float
+    shorten_ft: float
 
-# ---------------- Streamlit App ----------------
-st.set_page_config(page_title=APP_TITLE, layout="centered")
-st.title(APP_TITLE)
+    oat_c: float
+    qnh_inhg: float
+    wind_knots: float
+    wind_dir_deg: float
 
-ensure_starter_perf()
-perf_df, perf_source = load_perf_tables()
-dcs = load_dcs_airports()
+    weight_mode: str  # GW or Fuel+Stores (GW only for now)
+    gw_lbs: float
+    cg_percent_mac: Optional[float]
 
-# 1) Theatre / Airport / Runway
-st.header("1) DCS Theatre / Airport / Runway")
-theatres = sorted(dcs["map"].dropna().unique().tolist())
-theatre = st.selectbox("Theatre", theatres)
-df_map = dcs[dcs["map"]==theatre].copy()
+    flap_sel: str  # Auto/UP/MAN/FULL
+    thrust_sel: str  # Auto/REDUCED/MIL/AB
 
-airports = sorted(df_map["airport_name"].dropna().unique().tolist())
-airport = st.selectbox("Airport", airports)
-df_ap = df_map[df_map["airport_name"]==airport].copy()
+@dataclass
+class PerfResult:
+    v1: float
+    vr: float
+    v2: float
+    vs: float
+    flap_setting: str
+    thrust_setting: str
+    req_distance_ft: float
+    avail_distance_ft: float
+    limiting: str
 
-pairs = sorted(df_ap["runway_pair"].dropna().unique().tolist())
-runway_pair = st.selectbox("Runway pair", pairs)
 
-df_pair = df_ap[df_ap["runway_pair"]==runway_pair].copy()
-ends_display = [f"{row['runway_end']}  (hdg {int(row['heading_deg'])}°)" for _,row in df_pair.sort_values("runway_end").iterrows()]
-end_label = st.radio("Runway end (departure)", ends_display, horizontal=True)
-sel_end = end_label.split()[0]
-row = df_pair[df_pair["runway_end"]==sel_end].iloc[0]
+def auto_flaps(gw_lbs: float, pa_ft: float, oat_c: float) -> str:
+    # Heuristic: heavy/hot/high → FULL, mid → MAN, light/cool/low → UP (but your perf tables only cover 20/40)
+    if gw_lbs >= 70000 or pa_ft > 3000 or oat_c > 30:
+        return "FULL"
+    elif gw_lbs >= 62000:
+        return "MAN"
+    return "UP"
 
-dep_hdg   = int(row["heading_deg"]) if not np.isnan(row["heading_deg"]) else 0
-length_ft = int(row["length_ft"]) if not np.isnan(row["length_ft"]) else 0
-tora_ft   = int(row["tora_ft"]) if not np.isnan(row["tora_ft"]) else length_ft
-toda_ft   = int(row["toda_ft"]) if not np.isnan(row["toda_ft"]) else tora_ft
-asda_ft   = int(row["asda_ft"]) if not np.isnan(row["asda_ft"]) else tora_ft
 
-thre = row.get("threshold_elev_ft", np.nan); oppe = row.get("opp_threshold_elev_ft", np.nan)
-if length_ft>0 and not np.isnan(thre) and not np.isnan(oppe):
-    slope_dir = (oppe - thre)/length_ft*100.0
-    field_elev_auto = int(thre)
-else:
-    slope_dir = float(row["slope_percent"]) if not np.isnan(row["slope_percent"]) else 0.0
-    field_elev_auto = int(thre if not np.isnan(thre) else (oppe if not np.isnan(oppe) else 0))
+def auto_thrust(oat_c: float, pa_ft: float) -> str:
+    if pa_ft > 3000 or oat_c > 30:
+        return "MIL"
+    return "MIL"  # default MIL unless you populate reduced/AB policy
 
-# Allow corrections + manual reduction
-if length_ft == 0:
-    length_ft = st.number_input("Runway length (ft)", min_value=1000, max_value=20000, value=8000, step=50)
-tora_ft = st.number_input("TORA (ft) — available runway", min_value=1000, max_value=20000, value=int(tora_ft), step=50)
-manual_reduce_ft = st.number_input("Reduce available runway (ft)", min_value=0, max_value=int(tora_ft), value=0, step=50)
-field_elev = st.number_input("Field Elevation (ft) at departure threshold", min_value=0, max_value=12000, value=int(field_elev_auto), step=1)
 
-st.caption(
-    f"Runway {runway_pair} end **{sel_end}**  |  Heading **{dep_hdg}°**  |  Length **{length_ft:,} ft**  "
-    f"|  TORA **{int(tora_ft):,} ft**  |  TODA **{int(toda_ft):,} ft**  |  ASDA **{int(asda_ft):,} ft**  "
-    f"|  Slope **{slope_dir:.1f}%**  |  Elev **{int(field_elev)} ft**"
-)
+def flap_to_deg(flap_sel: str) -> Optional[int]:
+    if flap_sel.upper() == "UP":
+        return 0
+    if flap_sel.upper() in ("MAN", "MANEUVERING", "20"):
+        return 20
+    if flap_sel.upper() in ("FULL", "40"):
+        return 40
+    return None
 
-# 2) Weather
-st.header("2) Weather")
-oat = st.number_input("OAT (°C)", min_value=-40, max_value=55, value=15, step=1)
-wind_mode = st.radio("Headwind input", ["Manual (head/tailwind in kt)","From DCS Mission Briefing"], index=0)
-if wind_mode == "Manual (head/tailwind in kt)":
-    headwind_kt = st.number_input("Headwind (+) / Tailwind (-) (kt)", min_value=-40.0, max_value=40.0, value=0.0, step=1.0)
-    crosswind_kt = 0.0
-else:
-    c1,c2 = st.columns(2)
-    with c1: wind_dir = st.number_input("Wind Direction (° FROM, briefing)", min_value=0, max_value=359, value=0, step=1)
-    with c2: wind_spd = st.number_input("Wind Speed (kt)", min_value=0, max_value=100, value=0, step=1)
-    rel = (wind_dir - dep_hdg) % 360
-    th  = math.radians(rel)
-    headwind_kt = round(wind_spd*math.cos(th),1)
-    crosswind_kt = round(abs(wind_spd*math.sin(th)),1)
-    if headwind_kt >= 0:
-        st.info(f"Headwind: **+{headwind_kt} kt**  |  Crosswind: **{crosswind_kt} kt**")
+
+def thrust_label_to_table_mode(label: str) -> str:
+    lab = label.upper()
+    if lab in ("MIL", "MILITARY"):
+        return "MILITARY"
+    if lab in ("AB", "AFTERBURNER"):
+        return "AFTERBURNER"
+    if lab in ("REDUCED", "FLEX"):
+        return "REDUCED"  # not present in current CSVs; will fall back
+    return lab
+
+
+def apply_wind_slope(distance_ft: float, headwind_kn: float, slope_pct: float) -> float:
+    # Simple placeholder corrections; refine if you add manual corrections from NATOPS
+    adj = distance_ft
+    adj *= 1.0 - 0.01 * min(0.5, max(-0.5, headwind_kn / 2.0))
+    adj *= 1.0 + 0.20 * max(0.0, slope_pct)  # uphill penalty
+    return adj
+
+
+def nearest_perf_row(perf: pd.DataFrame, model: str, flap_deg: int, thrust_mode: str,
+                     gw_lbs: float, pa_ft: float, oat_c: float) -> pd.Series:
+    sub = perf[(perf["model"] == model.upper()) &
+               (perf["flap_deg"] == flap_deg) &
+               (perf["thrust"].str.upper() == thrust_mode.upper())]
+    # If that’s empty (e.g., REDUCED), fall back to MILITARY
+    if sub.empty:
+        sub = perf[(perf["model"] == model.upper()) &
+                   (perf["flap_deg"] == flap_deg) &
+                   (perf["thrust"].str.upper() == "MILITARY")]
+    if sub.empty:
+        raise ValueError("No performance rows match model/flap/thrust.")
+    # Distance in param‑space
+    sub = sub.assign(
+        d_w = (sub["gw_lbs"] - gw_lbs).abs(),
+        d_pa = (sub["press_alt_ft"] - pa_ft).abs(),
+        d_t  = (sub["oat_c"] - oat_c).abs(),
+    )
+    row = sub.sort_values(["d_w", "d_pa", "d_t"]).iloc[0]
+    return row
+
+
+def compute_performance(inp: Inputs, perfdb: pd.DataFrame) -> PerfResult:
+    pa_ft = pressure_altitude_ft(inp.elev_ft, inp.qnh_inhg)
+    headwind = headwind_component(inp.wind_knots, inp.wind_dir_deg, inp.heading_deg)
+
+    flap = inp.flap_sel if inp.flap_sel != "Auto" else auto_flaps(inp.gw_lbs, pa_ft, inp.oat_c)
+    thrust = inp.thrust_sel if inp.thrust_sel != "Auto" else auto_thrust(inp.oat_c, pa_ft)
+
+    flap_deg = flap_to_deg(flap)
+    if flap_deg is None:
+        # If user chose UP but tables don’t have 0°, promote to 20°
+        flap_deg = 20
+        flap = "MAN"
+
+    thrust_mode = thrust_label_to_table_mode(thrust)
+
+    row = nearest_perf_row(perfdb, inp.model, flap_deg, thrust_mode, inp.gw_lbs, pa_ft, inp.oat_c)
+
+    V1 = float(row["V1_kt"])
+    Vr = float(row["Vr_kt"])
+    V2 = float(row["V2_kt"])
+    Vs = float(row["Vs_kt"]) if not pd.isna(row.get("Vs_kt", np.nan)) else np.nan
+
+    ASD = apply_wind_slope(float(row["ASD_ft"]), headwind, inp.slope_pct)
+    AGD = apply_wind_slope(float(row["AGD_ft"]), headwind, inp.slope_pct)
+
+    # Required distance: since we only have one V1 per row, use max(ASD, AGD) as the limiting field length.
+    req_ft = max(ASD, AGD)
+
+    # Available distance: use TORA minus user shortening
+    avail_ft = max(0.0, float(inp.tora_ft) - float(inp.shorten_ft))
+
+    # Determine limiting label
+    limiting = "ASD" if ASD >= AGD else "AGD"
+
+    return PerfResult(
+        v1=V1, vr=Vr, v2=V2, vs=Vs,
+        flap_setting=flap, thrust_setting=thrust,
+        req_distance_ft=req_ft, avail_distance_ft=avail_ft,
+        limiting=limiting,
+    )
+
+################################################################################
+# UI
+################################################################################
+
+st.set_page_config(page_title="DCS F‑14 Takeoff Performance", page_icon="✈️", layout="wide")
+
+st.title("DCS F‑14B/D Takeoff Performance")
+
+rwy_df = load_runways()
+perfdb = load_perf()
+
+with st.sidebar:
+    st.header("Runway")
+    theatre = st.selectbox("DCS Map", sorted(rwy_df["map"].unique()))
+    df_t = rwy_df[rwy_df["map"] == theatre]
+
+    airport = st.selectbox("Airport", sorted(df_t["airport_name"].unique()))
+    df_a = df_t[df_t["airport_name"] == airport]
+
+    rw = st.selectbox("Runway End", list(df_a["runway_label"]))
+    row_rwy = df_a[df_a["runway_label"] == rw].iloc[0]
+
+    st.caption("Available distances are per TORA/TODA/ASDA from your CSV; app uses TORA for ‘available’.")
+    st.metric("TORA (ft)", f"{int(row_rwy['tora_ft']):,}")
+    st.metric("TODA (ft)", f"{int(row_rwy['toda_ft']):,}")
+    st.metric("ASDA (ft)", f"{int(row_rwy['asda_ft']):,}")
+
+    shorten_ft = st.number_input("Manually shorten available runway (ft)", min_value=0.0, value=0.0, step=100.0)
+
+    st.header("Weather")
+    oat_c = st.number_input("OAT (°C)", value=15.0, step=1.0)
+    qnh_mode = st.selectbox("QNH Input", ["inHg", "hPa"], index=0)
+    if qnh_mode == "inHg":
+        qnh_inhg = st.number_input("QNH (inHg)", value=29.92, step=0.01, format="%.2f")
     else:
-        st.warning(f"Tailwind: **{headwind_kt} kt**  |  Crosswind: **{crosswind_kt} kt**")
+        qnh_hpa = st.number_input("QNH (hPa)", value=1013.0, step=1.0)
+        qnh_inhg = hpa_to_inhg(qnh_hpa)
+    wind_knots = st.number_input("Surface wind (kts)", value=0.0, step=1.0)
+    wind_dir_deg = st.number_input("Wind direction (deg true)", value=float(row_rwy["heading_deg"]), step=1.0, min_value=0.0, max_value=359.9)
 
-max_cx = st.number_input("Max crosswind advisory (kt)", min_value=0, max_value=50, value=20, step=1)
-if wind_mode!="Manual (head/tailwind in kt)" and crosswind_kt>max_cx:
-    st.error(f"⚠ MAX CROSSWIND EXCEEDED: {crosswind_kt} kt (limit {max_cx} kt)")
-if headwind_kt<0 and abs(headwind_kt)>TAILWIND_LIMIT_KT:
-    st.error(f"⚠ MAX TAILWIND EXCEEDED: {abs(headwind_kt)} kt (limit {TAILWIND_LIMIT_KT} kt)")
+    st.header("Weight & Balance")
+    weight_mode = st.radio("Weight entry", ["GW"], horizontal=True)
+    gw_lbs = st.number_input("Gross Weight (lb)", value=70000.0, step=500.0)
+    cg_percent_mac = st.number_input("CG (%MAC) — optional", value=25.0, step=0.5)
 
-# 2b) Part 121 checks
-st.subheader("Part 121—Takeoff Performance (Regulatory Checks)")
-apply_part121 = st.checkbox("Apply 14 CFR Part 121 takeoff limits", value=True)
-col121a, col121b, col121c = st.columns(3)
-with col121a: runway_cond = st.selectbox("Runway condition", ["Dry","Wet"], index=0)
-with col121b: stopway_ft = st.number_input("Stopway credited (ft)", min_value=0, max_value=5000, value=0, step=50)
-with col121c: clearway_ft = st.number_input("Clearway credited (ft)", min_value=0, max_value=5000, value=0, step=50)
-clearway_cap_ft = min(int(clearway_ft), int(tora_ft)//2)
-extra_margin = st.number_input("Extra safety margin beyond BFL (ft)", min_value=0, max_value=4000, value=0, step=50)
-st.caption("121 checks include your extra margin; no extra RTO-spare is enforced.")
+    st.header("Configuration")
+    model = st.selectbox("Model", ["F-14B", "F-14D"])
+    flap_sel = st.selectbox("Takeoff Flaps", ["Auto", "UP", "MAN", "FULL"], index=0)
+    thrust_sel = st.selectbox("Takeoff Thrust", ["Auto", "MIL", "AB"], index=0)
 
-# 3) Weight & Balance
-st.header("3) Weight & Balance")
-use_gw = st.checkbox("Enter Gross Weight directly?", value=False)
-if use_gw:
-    gross = st.number_input("Gross Weight (lbs)", min_value=MIN_GW, max_value=MAX_GW, value=min(72000, MAX_GW), step=50)
+if st.button("Compute Takeoff Performance", type="primary"):
+    inp = Inputs(
+        model=model,
+        theatre=theatre,
+        airport=airport,
+        runway_label=rw,
+        heading_deg=float(row_rwy["heading_deg"]),
+        tora_ft=float(row_rwy["tora_ft"]),
+        toda_ft=float(row_rwy["toda_ft"]),
+        asda_ft=float(row_rwy["asda_ft"]),
+        elev_ft=float(row_rwy["threshold_elev_ft"]),
+        slope_pct=float(row_rwy.get("slope_percent", 0.0) or 0.0),
+        shorten_ft=float(shorten_ft),
+        oat_c=float(oat_c), qnh_inhg=float(qnh_inhg),
+        wind_knots=float(wind_knots), wind_dir_deg=float(wind_dir_deg),
+        weight_mode=weight_mode, gw_lbs=float(gw_lbs), cg_percent_mac=float(cg_percent_mac),
+        flap_sel=flap_sel, thrust_sel=thrust_sel,
+    )
+    try:
+        perf = compute_performance(inp, perfdb)
+        ok = perf.req_distance_ft <= perf.avail_distance_ft
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.subheader("V‑Speeds")
+            st.metric("V1 (kt)", f"{perf.v1:.0f}")
+            st.metric("Vr (kt)", f"{perf.vr:.0f}")
+            st.metric("V2 (kt)", f"{perf.v2:.0f}")
+            if not math.isnan(perf.vs):
+                st.metric("Vs (kt)", f"{perf.vs:.0f}")
+        with col2:
+            st.subheader("Settings")
+            st.metric("Flaps", perf.flap_setting)
+            st.metric("Thrust", perf.thrust_setting)
+            st.caption("Trim lookup can be added later via a trim table.")
+        with col3:
+            st.subheader("Runway")
+            st.metric("Req. Distance (ft)", f"{perf.req_distance_ft:.0f}", help="max(ASD, AGD) with wind/slope adjustments")
+            st.metric("Avail. Distance (ft)", f"{perf.avail_distance_ft:.0f}")
+            st.metric("Limiting", perf.limiting)
+
+        st.markdown("✅ **" + ("TAKEOFF POSSIBLE" if ok else "TAKEOFF NOT PERMITTED") + "** — with TORA as available distance.")
+        if not ok:
+            st.warning("Try AB, more flap, lower weight, different runway, or cooler conditions.")
+
+        with st.expander("Debug details"):
+            st.json(vars(inp))
+
+    except Exception as e:
+        st.error(f"Computation failed: {e}")
+        st.stop()
 else:
-    fuel = st.number_input("Fuel Load (lbs)", min_value=0, max_value=MAX_GW, value=5000, step=50)
-    ordn = st.number_input("Ordnance Load (lbs)", min_value=0, max_value=MAX_GW, value=2000, step=50)
-    gross = EMPTY_WEIGHT_LBS + fuel + ordn
-    if gross > MAX_GW:
-        st.warning(f"Gross exceeds {MAX_GW:,} lb — limiting to max."); gross = MAX_GW
-st.caption(f"Computed Gross Weight: **{int(gross):,} lbs** (max {MAX_GW:,})")
+    st.info("Load your CSVs into data/ and click **Compute Takeoff Performance**.")
 
-# 4) Configuration
-st.header("4) Configuration")
-auto_flaps = st.checkbox("Auto-select flap setting? (prefers Maneuvering)", value=True)
-if auto_flaps:
-    if int(tora_ft) < 5000 or gross > 70000: flap_name = "Flaps Full"
-    elif int(tora_ft) > 9000 and gross < 60000: flap_name = "Flaps Up"
-    else: flap_name = "Maneuvering Flaps"
-else:
-    flap_name = st.selectbox("Flap Setting", list(FLAP_OPTIONS.keys()), index=1)
-flap_deg = FLAP_OPTIONS[flap_name]
-
-# Thrust mode
-thrust_mode = st.radio("Thrust Mode", ["Auto-select most efficient thrust", "Set thrust manually"], index=0)
-custom_rpm = None
-if thrust_mode == "Set thrust manually":
-    choice = st.selectbox("Manual Thrust", ["Military", "Afterburner", "Custom RPM (%)"], index=0)
-    if choice == "Custom RPM (%)":
-        custom_rpm = st.number_input("Custom Target RPM (%)", min_value=RPM_MIN, max_value=RPM_AB, value=RPM_MIL, step=0.1)
-    thrust_choice = choice
-else:
-    thrust_choice = "Auto"
-
-# Early-Vr target (used only when not applying 121 or for dynamic solver guidance)
-vr_target_frac = st.slider("Target: reach Vr by at most this fraction of available runway", min_value=0.40, max_value=0.65, value=0.50, step=0.01)
-
-# Effective available runway
-effective_tora = max(0, int(tora_ft) - int(manual_reduce_ft))
-pa_ft = int(field_elev)
-
-# ---------- Perf helpers ----------
-def with_15pct(asd_ft, agd_ft):
-    return int(round(asd_ft*1.15)), int(round(agd_ft*1.15))
-
-def compute_static(thrust_mode):
-    if perf_df is not None and thrust_mode in ("Military","Afterburner"):
-        row = nearest_row(perf_df, flap_deg, thrust_mode, int(gross), pa_ft, int(oat))
-        if row:
-            asd, agd = with_15pct(row["ASD_ft"], row["AGD_ft"])
-            rpm = round(RPM_AB if thrust_mode=="Afterburner" else RPM_MIL, 1)
-            return {
-                "Vs": ceil_kn(row["Vs_kt"]), "V1": ceil_kn(row["V1_kt"]),
-                "Vr": ceil_kn(row["Vr_kt"]), "V2": ceil_kn(row["V2_kt"]),
-                "stop_ft": asd, "go_ft": agd, "bfl_ft": max(asd,agd),
-                "rpm": rpm, "alpha": alpha_from_rpm(rpm),
-                "source": f"NATOPS ({perf_source})"
-            }
-    # fallback
-    Vs = 130 if flap_deg==20 else (120 if flap_deg==40 else 140)
-    V1 = int(Vs*1.03); Vr = int(Vs*1.12); V2 = int(Vs*1.20)
-    asd = 6000; agd = 6000
-    return {"Vs":Vs,"V1":V1,"Vr":Vr,"V2":V2,"stop_ft":asd,"go_ft":agd,"bfl_ft":max(asd,agd),
-            "rpm":RPM_MIL,"alpha":alpha_from_rpm(RPM_MIL),"source":"FALLBACK"}
-
-# ---------- Selection logic ----------
-selected_flap_name = flap_name
-selected_flap_deg = flap_deg
-
-if apply_part121 and perf_df is not None:
-    if thrust_mode == "Auto-select most efficient thrust":
-        flap_candidates = [("Flaps Up", 0), ("Maneuvering Flaps", 20), ("Flaps Full", 40)] if auto_flaps else [(flap_name, flap_deg)]
-        best = None
-        for fname, fdeg in flap_candidates:
-            cand = evaluate_combo_for_121(perf_df, fdeg, int(gross), pa_ft, int(oat),
-                                          int(effective_tora), runway_cond,
-                                          int(stopway_ft), int(clearway_cap_ft),
-                                          extra_margin_ft=int(extra_margin))
-            if cand and cand["ok"]:
-                key = (cand["rpm"], cand["bfl_ft"])
-                if (best is None) or (key < best[0]): best = (key, cand, fname, fdeg)
-        if best:
-            _, base, selected_flap_name, selected_flap_deg = best
-            base["source"] = f"NATOPS ({perf_source})"
-            st.success(f"✅ 121 PASS — **{selected_flap_name}**, Target RPM ≈ **{base['rpm']}%**")
-        else:
-            st.error("⛔ Part 121 not satisfied for any flap (even AB) with current runway/margin.")
-            base = compute_static("Afterburner")
-    else:
-        if thrust_choice == "Custom RPM (%)" and custom_rpm is not None and perf_df is not None:
-            alpha = alpha_from_rpm(custom_rpm)
-            mil = nearest_row(perf_df, selected_flap_deg, "Military", int(gross), pa_ft, int(oat))
-            ab  = nearest_row(perf_df, selected_flap_deg, "Afterburner", int(gross), pa_ft, int(oat))
-            if mil and ab:
-                asd = blend_metric(mil["ASD_ft"], ab["ASD_ft"], alpha, "distance") * 1.15
-                agd = blend_metric(mil["AGD_ft"], ab["AGD_ft"], alpha, "distance") * 1.15
-                vs  = ceil_kn(blend_metric(mil["Vs_kt"], ab["Vs_kt"], alpha, "speed"))
-                v1  = ceil_kn(blend_metric(mil["V1_kt"], ab["V1_kt"], alpha, "speed"))
-                vr  = ceil_kn(blend_metric(mil["Vr_kt"], ab["Vr_kt"], alpha, "speed"))
-                v2  = ceil_kn(blend_metric(mil["V2_kt"], ab["V2_kt"], alpha, "speed"))
-                base = dict(Vs=vs,V1=v1,Vr=vr,V2=v2,
-                            stop_ft=int(round(asd)), go_ft=int(round(agd)),
-                            bfl_ft=int(round(max(asd,agd))),
-                            rpm=round(max(RPM_MIN,min(RPM_AB,custom_rpm)),1), alpha=alpha,
-                            source=f"NATOPS ({perf_source})")
-                ok = part121_pass(int(effective_tora), base["stop_ft"], base["go_ft"], runway_cond,
-                                  int(stopway_ft), int(clearway_cap_ft), extra_margin_ft=int(extra_margin))
-                st.success("✅ 121 PASS at your custom RPM.") if ok else st.error("⛔ 121 FAIL at your custom RPM.")
-            else:
-                st.warning("Perf tables missing for custom interpolation; falling back to MIL.")
-                base = compute_static("Military")
-        else:
-            fixed = "Military" if thrust_choice=="Military" else "Afterburner"
-            base = compute_static(fixed)
-            ok = part121_pass(int(effective_tora), base["stop_ft"], base["go_ft"], runway_cond,
-                              int(stopway_ft), int(clearway_cap_ft), extra_margin_ft=int(extra_margin))
-            st.success(f"✅ 121 PASS at fixed thrust: {fixed}.") if ok else st.error(f"⛔ 121 FAIL at fixed thrust: {fixed}.")
-else:
-    if thrust_mode == "Auto-select most efficient thrust" and perf_df is not None:
-        dyn = solve_min_required_dynamic(perf_df, selected_flap_deg, int(gross), pa_ft, int(oat),
-                                         int(effective_tora), extra_margin_ft=int(extra_margin),
-                                         vr_target_frac=float(vr_target_frac))
-        if dyn is None:
-            st.error("⛔ Not feasible to reach Vr by target fraction (incl. margin) even at AB (+15%).")
-            base = compute_static("Afterburner")
-        else:
-            base = dyn; base["source"] = f"NATOPS ({perf_source})"
-            st.success(f"✅ Minimum Required thrust solved: ~**{base['rpm']}%** (Vr by {int(vr_target_frac*100)}% of TORA eff.)")
-    else:
-        base = compute_static("Military" if (thrust_mode=="Set thrust manually" and thrust_choice=="Military") else "Afterburner")
-
-# ---------------- Final Numbers ----------------
-st.subheader("Final Numbers")
-
-trim_deg = compute_takeoff_trim_deg_for_v2(int(gross), int(selected_flap_deg), vs_kt=base["Vs"], v2_kt=base["V2"])
-
-if "alpha" in base:
-    st.caption(f"Debug: alpha={base['alpha']:+.3f}, rpm={base.get('rpm','--')}%")
-
-rpm_val = base.get("rpm", None)
-thrust_label = classify_thrust(rpm_val)
-rpm_str = f"{rpm_val:.1f}%" if rpm_val is not None else "--"
-
-required_len = base["bfl_ft"] + int(extra_margin)
-available_len = int(effective_tora)
-
-st.write(f"**Selected Flap:** {selected_flap_name} ({selected_flap_deg}°)")
-st.write(f"**Thrust:** {thrust_label} ({rpm_str})  |  **Runway Required (BFL + margin):** {required_len:,} ft  |  **Available (TORA eff.):** {available_len:,} ft")
-st.write(f"**Vs:** {base['Vs']} kt   **V1:** {base['V1']} kt   **Vr:** {base['Vr']} kt   **V2:** {base['V2']} kt")
-st.write(f"**Balanced Field Length:** {base['bfl_ft']:,} ft")
-st.write(f"**Accel-Go:** {base['go_ft']:,} ft   **Accel-Stop:** {base['stop_ft']:,} ft")
-st.write(f"**Trim (for V2, gear selected up):** {trim_deg:.1f}° NU")
-st.caption(f"Source: **{base.get('source','')}**  |  121 Mode: {'ON' if apply_part121 else 'OFF'}  |  RWY: {runway_cond}, Stopway {int(stopway_ft):,} ft, Clearway {int(clearway_cap_ft):,} ft")
+################################################################################
+# NOTES for true balanced‑field V1 search (future)
+################################################################################
+# Your perf CSVs currently carry a single V1_kt and the associated ASD/AGD per condition.
+# To enable a real balanced‑field search, add multiple rows per (model, flap_deg, thrust, gw, PA, OAT)
+# where V1_kt varies (e.g., V1‑5, V1, V1+5, …) and ASD_ft/AGD_ft reflect that V1.
+# Then we can sweep V1 and pick the row where |ASD‑AGD| is minimized (or take smallest max).
