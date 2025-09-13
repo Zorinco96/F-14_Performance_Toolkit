@@ -5,17 +5,19 @@
 #   • f14_airframe.json (optional: {"le_mac_in": 0.0, "mac_in": 0.0, "empty_weight_lb": 41780})
 #
 # Key features:
-# • Flaps: UP / MANEUVER / FULL / Auto‑Select. Flaps impact distances.
-# • Thrust: MIL / AB / DERATE (90–100% N1). “Find Min N1” solver targets 14 CFR 121.189 field‑length checks.
-# • Weather: manual entry; wind units kts or m/s (optional 50/150 wind credit toggle).
-# • Runway shortening: feet and/or nautical miles.
-# • Model: F‑14B only; F‑14D table rows blended into perf grid for denser interpolation.
+# • Flaps: UP / MANEUVER / FULL / Auto‑Select (bias toward MAN). Flaps impact distances.
+# • Thrust: MIL / AB / DERATE (90–100% N1) with **flap‑dependent derate floors** and **non‑linear** distance scaling.
+# • “Find Min N1%” solver meets 14 CFR 121.189 field‑length checks + conservative OEI climb guardrail.
+# • Weather: manual entry; **single wind entry** (DIR@SPD) with kts or m/s; QNH numeric + unit (default inHg).
+# • Runway shortening: **single input** + unit selector (ft or NM).
+# • Model: F‑14B only; selected F‑14D rows blended into perf grid for denser interpolation.
 # • CG & Trim (experimental): If stations + airframe geometry provided, compute %MAC and an estimated stab‑trim.
 #
 # DISCLAIMER: Training aid for DCS only. Do NOT use for real‑world flight planning.
 
 import json
 import math
+import re
 from dataclasses import dataclass
 from io import StringIO
 from typing import Optional, Dict
@@ -101,10 +103,6 @@ F-14B,20,Afterburner,60000,0,0,119,131,140,153,3800,4000,D_est
 F-14B,20,Afterburner,60000,0,30,121,133,142,155,4100,4300,D_est
 F-14B,20,Afterburner,60000,5000,0,121,134,144,156,4300,4600,D_est
 F-14B,20,Afterburner,60000,5000,30,123,136,146,159,4600,4900,D_est
-F-14B,20,Afterburner,65000,0,0,122,134,144,157,4100,4300,D_est
-F-14B,20,Afterburner,65000,0,30,124,136,147,160,4400,4700,D_est
-F-14B,20,Afterburner,65000,5000,0,124,137,148,161,4700,5100,D_est
-F-14B,20,Afterburner,65000,5000,30,126,139,150,163,5100,5600,D_est
 F-14B,40,Military,60000,0,0,116,128,137,149,4100,5000,D_est
 F-14B,40,Military,60000,0,30,118,130,139,152,4400,5400,D_est
 F-14B,40,Military,60000,5000,0,118,131,141,153,4900,5900,D_est
@@ -125,6 +123,8 @@ F-14B,40,Afterburner,70000,5000,30,125,138,149,162,5900,7300,D_est
 
 # constants (approximate)
 ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}
+DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.92, 40: 0.95}  # min eff (N1 fraction) by flap
+ALPHA_N1_DIST = 1.12  # non-linear exponent for distance scaling vs N1 (tunable)
 
 # ---------- helpers ----------
 
@@ -138,16 +138,16 @@ def headwind_component(knots_wind: float, wind_dir_deg: float, rwy_heading_deg: 
     delta = math.radians((wind_dir_deg - rwy_heading_deg) % 360)
     return knots_wind * math.cos(delta)
 
-def wind_factored_component(wind_comp_kn: float) -> float:
-    if wind_comp_kn >= 0:
-        return 0.5 * wind_comp_kn
-    else:
-        return 1.5 * wind_comp_kn
+def wind_factored_component(wind_comp_kn: float, policy: str) -> float:
+    if policy == "50/150":
+        return 0.5 * wind_comp_kn if wind_comp_kn >= 0 else 1.5 * wind_comp_kn
+    return 0.0
 
 def apply_slope(distance_ft: float, slope_pct: float) -> float:
     return distance_ft * (1.0 + max(0.0, slope_pct) * 0.20)
 
 def apply_wind(distance_ft: float, factored_wind_kn: float) -> float:
+    # ~0.5% per knot of *factored* wind component
     return distance_ft * (1.0 - 0.005 * factored_wind_kn)
 
 # ---------- loaders ----------
@@ -206,7 +206,7 @@ class Inputs:
     qnh_inhg: float
     wind_knots: float
     wind_dir_deg: float
-    use_wind_credit: bool
+    wind_policy: str  # "None" or "50/150"
     gw_lbs: float
     flap_sel: str  # UP / MANEUVER / FULL / Auto-Select
     thrust_mode: str  # MIL / AB / DERATE
@@ -255,11 +255,12 @@ def nearest_perf_row(perf: pd.DataFrame, flap_deg: int, thrust_mode: str,
     return sub.sort_values(["d_w", "d_pa", "d_t"]).iloc[0]
 
 
-def dist_with_adjustments(base_ft: float, slope_pct: float, headwind_kn: float, use_wind_credit: bool) -> float:
+def dist_with_adjustments(base_ft: float, slope_pct: float, headwind_kn: float, wind_policy: str) -> float:
     d = float(base_ft)
     d = apply_slope(d, slope_pct)
-    if use_wind_credit:
-        d = apply_wind(d, wind_factored_component(headwind_kn))
+    wfac = wind_factored_component(headwind_kn, wind_policy)
+    if wfac != 0.0:
+        d = apply_wind(d, wfac)
     return max(d, 0.0)
 
 
@@ -274,33 +275,48 @@ def compute_trim_units_anu(cg_pct_mac: Optional[float], flap_deg: int) -> Option
     return max(0.0, round(base, 1))
 
 
-def compute_oei_second_segment_ok(gw_lbs: float, n1_pct: float, flap_deg: int) -> bool:
+def enforce_derate_floor(n1pct: float, flap_deg: int) -> float:
+    floor = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0
+    return max(n1pct, floor)
+
+
+def distance_scale_factor_from_n1(n1pct: float, flap_deg: int) -> float:
+    # Returns multiplier to apply to baseline distances
+    n1pct = enforce_derate_floor(n1pct, flap_deg)
+    eff = max(0.90, min(1.0, n1pct / 100.0))
+    return 1.0 / (eff ** ALPHA_N1_DIST)
+
+
+def compute_oei_second_segment_ok(gw_lbs: float, n1pct: float, flap_deg: int) -> bool:
     drag_over_w = {0: 0.06, 20: 0.08, 40: 0.10}.get(flap_deg, 0.08)
-    t_oei = ENGINE_THRUST_LBF["MIL"] * (n1_pct / 100.0)
+    n1pct = enforce_derate_floor(n1pct, flap_deg)
+    t_oei = ENGINE_THRUST_LBF["MIL"] * (n1pct / 100.0)
     t_over_w = t_oei / max(gw_lbs, 1.0)
     gradient_net = t_over_w - drag_over_w
     return gradient_net >= 0.024
 
 
 def solve_min_derate_for_121(row: pd.Series, tora_ft: float, toda_ft: float, asda_ft: float,
-                             slope_pct: float, headwind_kn: float, use_wind_credit: bool,
+                             slope_pct: float, headwind_kn: float, wind_policy: str,
                              flap_deg: int, gw_lbs: float) -> float:
     base_asd = float(row["ASD_ft"])
     base_agd = float(row["AGD_ft"])
 
     def ok(n1pct: float) -> bool:
-        eff = max(0.9, min(1.0, n1pct / 100.0))
-        asd = dist_with_adjustments(base_asd / eff, slope_pct, headwind_kn, use_wind_credit)
-        agd = dist_with_adjustments(base_agd / eff, slope_pct, headwind_kn, use_wind_credit)
+        mult = distance_scale_factor_from_n1(n1pct, flap_deg)
+        asd = dist_with_adjustments(base_asd * mult, slope_pct, headwind_kn, wind_policy)
+        agd = dist_with_adjustments(base_agd * mult, slope_pct, headwind_kn, wind_policy)
         clearway_allow = min(tora_ft * 0.5, max(0.0, toda_ft - tora_ft))
         tod_limit = tora_ft + clearway_allow
         field_ok = (asd <= asda_ft) and (agd <= tod_limit) and (agd <= toda_ft)
         climb_ok = compute_oei_second_segment_ok(gw_lbs, n1pct, flap_deg)
         return field_ok and climb_ok
 
+    # Start search at the flap‑dependent floor
+    floor_pct = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0
     if not ok(100.0):
         return 101.0
-    lo, hi = 90.0, 100.0
+    lo, hi = floor_pct, 100.0
     for _ in range(16):
         mid = (lo + hi) / 2.0
         if ok(mid):
@@ -312,7 +328,7 @@ def solve_min_derate_for_121(row: pd.Series, tora_ft: float, toda_ft: float, asd
 
 def compute_performance(perfdb: pd.DataFrame, heading_deg: float, tora_ft: float, toda_ft: float, asda_ft: float,
                         elev_ft: float, slope_pct: float, shorten_ft: float, oat_c: float, qnh_inhg: float,
-                        wind_knots: float, wind_dir_deg: float, use_wind_credit: bool, gw_lbs: float,
+                        wind_knots: float, wind_dir_deg: float, wind_policy: str, gw_lbs: float,
                         flap_sel: str, thrust_mode: str, derate_n1_pct: float,
                         cg_percent_mac: Optional[float]) -> PerfResult:
     pa_ft = pressure_altitude_ft(elev_ft, qnh_inhg)
@@ -326,11 +342,13 @@ def compute_performance(perfdb: pd.DataFrame, heading_deg: float, tora_ft: float
 
     v1 = float(row["V1_kt"]) ; vr = float(row["Vr_kt"]) ; v2 = float(row["V2_kt"]) ; vs = float(row.get("Vs_kt", np.nan))
 
-    base_asd = float(row["ASD_ft"]) ; base_agd = float(row["AGD_ft"]) ; eff = 1.0
+    base_asd = float(row["ASD_ft"]) ; base_agd = float(row["AGD_ft"]) ; mult = 1.0
+    n1_used_pct = 100.0
     if thrust_mode == "DERATE":
-        eff = max(0.90, min(1.0, derate_n1_pct / 100.0))
-    asd_eff = dist_with_adjustments(base_asd / eff, slope_pct, headwind, use_wind_credit)
-    agd_eff = dist_with_adjustments(base_agd / eff, slope_pct, headwind, use_wind_credit)
+        n1_used_pct = enforce_derate_floor(derate_n1_pct, flap_deg)
+        mult = distance_scale_factor_from_n1(n1_used_pct, flap_deg)
+    asd_eff = dist_with_adjustments(base_asd * mult, slope_pct, headwind, wind_policy)
+    agd_eff = dist_with_adjustments(base_agd * mult, slope_pct, headwind, wind_policy)
 
     clearway_allow = min(tora_ft * 0.5, max(0.0, toda_ft - tora_ft))
     tod_limit = tora_ft + clearway_allow
@@ -341,7 +359,23 @@ def compute_performance(perfdb: pd.DataFrame, heading_deg: float, tora_ft: float
 
     trim_units = compute_trim_units_anu(cg_percent_mac, flap_deg)
 
-    return PerfResult(v1, vr, v2, vs, flap, thrust_mode, req_ft, avail_ft, limiting, eff * 100.0, cg_percent_mac, trim_units)
+    return PerfResult(v1, vr, v2, vs, flap, thrust_mode, req_ft, avail_ft, limiting, n1_used_pct, cg_percent_mac, trim_units)
+
+# ------------------------------
+# Input parsing helpers (UI)
+# ------------------------------
+WIND_PAT = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)\s*(?:@|/|\s)\s*(\d{1,3}(?:\.\d+)?)\s*$")
+
+def parse_wind_entry(entry: str, unit: str) -> Optional[tuple]:
+    """Parses 'DDD@SS' or 'DDD/SS' or 'DDD SS'. Returns (dir_deg, speed_knots)."""
+    m = WIND_PAT.match(entry or "")
+    if not m:
+        return None
+    d = float(m.group(1)) % 360.0
+    s = float(m.group(2))
+    if unit == "m/s":
+        s = s * 1.943844
+    return (d, s)
 
 # ------------------------------
 # UI
@@ -366,23 +400,33 @@ with st.sidebar:
     st.metric("TODA (ft)", f"{int(row_rwy['toda_ft']):,}")
     st.metric("ASDA (ft)", f"{int(row_rwy['asda_ft']):,}")
 
-    shorten_ft = st.number_input("Shorten available runway (ft)", min_value=0.0, value=0.0, step=100.0)
-    shorten_nm = st.number_input("Shorten also by (NM)", min_value=0.0, value=0.0, step=0.1)
-    shorten_total_ft = float(shorten_ft) + float(shorten_nm) * 6076.12
+    # Single shortening input
+    col_sh = st.container()
+    with col_sh:
+        st.caption("Shorten Available Runway")
+        sh_val = st.number_input("Value", min_value=0.0, value=0.0, step=100.0, key="sh_val")
+        sh_unit = st.selectbox("Units", ["ft", "NM"], index=0, key="sh_unit")
+        shorten_total_ft = float(sh_val) if sh_unit == "ft" else float(sh_val) * 6076.12
 
     st.header("Weather")
     oat_c = st.number_input("OAT (°C)", value=15.0, step=1.0)
+
+    # QNH numeric + unit selector
+    qnh_val = st.number_input("QNH value", value=29.92, step=0.01, format="%.2f")
     qnh_unit = st.selectbox("QNH Units", ["inHg", "hPa"], index=0)
-    if qnh_unit == "inHg":
-        qnh_inhg = st.number_input("QNH (inHg)", value=29.92, step=0.01, format="%.2f")
+    qnh_inhg = float(qnh_val) if qnh_unit == "inHg" else hpa_to_inhg(float(qnh_val))
+
+    # Single wind entry + unit type
+    wind_unit = st.selectbox("Wind Units", ["kts", "m/s"], index=0)
+    wind_entry = st.text_input("Wind (DIR@SPD)", placeholder="e.g., 180@12")
+    wind_parsed = parse_wind_entry(wind_entry, wind_unit)
+    if wind_parsed is None and (wind_entry or "") != "":
+        st.warning("Enter wind as DDD@SS, DDD/SS, or DDD SS. Example: 180@12")
+        wind_dir_deg, wind_knots = float(row_rwy["heading_deg"]), 0.0
     else:
-        qnh_hpa = st.number_input("QNH (hPa)", value=1013.0, step=1.0)
-        qnh_inhg = hpa_to_inhg(qnh_hpa)
-    wind_units = st.selectbox("Wind Units", ["kts", "m/s"], index=0)
-    wind_dir_deg = st.number_input("Wind direction (deg true)", value=float(row_rwy["heading_deg"]), step=1.0, min_value=0.0, max_value=359.9)
-    wind_speed = st.number_input(f"Wind speed ({wind_units})", value=0.0, step=1.0)
-    wind_knots = wind_speed if wind_units == "kts" else wind_speed * 1.943844
-    use_wind_credit = st.checkbox("Apply 50% headwind / 150% tailwind credit (approx)", value=False)
+        wind_dir_deg, wind_knots = (wind_parsed if wind_parsed is not None else (float(row_rwy["heading_deg"]), 0.0))
+
+    wind_policy = st.selectbox("Wind Policy", ["None", "50/150"], index=0, help="'50/150' = 50% headwind credit, 150% tailwind penalty")
 
     st.header("Weight & Config")
     model = "F-14B"
@@ -436,15 +480,19 @@ with st.sidebar:
     thrust_mode = st.radio("Mode", ["MIL", "DERATE", "AB"], index=0)
     derate_n1_pct = 100.0
     if thrust_mode == "DERATE":
+        # Show floor hint based on flap
+        flap_hint = {0: "≥90%", 20: "≥92%", 40: "≥95%"}[flap_to_deg(flap_sel if flap_sel != "Auto-Select" else "MANEUVER")]
+        st.caption(f"Derate floor by flap (approx): {flap_hint}")
         derate_n1_pct = st.slider("Target N1 % (MIL)", min_value=90.0, max_value=100.0, value=98.0, step=0.5)
         if st.button("Find minimum N1% (approx) to meet 121.189"):
             pa_ft = pressure_altitude_ft(float(row_rwy["threshold_elev_ft"]), float(qnh_inhg))
-            flap_deg = flap_to_deg(flap_sel if flap_sel != "Auto-Select" else auto_flaps(gw_lbs, pa_ft, oat_c))
+            chosen_flap = flap_sel if flap_sel != "Auto-Select" else auto_flaps(gw_lbs, pa_ft, oat_c)
+            flap_deg = flap_to_deg(chosen_flap)
             row = nearest_perf_row(perfdb, flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c)
             m = solve_min_derate_for_121(row, float(row_rwy["tora_ft"]), float(row_rwy["toda_ft"]), float(row_rwy["asda_ft"]),
                                          float(row_rwy.get("slope_percent", 0.0) or 0.0),
                                          headwind_component(wind_knots, wind_dir_deg, float(row_rwy["heading_deg"])),
-                                         bool(use_wind_credit), flap_deg, float(gw_lbs))
+                                         str(wind_policy), flap_deg, float(gw_lbs))
             if m > 100.0:
                 st.error("Cannot meet 121.189 with derate in this model. Increase thrust or change config.")
             else:
@@ -456,7 +504,7 @@ if st.button("Compute Takeoff Performance", type="primary"):
         perf = compute_performance(perfdb,
                                    float(row_rwy["heading_deg"]), float(row_rwy["tora_ft"]), float(row_rwy["toda_ft"]), float(row_rwy["asda_ft"]),
                                    float(row_rwy["threshold_elev_ft"]), float(row_rwy.get("slope_percent", 0.0) or 0.0), float(shorten_total_ft),
-                                   float(oat_c), float(qnh_inhg), float(wind_knots), float(wind_dir_deg), bool(use_wind_credit),
+                                   float(oat_c), float(qnh_inhg), float(wind_knots), float(wind_dir_deg), str(wind_policy),
                                    float(gw_lbs), flap_sel, thrust_mode, float(derate_n1_pct), cg_pct_mac)
 
         ok = (perf.req_distance_ft <= perf.avail_distance_ft) and (perf.req_distance_ft <= float(row_rwy["toda_ft"])) and (perf.req_distance_ft <= float(row_rwy["asda_ft"]))
@@ -495,9 +543,9 @@ if st.button("Compute Takeoff Performance", type="primary"):
                 "GW_lb": gw_lbs,
                 "Flap": flap_sel,
                 "Thrust": thrust_mode,
-                "Derate_N1%": derate_n1_pct,
+                "Derate_N1%": perf.n1_used_pct if thrust_mode == "DERATE" else None,
                 "CG_%MAC": cg_pct_mac,
-                "UseWindCredit": use_wind_credit,
+                "WindPolicy": wind_policy,
             })
     except Exception as e:
         st.error(f"Computation failed: {e}")
