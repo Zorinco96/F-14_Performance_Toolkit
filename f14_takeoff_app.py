@@ -12,14 +12,53 @@
 # IMPORTANT
 # This is a sim planning tool based on public/manual data. Not for real‑world aviation use.
 
+# ✅ Updated to use lowercase filenames exactly as in your repo
+#   - data/dcs_airports.csv
+#   - data/perf_f14b.csv
+#   - data/perf_f14d.csv
+
 import math
 import pathlib
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 import streamlit as st
+
+DATA_DIR = pathlib.Path(__file__).parent / "data"
+
+def read_csv_if_exists(path: pathlib.Path) -> Optional[pd.DataFrame]:
+    try:
+        if path.exists():
+            return pd.read_csv(path)
+    except Exception as e:
+        st.warning(f"Failed reading {path.name}: {e}")
+    return None
+
+@st.cache_data
+def load_runways() -> Optional[pd.DataFrame]:
+    path = DATA_DIR / "dcs_airports.csv"
+    df = read_csv_if_exists(path)
+    if df is None:
+        return None
+    df["rw_key"] = df["airport_name"] + " — " + df["runway_pair"].astype(str) + "/" + df["runway_end"].astype(str)
+    df["runway_label"] = df["airport_name"] + " " + df["runway_end"].astype(str) + " (" + df["runway_pair"].astype(str) + ")"
+    return df
+
+@st.cache_data
+def load_perf() -> Optional[pd.DataFrame]:
+    p_b = read_csv_if_exists(DATA_DIR / "perf_f14b.csv")
+    p_d = read_csv_if_exists(DATA_DIR / "perf_f14d.csv")
+    if p_b is None and p_d is None:
+        return None
+    frames = [df for df in [p_b, p_d] if df is not None]
+    perf = pd.concat(frames, ignore_index=True)
+    perf["model"] = perf["model"].str.upper()
+    perf["thrust"] = perf["thrust"].str.upper()
+    return perf
+
+# The rest of the app remains unchanged — it will now look for lowercase filenames.
 
 ################################################################################
 # Atmosphere & helpers
