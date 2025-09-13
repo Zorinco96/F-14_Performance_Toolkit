@@ -12,7 +12,7 @@ MAX_GW = 74349
 MIN_GW = 30000
 
 # Engine %RPM anchors
-RPM_MIN = 88.0     # hard lower bound for reduced thrust search
+RPM_MIN = 90.0     # <<< raised lower bound for reduced thrust
 RPM_MIL = 96.0
 RPM_AB  = 102.0
 
@@ -228,15 +228,35 @@ def load_dcs_airports():
         df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
-# ---------------- Trim model (degrees only) ----------------
-def compute_takeoff_trim_deg(gross_lbs: int, flap_deg: int, bias: float = 0.0) -> float:
-    # Base around 50k with maneuver flaps
-    base = 7.5
-    wt_term = 0.9 * max(0.0, (gross_lbs - 50000) / 5000.0)
-    if flap_deg >= 35: flap_term = 0.0
-    elif flap_deg >= 10: flap_term = 1.0
-    else: flap_term = 2.0
-    trim_nu = base + wt_term + flap_term + float(bias)
+# ---------------- Trim model (target V2, gear selected up) ----------------
+def compute_takeoff_trim_deg_for_v2(gross_lbs: int, flap_deg: int, vs_kt: float, v2_kt: float) -> float:
+    """
+    Compute stabilator trim (deg NU) to be trimmed-out for V2 climb with gear selected up.
+    Heuristic but goal-seeking around V2:
+      - Heavier -> more NU
+      - Less flap -> more NU
+      - Higher V2/Vs -> slightly less NU (more dynamic pressure available)
+    """
+    # Base around 50k, flaps 20
+    base = 8.5
+
+    # Weight term: ~0.8 deg NU per +5,000 lb above 50k
+    wt_term = 0.8 * max(0.0, (gross_lbs - 50000) / 5000.0)
+
+    # Flap term: less flap needs more NU
+    if flap_deg >= 35: flap_term = 0.0       # Flaps Full (~40)
+    elif flap_deg >= 10: flap_term = 1.0     # Maneuver (~20)
+    else: flap_term = 2.0                    # Flaps Up (0)
+
+    # V2/Vs influence: if V2 is high vs Vs, less AoA needed -> trim slightly less NU.
+    # Target around ratio 1.20 typical; scale small so it nudges, not dominates.
+    ratio = max(1.05, float(v2_kt) / max(1.0, float(vs_kt)))
+    v2_term = -1.2 * (ratio - 1.20)  # if ratio=1.20 -> 0; if 1.25 -> -0.06*? actually -1.2*0.05=-0.06 deg
+
+    # Gear-up selection moment (small extra NU to preempt bleed-off on initial retraction transient)
+    gear_up_nudge = 0.4
+
+    trim_nu = base + wt_term + flap_term + v2_term + gear_up_nudge
     return max(5.0, min(16.0, round(trim_nu, 1)))
 
 # ---------------- Streamlit App ----------------
@@ -353,8 +373,7 @@ else:
     flap_name = st.selectbox("Flap Setting", list(FLAP_OPTIONS.keys()), index=1)
 flap_deg = FLAP_OPTIONS[flap_name]
 
-# Trim bias (nose-low / nose-high)
-trim_bias = st.slider("Trim bias (nose-low  ⟵ 0.0 …  +1.5 ⟶  nose-high)", min_value=0.0, max_value=1.5, value=0.5, step=0.1)
+# NOTE: Removed all trim bias UI — trim is computed strictly for V2 target
 
 # Thrust mode
 thrust_mode = st.radio("Thrust Mode", ["Auto-select most efficient thrust", "Set thrust manually"], index=0)
@@ -488,7 +507,8 @@ if st.checkbox("Show intersection feasibility result", value=True) and run_inter
 # ---------------- Final Numbers ----------------
 st.subheader("Final Numbers")
 
-trim_deg = compute_takeoff_trim_deg(int(gross), int(selected_flap_deg), bias=trim_bias)
+# >>> NEW: Trim computed strictly to be trimmed for V2 with gear selected up (no bias)
+trim_deg = compute_takeoff_trim_deg_for_v2(int(gross), int(selected_flap_deg), vs_kt=base["Vs"], v2_kt=base["V2"])
 
 if "alpha" in base:
     st.caption(f"Debug: alpha={base['alpha']:+.3f}, rpm={base.get('rpm','--')}%")
@@ -513,7 +533,7 @@ st.write(f"**Vs:** {base['Vs']} kt   **V1:** {base['V1']} kt   **Vr:** {base['Vr
 st.write(f"**Balanced Field Length:** {base['bfl_ft']:,} ft")
 st.write(f"**Accel-Go:** {base['go_ft']:,} ft   **Accel-Stop:** {base['stop_ft']:,} ft")
 st.write(f"**RTO spare (ASDA − ASD − margin):** {int(rto_spare_display):,} ft  (min required: {int(min_rto_spare):,} ft)")
-st.write(f"**Trim:** {trim_deg:.1f}° NU")
+st.write(f"**Trim:** {trim_deg:.1f}° NU (trimmed for V2, gear-up selection)")
 st.caption(
     f"Source: **{base.get('source','')}**  |  121 Mode: {'ON' if apply_part121 else 'OFF'}  "
     f"|  RWY: {runway_cond}, Stopway {int(stopway_ft):,} ft, Clearway {int(clearway_cap_ft):,} ft"
