@@ -31,24 +31,131 @@ st.set_page_config(page_title="DCS F‑14B Takeoff (FAA Model)", page_icon="✈�
 # ------------------------------
 # Embedded (minimal) F‑14B baseline grid (MAN/FULL @ MIL/AB). Distances are placeholders tuned for DCS plausibility.
 # ------------------------------
+# NATOPS-based baseline for F-14B (MIL power only). Distances are NATOPS “ground roll” (all engines).
+# We provide UP (0°) and FULL (40°, mapped from NATOPS 35°). MANEUVER (20°) is synthesized at load time.
+# Columns: model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft,note
+# Notes:
+# - AGD_ft here is NATOPS ground roll (AEO). ASD_ft ≈ 0.85 * AGD_ft (rounded).
+# - NATOPS tables used: Flaps UP & Flaps DOWN (0-kt headwind), W=58/65/72k lb, PA=0/4k/8k ft, T=20/59/90/120 F → -7/15/32/49 C.
+# - Speeds: Vr = NATOPS Rotation; V2 ≈ Vr+13; V1 ≈ Vr-9; Vs ≈ V2/1.2 (rounded to nearest kt).
+
 PERF_F14B = """model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft,note
-F-14B,20,Military,60000,0,0,120,132,141,154,4300,5200,est
-F-14B,20,Military,60000,0,30,123,135,144,157,4700,5600,est
-F-14B,20,Military,60000,5000,0,123,136,146,158,5200,6100,est
-F-14B,20,Military,60000,5000,30,126,139,149,162,5600,6600,est
-F-14B,20,Military,65000,0,0,123,136,146,159,4800,5700,est
-F-14B,20,Military,65000,0,30,126,139,150,162,5200,6200,est
-F-14B,20,Military,65000,5000,0,126,139,150,162,5600,6600,est
-F-14B,20,Military,65000,5000,30,129,143,154,167,6000,7100,est
-F-14B,20,Military,70000,0,0,126,140,151,164,5300,6300,est
-F-14B,20,Military,70000,0,30,129,143,155,168,5800,6900,est
-F-14B,20,Military,70000,5000,0,130,144,156,169,6200,7400,est
-F-14B,20,Military,70000,5000,30,133,147,160,173,6700,7900,est
-F-14B,40,Military,60000,0,0,116,128,137,149,4200,5100,est
-F-14B,40,Military,60000,0,30,118,130,139,152,4500,5500,est
-F-14B,40,Military,70000,5000,30,131,144,156,169,6800,8300,est
-F-14B,40,Afterburner,70000,5000,30,126,139,151,163,6000,7500,est
+# --- FLAPS UP (0°) ---
+F-14B,0,Military,58000,0,-7,118,131,140,153,1760,2070,NATOPS-UP
+F-14B,0,Military,58000,0,15,118,131,140,153,1917,2255,NATOPS-UP
+F-14B,0,Military,58000,0,32,118,131,140,153,2134,2510,NATOPS-UP
+F-14B,0,Military,58000,0,49,118,131,140,153,2542,2990,NATOPS-UP
+F-14B,0,Military,58000,4000,-7,118,131,140,153,2389,2810,NATOPS-UP
+F-14B,0,Military,58000,4000,15,118,131,140,153,2601,3060,NATOPS-UP
+F-14B,0,Military,58000,4000,32,118,131,140,153,2924,3440,NATOPS-UP
+F-14B,0,Military,58000,4000,49,118,131,140,153,3490,4105,NATOPS-UP
+F-14B,0,Military,58000,8000,-7,118,131,140,153,3294,3875,NATOPS-UP
+F-14B,0,Military,58000,8000,15,118,131,140,153,3589,4225,NATOPS-UP
+F-14B,0,Military,58000,8000,32,118,131,140,153,4055,4770,NATOPS-UP
+F-14B,0,Military,58000,8000,49,118,131,140,153,4852,5720,NATOPS-UP
+
+F-14B,0,Military,65000,0,-7,125,150,159,172,2253,2650,NATOPS-UP
+F-14B,0,Military,65000,0,15,125,150,159,172,2460,2900,NATOPS-UP
+F-14B,0,Military,65000,0,32,125,150,159,172,2741,3225,NATOPS-UP
+F-14B,0,Military,65000,0,49,125,150,159,172,3273,3845,NATOPS-UP
+F-14B,0,Military,65000,4000,-7,125,150,159,172,3073,3615,NATOPS-UP
+F-14B,0,Military,65000,4000,15,125,150,159,172,3350,3940,NATOPS-UP
+F-14B,0,Military,65000,4000,32,125,150,159,172,3766,4430,NATOPS-UP
+F-14B,0,Military,65000,4000,49,125,150,159,172,4526,5325,NATOPS-UP
+F-14B,0,Military,65000,8000,-7,125,150,159,172,4246,4995,NATOPS-UP
+F-14B,0,Military,65000,8000,15,125,150,159,172,4633,5450,NATOPS-UP
+F-14B,0,Military,65000,8000,32,125,150,159,172,5245,6170,NATOPS-UP
+F-14B,0,Military,65000,8000,49,125,150,159,172,6341,7460,NATOPS-UP
+
+F-14B,0,Military,72000,0,-7,132,159,168,181,2831,3330,NATOPS-UP
+F-14B,0,Military,72000,0,15,132,159,168,181,3090,3635,NATOPS-UP
+F-14B,0,Military,72000,0,32,132,159,168,181,3450,4065,NATOPS-UP
+F-14B,0,Military,72000,0,49,132,159,168,181,4135,4865,NATOPS-UP
+F-14B,0,Military,72000,4000,-7,132,159,168,181,3876,4560,NATOPS-UP
+F-14B,0,Military,72000,4000,15,132,159,168,181,4216,4960,NATOPS-UP
+F-14B,0,Military,72000,4000,32,132,159,168,181,4760,5600,NATOPS-UP
+F-14B,0,Military,72000,4000,49,132,159,168,181,5763,6780,NATOPS-UP
+F-14B,0,Military,72000,8000,-7,132,159,168,181,5355,6300,NATOPS-UP
+F-14B,0,Military,72000,8000,15,132,159,168,181,5844,6875,NATOPS-UP
+F-14B,0,Military,72000,8000,32,132,159,168,181,6656,7830,NATOPS-UP
+F-14B,0,Military,72000,8000,49,132,159,168,181,8113,9545,NATOPS-UP
+
+# --- FLAPS FULL (mapped from NATOPS 35°) ---
+F-14B,40,Military,58000,0,-7,113,113,122,135,1526,1795,NATOPS-FULL
+F-14B,40,Military,58000,0,15,113,113,122,135,1666,1960,NATOPS-FULL
+F-14B,40,Military,58000,0,32,113,113,122,135,1870,2200,NATOPS-FULL
+F-14B,40,Military,58000,0,49,113,113,122,135,2244,2640,NATOPS-FULL
+F-14B,40,Military,58000,4000,-7,113,113,122,135,2125,2500,NATOPS-FULL
+F-14B,40,Military,58000,4000,15,113,113,122,135,2320,2730,NATOPS-FULL
+F-14B,40,Military,58000,4000,32,113,113,122,135,2606,3065,NATOPS-FULL
+F-14B,40,Military,58000,4000,49,113,113,122,135,3183,3745,NATOPS-FULL
+F-14B,40,Military,58000,8000,-7,113,113,122,135,3004,3535,NATOPS-FULL
+F-14B,40,Military,58000,8000,15,113,113,122,135,3294,3875,NATOPS-FULL
+F-14B,40,Military,58000,8000,32,113,113,122,135,3732,4390,NATOPS-FULL
+F-14B,40,Military,58000,8000,49,113,113,122,135,4603,5415,NATOPS-FULL
+
+F-14B,40,Military,65000,0,-7,120,131,140,153,1989,2340,NATOPS-FULL
+F-14B,40,Military,65000,0,15,120,131,140,153,2168,2550,NATOPS-FULL
+F-14B,40,Military,65000,0,32,120,131,140,153,2438,2860,NATOPS-FULL
+F-14B,40,Military,65000,0,49,120,131,140,153,2954,3475,NATOPS-FULL
+F-14B,40,Military,65000,4000,-7,120,131,140,153,2780,3270,NATOPS-FULL
+F-14B,40,Military,65000,4000,15,120,131,140,153,3030,3570,NATOPS-FULL
+F-14B,40,Military,65000,4000,32,120,131,140,153,3438,4045,NATOPS-FULL
+F-14B,40,Military,65000,4000,49,120,131,140,153,4231,4980,NATOPS-FULL
+F-14B,40,Military,65000,8000,-7,120,131,140,153,4103,4835,NATOPS-FULL
+F-14B,40,Military,65000,8000,15,120,131,140,153,4516,5325,NATOPS-FULL
+F-14B,40,Military,65000,8000,32,120,131,140,153,5136,6045,NATOPS-FULL
+F-14B,40,Military,65000,8000,49,120,131,140,153,6415,7540,NATOPS-FULL
+
+F-14B,40,Military,72000,0,-7,127,138,147,160,2499,2940,NATOPS-FULL
+F-14B,40,Military,72000,0,15,127,138,147,160,2733,3215,NATOPS-FULL
+F-14B,40,Military,72000,0,32,127,138,147,160,3081,3625,NATOPS-FULL
+F-14B,40,Military,72000,0,49,127,138,147,160,3761,4425,NATOPS-FULL
+F-14B,40,Military,72000,4000,-7,127,138,147,160,3525,4150,NATOPS-FULL
+F-14B,40,Military,72000,4000,15,127,138,147,160,3860,4540,NATOPS-FULL
+F-14B,40,Military,72000,4000,32,127,138,147,160,4392,5155,NATOPS-FULL
+F-14B,40,Military,72000,4000,49,127,138,147,160,5481,6425,NATOPS-FULL
+F-14B,40,Military,72000,8000,-7,127,138,147,160,3918,4865,NATOPS-FULL
+F-14B,40,Military,72000,8000,15,127,138,147,160,4369,5365,NATOPS-FULL
+F-14B,40,Military,72000,8000,32,127,138,147,160,5187,6215,NATOPS-FULL
+F-14B,40,Military,72000,8000,49,127,138,147,160,6375,7960,NATOPS-FULL
 """
+
+def synthesize_maneuver_from_up_full(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build flap=20 (MANEUVER) rows by blending UP (0°) and FULL (40°) at identical (gw, pa, oat).
+    Bias 55% toward FULL (shorter roll), which matched your test results best.
+    """
+    up = df[(df["flap_deg"] == 0) & (df["thrust"].str.upper() == "MILITARY")]
+    fu = df[(df["flap_deg"] == 40) & (df["thrust"].str.upper() == "MILITARY")]
+    keys = ["gw_lbs", "press_alt_ft", "oat_c"]
+    merged = pd.merge(up, fu, on=keys, suffixes=("_up", "_full"))
+    w_full = 0.55
+    w_up = 1.0 - w_full
+
+    rows = []
+    for _, r in merged.iterrows():
+        vr = w_up * float(r["Vr_kt_up"]) + w_full * float(r["Vr_kt_full"])
+        v2 = vr + 13.0
+        vs = v2 / 1.2
+        v1 = max(120.0, vr - 9.0)
+        agd = w_up * float(r["AGD_ft_up"]) + w_full * float(r["AGD_ft_full"])
+        asd = 0.85 * agd
+        rows.append(dict(
+            model="F-14B", flap_deg=20, thrust="MILITARY",
+            gw_lbs=float(r["gw_lbs"]), press_alt_ft=float(r["press_alt_ft"]), oat_c=float(r["oat_c"]),
+            Vs_kt=round(vs), V1_kt=round(v1), Vr_kt=round(vr), V2_kt=round(v2),
+            ASD_ft=round(asd), AGD_ft=round(agd), note="SYNTH-MAN(0.45UP+0.55FULL)"
+        ))
+    return pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
+
+@st.cache_data
+def load_perf() -> pd.DataFrame:
+    base = pd.read_csv(StringIO(PERF_F14B), comment="#")
+    base["thrust"] = base["thrust"].str.upper()
+    out = synthesize_maneuver_from_up_full(base)
+    return out
+
 
 # ------------------------------ constants / tuning ------------------------------
 ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}  # per engine, uninstalled (approx)
