@@ -347,9 +347,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
 
     # Round N1 to next 1% for gauge resolution (and use that for compliance)
     n1_cmd = math.ceil(n1)
-    if n1_cmd != n1:
-        notes.append(f"N1 rounded up from {n1:.1f}% to {n1_cmd:.0f}% to match gauge resolution.")
-    n1 = float(n1_cmd)
+    if n1_cmd != n1:    n1 = float(n1_cmd)
 
     # Final distances and compliance
     asd_fin, agd_fin = distances_for(n1)
