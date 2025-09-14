@@ -1,6 +1,6 @@
 # f14_takeoff_core.py
 # Core math & utilities for the DCS F-14B takeoff performance app.
-# Safe for Python 3.9+ (Streamlit Cloud default).
+# Safe for Python 3.9+
 
 from __future__ import annotations
 from dataclasses import dataclass
@@ -17,11 +17,14 @@ AEO_VR_FRAC = 0.86        # UP / MAN flaps
 AEO_VR_FRAC_FULL = 0.82   # FULL flaps
 
 # Calibration factors (set by the app before compute_takeoff via session_state)
-AEO_CAL_FACTOR: float = 1.00     # scale for AEO liftoff distance
+AEO_CAL_FACTOR: float = 1.00     # scale for AEO liftoff distance (all-engines)
 OEI_AGD_FACTOR: float = 1.20     # scale to go from AEO liftoff to OEI regulatory continue distance
 
 # Thrust (per engine) proxies (approximate)
 ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}
+
+# Tuning constants (distance sensitivity)
+ALPHA_N1_DIST = 1.30  # weaker sensitivity vs derate so distances don't blow up
 
 # ============================== Data model returned to the app ==============================
 @dataclass
@@ -139,7 +142,6 @@ def _wind_components(runway_hdg_deg: float, wind_dir_deg: float, wind_spd: float
     """
     Returns (headwind_kn, crosswind_kn). Positive headwind, positive crosswind from the right.
     """
-    # angle from runway TO wind
     ang = math.radians((wind_dir_deg - runway_hdg_deg + 360.0) % 360.0)
     hw = wind_spd * math.cos(ang)
     cw = wind_spd * math.sin(ang)
@@ -155,7 +157,6 @@ def _isa_density_ratio(oat_c: float, qnh_inhg: float, elev_ft: float) -> float:
     # ISA temp at PA
     isa_t_c = 15.0 - 1.98 * (pa_ft / 1000.0)
     t_ratio = (273.15 + float(oat_c)) / (273.15 + isa_t_c)
-    # Simple sigma proxy (temp dominates; pressure baked into ISA lapse)
     sigma = 1.0 / t_ratio
     return max(0.6, min(1.3, sigma))
 
@@ -168,26 +169,21 @@ def _flap_label_to_deg(label: str) -> int:
         return 40
     return 20  # MANEUVER
 
-def _n_engines_from_thrust_mode(thrust_mode: str) -> int:
-    # we model both engines for AEO, 1 for OEI continue checks
-    return 2
-
 def _total_thrust_lbf(n1pct: float, thrust_mode: str) -> float:
     """
     Two engines available (AEO) thrust proxy.
     - For "AB": use AB static
     - For "MIL" or "DERATE": scale MIL linearly by N1%
     """
-    if thrust_mode == "AB":
+    if thrust_mode.upper() == "AB":
         per_eng = ENGINE_THRUST_LBF["AB"]
         return 2.0 * per_eng
-    # Manual Derate / MIL share MIL basis; N1 at or below 100
     per_eng = ENGINE_THRUST_LBF["MIL"] * max(0.0, float(n1pct)) / 100.0
     return 2.0 * per_eng
 
 def _oei_thrust_lbf(n1pct: float, thrust_mode: str) -> float:
     """One-engine-remaining thrust proxy for OEI continue segment."""
-    if thrust_mode == "AB":
+    if thrust_mode.upper() == "AB":
         return ENGINE_THRUST_LBF["AB"]
     return ENGINE_THRUST_LBF["MIL"] * max(0.0, float(n1pct)) / 100.0
 
@@ -217,18 +213,18 @@ def _v_speeds(gw_lbs: float, flap_deg: int) -> Tuple[float, float, float, float]
 
 def _ground_dist_aeo_ft(v_liftoff_kt: float, total_thrust_lbf: float, gw_lbs: float, sigma: float) -> float:
     """
-    Extremely stable proxy for AEO liftoff distance, increasing with V^2 and weight,
-    decreasing with thrust and density. Tuned to return plausible values (2-8 kft).
+    Stable proxy for AEO liftoff distance, increasing with V^2 and weight,
+    decreasing with thrust and density. Tuned to return plausible values (≈3–8 kft).
     """
-    # Convert knots to ft/s
-    v_fps = v_liftoff_kt * 1.68781
-    # "Acceleration" proxy ~ T/W scaled by density
-    t_over_w = (total_thrust_lbf / max(gw_lbs, 1.0))
-    # Base K chosen to make outputs realistic
-    K = 0.065
-    dist = K * (gw_lbs / max(total_thrust_lbf, 1.0)) * (v_fps ** 2) / max(0.35 * sigma + 0.15, 0.05)
-    # add a small floor based on weight to prevent unrealistically tiny values
-    dist += (gw_lbs - 40000.0) / 200.0  # +50 ft per +10k
+    v_fps = v_liftoff_kt * 1.68781            # knots -> ft/s
+    t_over_w = total_thrust_lbf / max(gw_lbs, 1.0)
+    # *** Key tuning constant (reduced from 0.065 to 0.012 to eliminate 20k+ ft outputs) ***
+    K = 0.012
+    # mild density help (higher sigma -> slightly better accel)
+    denom = max(0.35 * sigma + 0.15, 0.05)
+    dist = K * (gw_lbs / max(total_thrust_lbf, 1.0)) * (v_fps ** 2) / denom
+    # small floor/trim by weight
+    dist += (gw_lbs - 40000.0) / 400.0  # +25 ft per +10k
     return max(500.0, dist)
 
 def _accelerate_stop_ft(agd_aeo_ft: float, v1_kt: float, sigma: float) -> float:
@@ -263,7 +259,6 @@ def compute_aeo_normal_climb_ok(gw_lbs: float, n1pct: float, flap_deg: int) -> b
     grad = (t_aeo / max(gw_lbs, 1.0)) - drag_over_w
     return grad >= 0.033
 
-# ------------------------------ OEI guardrail (added to fix import errors) ------------------------------
 def compute_oei_second_segment_ok(gw_lbs: float, n1pct: float, flap_deg: int) -> bool:
     """Check OEI second-segment climb meets 2.4% net gradient."""
     drag_over_w = {0: 0.06, 20: 0.08, 40: 0.10}.get(flap_deg, 0.08)
@@ -284,12 +279,10 @@ def estimate_ab_multiplier(perfdb: pd.DataFrame, flap_deg: int) -> float:
         sub_ab  = perfdb[(perfdb.get("flap_deg") == flap_deg) & (perfdb.get("thrust") == "AFTERBURNER")]
         if sub_mil.empty or sub_ab.empty:
             return 0.78
-        # Look for any distance-like columns
         cand_cols = [c for c in perfdb.columns if c.lower().endswith("_ft") or "distance" in c.lower()]
         if not cand_cols:
             return 0.78
         col = cand_cols[0]
-        # approximate ratio using medians
         r = (sub_ab[col].median() / max(sub_mil[col].median(), 1.0))
         if 0.5 < r < 1.0:
             return float(r)
@@ -306,15 +299,11 @@ def recommend_climb(gw_lbs: float,
     Minimal wrapper that returns (N1%, climb IAS) for the merged app.
     """
     flap_deg = _flap_label_to_deg(flap_after_cleanup)
-    # target N1 to clear AEO gradient with margin
-    # 200 ft/nm (3.3%); add 1% or 2% depending on policy
     margin = 2.0 if (policy or "conservative").lower().startswith("conserv") else 1.0
-    # invert T/W - D/W >= 0.033 for N1
     drag_over_w = {0: 0.06, 20: 0.08, 40: 0.10}.get(flap_deg, 0.08)
     rhs = 0.033 + drag_over_w
     n1 = (rhs * max(gw_lbs, 1.0)) / (2.0 * ENGINE_THRUST_LBF["MIL"]) * 100.0
     n1_cmd = max(90.0, min(100.0, n1 + margin))
-    # climb IAS: 250 below 10k, otherwise 300 as app shows; we return the immediate target
     climb_ias = 250.0
     return (float(int(round(n1_cmd))), float(int(round(climb_ias))))
 
@@ -354,18 +343,15 @@ def compute_takeoff(perfdb: pd.DataFrame,
 
     # Thrust models
     tot_thrust = _total_thrust_lbf(float(n1pct), thrust_mode)
-    oei_thrust = _oei_thrust_lbf(float(n1pct), thrust_mode)
+    _ = _oei_thrust_lbf(float(n1pct), thrust_mode)  # reserved for future tuning
 
     # AEO liftoff distance proxy (to 35 ft)
-    agd_aeo = _ground_dist_aeo_ft(v2, tot_thrust, float(gw_lbs), sigma) * float(AEO_CAL_FACTOR)
+    # N1 sensitivity (gentle): multiply by a factor if <100%
+    eff = max(0.90, min(1.0, float(n1pct) / 100.0))
+    n1_mult = 1.0 / (eff ** ALPHA_N1_DIST)
 
-    # Optional AB multiplier if thrust_mode == AB and we have a table to learn from
-    if thrust_mode == "AB":
-        try:
-            mult = estimate_ab_multiplier(perfdb, (20 if flap_deg == 0 else flap_deg))
-            agd_aeo *= max(0.55, min(1.0, mult))
-        except Exception:
-            pass
+    agd_aeo = _ground_dist_aeo_ft(v2, tot_thrust, float(gw_lbs), sigma) * n1_mult
+    agd_aeo *= float(AEO_CAL_FACTOR)
 
     # Adjust for runway slope (mild effect): uphill increases distances, downhill decreases
     slope_adj = 1.0 + float(slope_pct) * 0.01 * 0.10  # 1% slope -> ~10% change
@@ -400,13 +386,11 @@ def compute_takeoff(perfdb: pd.DataFrame,
     elif thrust_mode == "DERATE":
         thrust_text = f"DERATE {int(round(n1pct))}%"
     else:
-        # MIL
         thrust_text = "MIL"
 
     # Gradient sanity (AEO 200 ft/nm proxy)
-    aeo_grad_ok = compute_aeo_normal_climb_ok(float(gw_lbs), float(n1pct if thrust_mode != "AB" else 100.0), flap_deg)
+    aeo_grad_ok = compute_aeo_normal_climb_ok(float(gw_lbs), float(100.0 if thrust_mode == "AB" else n1pct), flap_deg)
 
-    # Build result (final clean return — replaces any mangled fragments)
     notes: Tuple[str, ...] = tuple()
 
     return Result(
