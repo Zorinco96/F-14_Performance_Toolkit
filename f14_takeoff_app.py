@@ -53,8 +53,9 @@ F-14B,40,Afterburner,70000,5000,30,126,139,151,163,6000,7500,est
 # ------------------------------ constants / tuning ------------------------------
 ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}  # per engine, uninstalled (approx)
 DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 1.00}   # FULL may not be derated
-ALPHA_N1_DIST = 1.35                                   # distance ∝ 1/(N1^alpha)
+ALPHA_N1_DIST = 1.55                                   # distance ∝ 1/(N1^alpha) — tightened for hot/high
 UP_FLAP_DISTANCE_FACTOR = 1.06                          # extra penalty beyond CL diff when using UP
+OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate‑go penalty vs AEO                          # extra penalty beyond CL diff when using UP
 
 # ------------------------------ helpers: atmosphere / wind ------------------------------
 
@@ -92,7 +93,7 @@ def da_out_of_grid_scale(pa_ft: float, oat_c: float) -> float:
     da_ref = density_altitude_ft(min(pa_ft, 5000.0), min(oat_c, 30.0))
     sig_act = sigma_from_da(da_act)
     sig_ref = sigma_from_da(da_ref)
-    BETA = 0.75  # tuning knob: 0.6–0.9 reasonable
+    BETA = 0.85  # tuning knob: 0.6–0.9 reasonable
     return (sig_ref / max(1e-6, sig_act)) ** BETA
 
 
@@ -268,8 +269,11 @@ def compute_takeoff(perfdb: pd.DataFrame,
     def field_ok(asd_eff: float, agd_eff: float) -> Tuple[bool,float,str]:
         clearway_allow = min(tora_ft * 0.5, max(0.0, toda_ft - tora_ft))
         tod_limit = tora_ft + clearway_allow
-        req = max(asd_eff, agd_eff)
-        return ((asd_eff <= asda_ft) and (agd_eff <= tod_limit) and (agd_eff <= toda_ft)), req, ("ASD" if asd_eff >= agd_eff else "AGD")
+        agd_reg = agd_eff * OEI_AGD_FACTOR  # OEI regulatory distance to 35 ft
+        req = max(asd_eff, agd_reg)
+        ok = (asd_eff <= asda_ft) and (agd_reg <= tod_limit) and (agd_reg <= toda_ft)
+        limiting = "ASD" if asd_eff >= agd_reg else "AGD (OEI)"
+        return ok, req, limiting and (agd_eff <= toda_ft)), req, ("ASD" if asd_eff >= agd_eff else "AGD")
 
     n1 = 100.0
     thrust_text = thrust_mode
@@ -321,6 +325,9 @@ def compute_takeoff(perfdb: pd.DataFrame,
     avail = max(0.0, tora_ft - shorten_ft)
 
     return Result(v1=v1, vr=vr, v2=v2, vs=vs,
+                  flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
+                  asd_ft=asd_fin, agd_ft=agd_fin, req_ft=req, avail_ft=avail, limiting=limiting,
+                  hw_kn=hw, cw_kn=cw, notes=notes)v1=v1, vr=vr, v2=v2, vs=vs,
                   flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
                   asd_ft=asd_fin, agd_ft=agd_fin, req_ft=max(asd_fin, agd_fin), avail_ft=avail, limiting=limiting,
                   hw_kn=hw, cw_kn=cw, notes=notes)
