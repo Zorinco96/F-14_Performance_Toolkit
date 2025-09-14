@@ -310,7 +310,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
     use_flap_for_table = 20 if flap_deg == 0 else flap_deg
     has_ab_rows = not perfdb[(perfdb["flap_deg"] == use_flap_for_table) & (perfdb["thrust"] == "AFTERBURNER")].empty
     table_thrust = "AFTERBURNER" if (thrust_mode == "AB" and has_ab_rows) else "MILITARY"
-    base = interp_perf(perfdb, use_flap_for_table, table_thrust, float(gw_lbs), float(pa), float(oat_c)), table_thrust, float(gw_lbs), float(pa), float(oat_c))
+    base = interp_perf(perfdb, use_flap_for_table, table_thrust, float(gw_lbs), float(pa), float(oat_c))
 
     vs = float(base["Vs_kt"]) ; v1 = float(base["V1_kt"]) ; vr = float(base["Vr_kt"]) ; v2 = float(base["V2_kt"]) 
     asd_base = float(base["ASD_ft"]) ; agd_base = float(base["AGD_ft"]) 
