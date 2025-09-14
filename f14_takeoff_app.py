@@ -1,4 +1,4 @@
-# f14_takeoff_app.py — DCS F-14B Takeoff Performance (FAA-style, MIL-anchored derates)
+# f14_takeoff_app.py — DCS F-14B Takeoff Performance (FAA-style, MIL-anchored derates, AB fix)
 #
 # Requires in repo root (exact case):
 #   • dcs_airports.csv
@@ -6,13 +6,13 @@
 #
 # Highlights
 # • 14 CFR 121.189 checks: ASD ≤ ASDA, OEI-continue ≤ TORA + min(0.5*TORA, clearway), and ≤ TODA.
-# • MIL-anchored derate solver (bisection) w/ OEI climb guardrail.
-# • CSV AGD_ft treated as AEO ground roll → converted to AEO liftoff-to-35 ft with DA-aware factor.
-# • Auto-build MAN(20°) data if missing by blending UP/FULL.
+# • MIL-anchored derate solver (bisection) + simple OEI climb guardrail.
+# • CSV AGD_ft treated as AEO ground roll → converted to AEO liftoff-to-35 ft with DA-aware factor (no double DA hit inside grid).
+# • Auto-build MAN(20°) data if missing by blending UP/FULL (60% FULL / 40% UP bias).
 # • Flaps: Auto-Select (defaults to MAN) → escalate to FULL only if MAN cannot meet limits. FULL may NOT derate.
-# • Thrust: Auto-Select / Manual Derate (whole %) / MIL / AB (AB allowed only if explicitly selected; flagged as not authorized).
+# • Thrust: Auto-Select / Manual Derate (whole %) / MIL / AB (AB uses AB table if present; else MIL×AB factor).
 # • Weather, wind policy (None or 50/150), optional shorten runway, weight via Direct or Fuel+Stores.
-# • Output: V1/Vr/V2/Vs, Flaps, Thrust (N1), Trim, Stop, OEI-Continue (regulatory), Required, Available, Limiting + AEO estimates for DCS.
+# • Output: V1/Vr/V2/Vs, Flaps, Thrust (N1), Trim, Stop, OEI-Continue (reg), Required, Available, Limiting + AEO estimates for DCS.
 #
 # NOT FOR REAL-WORLD USE.
 
@@ -33,7 +33,7 @@ ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}  # per engine (approx), for 
 DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 1.00}  # FULL cannot derate
 
 ALPHA_N1_DIST = 2.0          # distance ∝ 1/(N1^alpha) — stronger, more realistic derate effect
-AEO_VR_FRAC   = 0.88         # Vr ground-roll ≈ 0.88 × AEO liftoff-to-35ft (from your DCS ratios)
+AEO_VR_FRAC   = 0.88         # Vr ground-roll ≈ 0.88 × AEO liftoff-to-35ft (from DCS ratios)
 
 # Regulatory OEI penalty vs AEO liftoff distance (toggle in UI)
 OEI_AGD_FACTOR = 1.20        # 1.15 for “DCS-calibrated”, 1.20 for FAA-conservative
@@ -69,7 +69,7 @@ def sigma_from_da(da_ft: float) -> float:
     return float(rho/rho0)
 
 def da_out_of_grid_scale(pa_ft: float, oat_c: float) -> float:
-    """Outside grid (PA>5000 or OAT>30), upscale distances by density ratio vs a clamped ref (≤5000 ft, ≤30 °C)."""
+    """Outside grid (PA>max or OAT>max or below mins), scale distances by density ratio vs a clamped ref (≤5000 ft, ≤30 °C)."""
     da_act = density_altitude_ft(pa_ft, oat_c)
     da_ref = density_altitude_ft(min(pa_ft, 5000.0), min(oat_c, 30.0))
     sig_act = sigma_from_da(da_act)
@@ -115,7 +115,8 @@ def _ensure_numeric(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return df
 
 def ensure_flap20(df: pd.DataFrame) -> pd.DataFrame:
-    """If MAN(20°) rows are missing, synthesize them by blending UP(0°) and FULL(40°) for identical key points."""
+    """If MAN(20°) rows are missing, synthesize them by blending UP(0°) and FULL(40°) for identical key points.
+       Bias toward FULL: MAN ≈ 0.4*UP + 0.6*FULL (improves hot/high agreement)."""
     if (df["flap_deg"] == 20).any():
         return df
     keys = ["thrust","gw_lbs","press_alt_ft","oat_c"]
@@ -130,7 +131,6 @@ def ensure_flap20(df: pd.DataFrame) -> pd.DataFrame:
     def blend(a, b, w=0.4):  # w = weight on UP; 0.4*UP + 0.6*FULL
         return w*a + (1.0 - w)*b
 
-
     new = pd.DataFrame({
         "model": "F-14B",
         "flap_deg": 20,
@@ -138,13 +138,13 @@ def ensure_flap20(df: pd.DataFrame) -> pd.DataFrame:
         "gw_lbs": m["gw_lbs"],
         "press_alt_ft": m["press_alt_ft"],
         "oat_c": m["oat_c"],
-        "Vs_kt": blend(m["Vs_kt_up"], m["Vs_kt_full"], 0.6),
-        "V1_kt": blend(m["V1_kt_up"], m["V1_kt_full"], 0.6),
-        "Vr_kt": blend(m["Vr_kt_up"], m["Vr_kt_full"], 0.6),
-        "V2_kt": blend(m["V2_kt_up"], m["V2_kt_full"], 0.6),
-        "ASD_ft": blend(m["ASD_ft_up"], m["ASD_ft_full"], 0.6),
-        "AGD_ft": blend(m["AGD_ft_up"], m["AGD_ft_full"], 0.6),
-        "note": "synth-MAN(20) 0.6*UP + 0.4*FULL"
+        "Vs_kt": blend(m["Vs_kt_up"], m["Vs_kt_full"]),
+        "V1_kt": blend(m["V1_kt_up"], m["V1_kt_full"]),
+        "Vr_kt": blend(m["Vr_kt_up"], m["Vr_kt_full"]),
+        "V2_kt": blend(m["V2_kt_up"], m["V2_kt_full"]),
+        "ASD_ft": blend(m["ASD_ft_up"], m["ASD_ft_full"]),
+        "AGD_ft": blend(m["AGD_ft_up"], m["AGD_ft_full"]),
+        "note": "synth-MAN(20) 0.4*UP + 0.6*FULL"
     })
     return pd.concat([df, new], ignore_index=True)
 
@@ -160,6 +160,49 @@ def load_perf() -> pd.DataFrame:
     df = df.dropna(subset=["flap_deg","gw_lbs","press_alt_ft","oat_c","Vr_kt","ASD_ft","AGD_ft"])
     df = ensure_flap20(df)
     return df
+
+# Learn AB vs MIL distance ratio when AB table is missing for a flap
+def estimate_ab_multiplier(perfdb: pd.DataFrame, flap_deg: int) -> float:
+    """
+    Estimate AB vs MIL distance ratio for the given flap by comparing rows that
+    share (gw_lbs, press_alt_ft, oat_c). Falls back to any flap, else default.
+    Returns a factor <1.0 (multiply distances by this when AB table is missing).
+    """
+    def median_ratio(df_m: pd.DataFrame, df_a: pd.DataFrame) -> Optional[float]:
+        keys = ["gw_lbs", "press_alt_ft", "oat_c"]
+        M = df_m[keys + ["ASD_ft", "AGD_ft"]]
+        A = df_a[keys + ["ASD_ft", "AGD_ft"]]
+        merged = pd.merge(M, A, on=keys, suffixes=("_MIL", "_AB"))
+        if merged.empty:
+            return None
+        ratios = []
+        for col in ("ASD_ft", "AGD_ft"):
+            num = merged[f"{col}_AB"].to_numpy(dtype=float)
+            den = merged[f"{col}_MIL"].to_numpy(dtype=float)
+            valid = (den > 1.0)
+            if valid.any():
+                r = np.median(np.clip(num[valid] / den[valid], 0.65, 0.95))
+                ratios.append(r)
+        if ratios:
+            return float(min(ratios))
+        return None
+
+    # Try same flap
+    mil_f = perfdb[(perfdb["flap_deg"] == flap_deg) & (perfdb["thrust"] == "MILITARY")]
+    ab_f  = perfdb[(perfdb["flap_deg"] == flap_deg) & (perfdb["thrust"] == "AFTERBURNER")]
+    r = median_ratio(mil_f, ab_f)
+    if r is not None:
+        return r
+
+    # Any flap
+    mil_any = perfdb[perfdb["thrust"] == "MILITARY"]
+    ab_any  = perfdb[perfdb["thrust"] == "AFTERBURNER"]
+    r2 = median_ratio(mil_any, ab_any)
+    if r2 is not None:
+        return r2
+
+    # Default if no AB rows at all
+    return 0.82
 
 # ------------------------------ interpolation (tri-linear) ------------------------------
 def _bounds(vals, x):
@@ -179,10 +222,10 @@ def _interp_weight_at(sub: pd.DataFrame, pa: float, oat: float, field: str, gw_x
         return float(ys[0])
     if gw_x <= xs[0]:
         x0, x1 = xs[0], xs[1]; y0, y1 = ys[0], ys[1]
-        return float(y0 + (y1 - y0)/(x1 - x0) * (gw_x - x0))
+        return float(y0 + (e := (y1 - y0)/(x1 - x0)) * (gw_x - x0))
     if gw_x >= xs[-1]:
         x0, x1 = xs[-2], xs[-1]; y0, y1 = ys[-2], ys[-1]
-        return float(y0 + (y1 - y0)/(x1 - x0) * (gw_x - x0))
+        return float(y0 + (e := (y1 - y0))/(x1 - x0) * (gw_x - x0))
     return float(np.interp(gw_x, xs, ys))
 
 def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: float, oat: float):
@@ -270,17 +313,26 @@ def compute_takeoff(perfdb: pd.DataFrame,
     flap_text = "MANEUVER" if flap_mode == "Auto-Select" else flap_mode
     flap_deg = 0 if flap_text.upper().startswith("UP") else (40 if flap_text.upper().startswith("FULL") else 20)
 
-    # Which performance slice (for interpolation AND for grid bounds)
+    # Which performance slice (for interpolation *and* grid bounds)
     use_flap_for_table = 20 if flap_deg == 0 else flap_deg
-    table_thrust = "AFTERBURNER" if thrust_mode == "AB" else "MILITARY"
 
-    # Build the same fallback chain used by interp to get the slice bounds
+    # Check if AB slice exists for this flap
+    has_ab_slice = not perfdb[(perfdb["flap_deg"] == use_flap_for_table) & (perfdb["thrust"] == "AFTERBURNER")].empty
+
+    # Choose table thrust:
+    #  • AB only if explicitly selected AND slice exists; otherwise use MIL table
+    #  • Derates always MIL-anchored
+    if thrust_mode == "AB" and has_ab_slice:
+        table_thrust = "AFTERBURNER"
+    else:
+        table_thrust = "MILITARY"
+
+    # Bounds used to decide if we’re outside grid (disable DA top-up inside the grid)
     sub_bounds = perfdb[(perfdb["flap_deg"] == use_flap_for_table) & (perfdb["thrust"] == table_thrust)]
     if sub_bounds.empty:
         sub_bounds = perfdb[(perfdb["flap_deg"] == use_flap_for_table)]
     if sub_bounds.empty:
         sub_bounds = perfdb[(perfdb["thrust"] == table_thrust)]
-    # If still empty, just use the whole table (shouldn’t happen with your CSV)
     if sub_bounds.empty:
         sub_bounds = perfdb
 
@@ -288,16 +340,15 @@ def compute_takeoff(perfdb: pd.DataFrame,
     t_min  = float(sub_bounds["oat_c"].min());        t_max  = float(sub_bounds["oat_c"].max())
     outside_grid = (pa < pa_min or pa > pa_max or oat_c < t_min or oat_c > t_max)
 
-    # Interpolate baseline speeds & distances at the requested PA/OAT (inside-grid variation comes from CSV only)
+    # Interpolate speeds & base distances
     base = interp_perf(perfdb, use_flap_for_table, table_thrust, float(gw_lbs), float(pa), float(oat_c))
     vs = float(base["Vs_kt"]); v1 = float(base["V1_kt"]); vr = float(base["Vr_kt"]); v2 = float(base["V2_kt"])
 
-    # CSV distances: ASD_ft = AEO stop; AGD_ft = AEO ground roll (we convert to liftoff-to-35 ft)
+    # CSV distances: ASD_ft = AEO stop; AGD_ft = AEO ground roll
     asd_base    = float(base["ASD_ft"])
     agd_gr_base = float(base["AGD_ft"])
 
-    # Convert ground roll → liftoff-to-35 ft with a gentle DA-aware factor (no extra temp/PA scaling if inside grid)
-    # ~1.45 at ISA SL, ~1.55 around DA ~5k, capped near ~1.70 at very high DA
+    # Convert ground roll → liftoff-to-35 ft (gentle DA-aware factor; no extra scaling inside grid)
     liftoff_factor = 1.42 + 0.15 * max(0.0, min(da/8000.0, 1.25))
     agd_aeo_liftoff_base = agd_gr_base * liftoff_factor
 
@@ -311,12 +362,20 @@ def compute_takeoff(perfdb: pd.DataFrame,
         notes.append("Derate with FULL flaps not allowed — using MIL for calculation.")
         thrust_mode = "MIL"
 
-    # MIL-anchored N1 multiplier
+    # If AB requested but slice doesn’t exist, approximate AB by reducing MIL distances
+    ab_mult = 1.0
+    if thrust_mode == "AB" and not has_ab_slice:
+        ab_mult = estimate_ab_multiplier(perfdb, use_flap_for_table)
+        asd_base *= ab_mult
+        agd_aeo_liftoff_base *= ab_mult
+        notes.append(f"AFTERBURNER table missing for this flap; approximated using AB/MIL ratio ≈ {ab_mult:.2f}.")
+
+    # MIL-anchored N1 multiplier for derates (AB uses full power, so N1 stays 100%)
     def mult_from_n1(n1pct: float) -> float:
         eff = max(0.90, min(1.0, n1pct/100.0))
         return 1.0 / (eff ** ALPHA_N1_DIST)
 
-    # Apply DA top-up ONLY when outside the CSV grid
+    # DA “top-up” ONLY if outside CSV grid
     def maybe_da_scale(d_ft: float) -> float:
         if outside_grid:
             return d_ft * da_out_of_grid_scale(pa, oat_c)
@@ -347,17 +406,14 @@ def compute_takeoff(perfdb: pd.DataFrame,
     # Choose thrust / N1
     n1 = 100.0
     thrust_text = thrust_mode
-
     if thrust_mode == "DERATE":
         floor_pct = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90)*100.0
         n1 = float(int(math.ceil(max(floor_pct, target_n1_pct))))  # whole %
         thrust_text = "DERATE" if n1 < 100.0 else "MIL"
     elif thrust_mode == "Auto-Select":
-        # Try current flap @ MIL
         asd_mil, agd_aeo_mil = distances_for(100.0)
         ok_mil, _, _ = field_ok(asd_mil, agd_aeo_mil)
         if ok_mil:
-            # Find minimum N1 that passes (with OEI guardrail)
             floor_pct = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90)*100.0
             lo, hi = floor_pct, 100.0
             for _ in range(18):
@@ -365,14 +421,11 @@ def compute_takeoff(perfdb: pd.DataFrame,
                 asd_m, agd_aeo_m = distances_for(mid)
                 ok_m, _, _ = field_ok(asd_m, agd_aeo_m)
                 ok_m = ok_m and compute_oei_second_segment_ok(gw_lbs, mid, flap_deg)
-                if ok_m:
-                    hi = mid
-                else:
-                    lo = mid
+                if ok_m: hi = mid
+                else:    lo = mid
             n1 = float(int(math.ceil(hi)))
             thrust_text = "DERATE" if n1 < 100.0 else "MIL"
         else:
-            # Escalate to FULL + MIL (single step)
             if flap_deg != 40:
                 notes.append("Auto: MAN @ MIL fails §121.189; escalating to FULL @ MIL.")
             return compute_takeoff(perfdb, rwy_heading_deg, tora_ft, toda_ft, asda_ft,
@@ -382,7 +435,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
     elif thrust_mode == "MIL":
         n1 = 100.0
         thrust_text = "MIL"
-    else:  # AB
+    else:  # AB (always 100% N1)
         n1 = 100.0
         thrust_text = "AFTERBURNER"
         notes.append("Afterburner selected — NOT AUTHORIZED for F-14B except as last resort.")
@@ -408,7 +461,6 @@ def compute_takeoff(perfdb: pd.DataFrame,
         req_ft=req, avail_ft=avail, limiting=limiting,
         hw_kn=hw, cw_kn=cw, notes=notes
     )
-
 
 # ------------------------------ UI ------------------------------
 st.title("DCS F-14B Takeoff — FAA-Based Model (MIL-anchored)")
@@ -498,7 +550,7 @@ with st.sidebar:
             AEO_CAL = 1.00
             OEI_FAC = 1.20
         globals()["AEO_CAL_FACTOR"] = AEO_CAL
-        globals()["OEI_AGD_FACTOR"] = OEI_FAC
+        globals()["OEI_AGD_FACTOR"]  = OEI_FAC
 
 run = st.button("Compute Takeoff Performance", type="primary")
 
@@ -521,7 +573,7 @@ if run:
     with c2:
         st.subheader("Settings")
         st.metric("Flaps", res.flap_text)
-        thrust_label = "MIL" if (res.thrust_text.upper().startswith("MIL") or res.n1_pct >= 100.0) else "DERATE"
+        thrust_label = "MIL" if (res.thrust_text.upper().startswith("MIL") or res.n1_pct >= 100.0) else ("AFTERBURNER" if res.thrust_text.upper().startswith("AFTERBURNER") else "DERATE")
         st.metric("Thrust", f"{thrust_label} ({res.n1_pct:.0f}% N1)")
         flap_deg = 0 if res.flap_text.upper().startswith("UP") else (40 if res.flap_text.upper().startswith("FULL") else 20)
         st.metric("Trim (ANU)", f"{trim_anu(float(gw), flap_deg):.1f}")
