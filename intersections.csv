@@ -1,0 +1,20 @@
+map,airport_name,runway_pair,runway_end,intersection_id,intersection_name,tora_from_intersection_ft,notes
+Nevada,Henderson Executive,17R/35L,35L,35L-K1,Taxiway K1,5200,Estimated; verify in DCS
+Nevada,Henderson Executive,17R/35L,35L,35L-K2,Taxiway K2,4600,Estimated; verify in DCS
+Nevada,Henderson Executive,17R/35L,17R,17R-K3,Taxiway K3,4800,Estimated; verify in DCS
+Nevada,Henderson Executive,17R/35L,17R,17R-K4,Taxiway K4,4300,Estimated; verify in DCS
+Nevada,Nellis AFB,03L/21R,03L,03L-A,Taxiway A,9000,Estimated; verify in DCS
+Nevada,Nellis AFB,03L/21R,03L,03L-B,Taxiway B,8200,Estimated; verify in DCS
+Nevada,Nellis AFB,03L/21R,21R,21R-A,Taxiway A,9100,Estimated; verify in DCS
+South Atlantic,Mount Pleasant,10/28,10,10-B,Taxiway B,8500,Estimated; verify in DCS
+South Atlantic,Mount Pleasant,10/28,28,28-A,Taxiway A,8700,Estimated; verify in DCS
+Caucasus,Kutaisi,08/26,08,08-B,Midfield B,6500,Estimated; verify in DCS
+Caucasus,Kutaisi,08/26,26,26-A,Midfield A,6600,Estimated; verify in DCS
+Persian Gulf,Dubai Intl,12L/30R,12L,12L-H4,Taxiway H4,10000,Approx; verify in DCS
+Persian Gulf,Dubai Intl,12L/30R,30R,30R-M7,Taxiway M7,10200,Approx; verify in DCS
+Kola,Rovaniemi,03/21,03,03-INT1,TWY N,7800,Estimated; verify in DCS
+Kola,Bodø Main,07/25,25,25-INT1,TWY C,7600,Estimated; verify in DCS
+Afghanistan,Bagram AB,03/21,21,21-INT1,TWY D,9000,Estimated; verify in DCS
+Afghanistan,Kandahar Intl,05/23,05,05-INT1,TWY B,8400,Estimated; verify in DCS
+Normandy 2.0,Deauville-Normandie,12/30,12,12-INT1,TWY A3,6200,Estimated; verify in DCS
+Normandy 2.0,Evreux-Fauville,10/28,10,10-INT1,TWY B2,6000,Estimated; verify in DCS
