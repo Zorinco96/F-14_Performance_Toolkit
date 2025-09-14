@@ -39,7 +39,9 @@ ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}  # per engine, uninstalled (
 DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 1.00}   # FULL may not be derated
 ALPHA_N1_DIST = 1.55                                   # distance ∝ 1/(N1^alpha) - tightened for hot/high
 UP_FLAP_DISTANCE_FACTOR = 1.06                          # extra penalty beyond CL diff when using UP
-OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate‑go penalty vs AEO
+OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate-go penalty vs AEO
+AB_ASD_SCALE = 0.88                                      # when AB table missing, ASD scaled vs MIL
+AB_AGD_SCALE = 0.83                                      # when AB table missing, AGD scaled vs MIL
 AEO_CAL_FACTOR = 1.00                                    # AEO AGD calibration (1.00 = FAA; <1 = DCS-cal)
 AEO_VR_FRAC = 0.66                                        # Vr ground roll ≈ 78% of liftoff (AEO)
 
@@ -304,7 +306,10 @@ def compute_takeoff(perfdb: pd.DataFrame,
     flap_deg = 0 if flap_text.upper().startswith("UP") else (40 if flap_text.upper().startswith("FULL") else 20)
 
     # Baseline (MIL unless AB explicitly picked)
-    table_thrust = "AFTERBURNER" if thrust_mode == "AB" else "MILITARY"
+    # Determine thrust table; if AB rows missing in CSV, fall back to MIL and apply AB scaling later
+use_flap_for_table = (20 if flap_deg == 0 else flap_deg)
+has_ab_rows = not perfdb[(perfdb["flap_deg"] == use_flap_for_table) & (perfdb["thrust"] == "AFTERBURNER")].empty
+table_thrust = "AFTERBURNER" if (thrust_mode == "AB" and has_ab_rows) else "MILITARY"
     base = interp_perf(perfdb, (20 if flap_deg == 0 else flap_deg), table_thrust, float(gw_lbs), float(pa), float(oat_c))
 
     vs = float(base["Vs_kt"]) ; v1 = float(base["V1_kt"]) ; vr = float(base["Vr_kt"]) ; v2 = float(base["V2_kt"]) 
@@ -331,6 +336,10 @@ def compute_takeoff(perfdb: pd.DataFrame,
             agd *= da_scale
         # DCS AEO calibration (optional via sidebar)
         agd *= AEO_CAL_FACTOR
+        # If AB selected and no AB rows in CSV, apply heuristic AB scaling
+        if thrust_mode == "AB" and not has_ab_rows:
+            asd *= AB_ASD_SCALE
+            agd *= AB_AGD_SCALE
         return asd, agd
 
     def field_ok(asd_eff: float, agd_eff: float) -> tuple[bool, float, str]:
@@ -534,7 +543,7 @@ with st.sidebar:
         floor = derate_floor_pct(flap_for_floor, float(gw), float(pa_local), float(oat_c))
         floor_int = math.ceil(floor)
         st.caption(f"Derate floor: {floor_int:.0f}% N1 (adaptive heavy/hot-high)")
-        derate_n1 = st.slider("Target N1 % (MIL)", min_value=float(floor_int), max_value=100.0, value=float(max(95.0, floor_int)), step=1.0), max_value=100.0, value=float(max(95.0, floor_int)), step=1.0)
+        derate_n1 = st.slider("Target N1 % (MIL)", min_value=float(floor_int), max_value=100.0, value=float(max(95.0, floor_int)), step=1.0)
 
     with st.expander("Advanced / Calibration", expanded=False):
         calib = st.radio("Model calibration", ["FAA-conservative", "DCS-calibrated"], index=1, help="FAA: no all-engines calibration; engine-out factor 1.20 (conservative). DCS: all-engines continue distance x0.74; engine-out factor 1.15 (tuned to your tests).")
