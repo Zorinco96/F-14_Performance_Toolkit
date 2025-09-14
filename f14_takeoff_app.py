@@ -222,13 +222,13 @@ def compute_takeoff(perfdb: pd.DataFrame,
                     flap_mode: str,
                     thrust_mode: str,
                     target_n1_pct: float) -> Result:
-
+    """Compute takeoff performance and regulatory compliance."""
     # Atmosphere & wind
     pa = pressure_altitude_ft(field_elev_ft, qnh_inhg)
     spd_kn = wind_speed if wind_units == "kts" else wind_speed * 1.943844
     hw, cw = wind_components(spd_kn, wind_dir_deg, rwy_heading_deg)
 
-    notes = []
+    notes: list[str] = []
     if hw < -10.0:
         notes.append("Tailwind component exceeds 10 kt — NOT AUTHORIZED.")
     if abs(cw) > 30.0:
@@ -240,7 +240,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
 
     # Baseline (MIL unless AB explicitly picked)
     table_thrust = "AFTERBURNER" if thrust_mode == "AB" else "MILITARY"
-    base = interp_perf(perfdb, (20 if flap_deg==0 else flap_deg), table_thrust, float(gw_lbs), float(pa), float(oat_c))
+    base = interp_perf(perfdb, (20 if flap_deg == 0 else flap_deg), table_thrust, float(gw_lbs), float(pa), float(oat_c))
 
     vs = float(base["Vs_kt"]) ; v1 = float(base["V1_kt"]) ; vr = float(base["Vr_kt"]) ; v2 = float(base["V2_kt"]) 
     asd_base = float(base["ASD_ft"]) ; agd_base = float(base["AGD_ft"]) 
@@ -250,12 +250,12 @@ def compute_takeoff(perfdb: pd.DataFrame,
         asd_base *= UP_FLAP_DISTANCE_FACTOR
         agd_base *= UP_FLAP_DISTANCE_FACTOR
 
-    # Derate logic
+    # Derate logic: FULL flaps cannot derate
     if flap_deg == 40 and thrust_mode in ("Auto-Select", "DERATE", "Manual Derate"):
         notes.append("Derate with FULL flaps not allowed — using MIL for calculation.")
         thrust_mode = "MIL"
 
-    def distances_for(n1pct: float) -> Tuple[float,float]:
+    def distances_for(n1pct: float) -> tuple[float, float]:
         mult = distance_scale_from_n1(n1pct, flap_deg)
         asd = apply_wind_slope(asd_base * mult, slope_pct, hw, wind_policy)
         agd = apply_wind_slope(agd_base * mult, slope_pct, hw, wind_policy)
@@ -266,7 +266,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
             agd *= da_scale
         return asd, agd
 
-    def field_ok(asd_eff: float, agd_eff: float) -> Tuple[bool, float, str]:
+    def field_ok(asd_eff: float, agd_eff: float) -> tuple[bool, float, str]:
         # Apply intersection/shorten to declared distances
         tora_eff = max(0.0, tora_ft - shorten_ft)
         toda_eff = max(0.0, toda_ft - shorten_ft)
@@ -308,7 +308,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
         if not ok_any:
             # Try MIL as fallback (or AB if explicitly chosen)
             asd_m, agd_m = distances_for(100.0)
-            ok, _, limiting = field_ok(asd_m, agd_m)
+            ok, _, _ = field_ok(asd_m, agd_m)
             n1 = 100.0
             thrust_text = "MIL" if thrust_mode != "AB" else "AB"
             if not ok:
@@ -321,7 +321,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
         n1 = 100.0
         notes.append("Afterburner selected — NOT AUTHORIZED for F‑14B except as last resort.")
 
-    # Final distances
+    # Final distances and compliance
     asd_fin, agd_fin = distances_for(n1)
     ok, req, limiting = field_ok(asd_fin, agd_fin)
 
@@ -335,14 +335,11 @@ def compute_takeoff(perfdb: pd.DataFrame,
     avail = max(0.0, tora_ft - shorten_ft)
 
     return Result(
-                  v1=v1, vr=vr, v2=v2, vs=vs,
-                  flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
-                  asd_ft=asd_fin, agd_ft=agd_fin, req_ft=req, avail_ft=avail, limiting=limiting,
-                  hw_kn=hw, cw_kn=cw, notes=notes
-              )v1=v1, vr=vr, v2=v2, vs=vs,
-                  flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
-                  asd_ft=asd_fin, agd_ft=agd_fin, req_ft=max(asd_fin, agd_fin), avail_ft=avail, limiting=limiting,
-                  hw_kn=hw, cw_kn=cw, notes=notes)
+        v1=v1, vr=vr, v2=v2, vs=vs,
+        flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
+        asd_ft=asd_fin, agd_ft=agd_fin, req_ft=req, avail_ft=avail, limiting=limiting,
+        hw_kn=hw, cw_kn=cw, notes=notes
+    )
 
 # ------------------------------ trim model ------------------------------
 
