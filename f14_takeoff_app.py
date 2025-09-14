@@ -288,34 +288,46 @@ def compute_takeoff(perfdb: pd.DataFrame,
     n1 = 100.0
     thrust_text = thrust_mode
 
-    if thrust_mode in ("Auto-Select", "DERATE", "Manual Derate"):
-        # requested floor
-        req_floor = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0
-        start = max(req_floor, target_n1_pct if thrust_mode != "Auto-Select" else req_floor)
-        lo, hi = start, 100.0
-        ok_any = False
-        for _ in range(18):
-            mid = (lo + hi) / 2.0
-            asd_m, agd_m = distances_for(mid)
-            ok, _, _ = field_ok(asd_m, agd_m)
-            # OEI guardrail
-            ok = ok and compute_oei_second_segment_ok(gw_lbs, mid, flap_deg)
-            if ok:
-                hi = mid; ok_any = True
-            else:
-                lo = mid
-        n1 = round(hi, 1)
-        if not ok_any:
-            # Try MIL as fallback (or AB if explicitly chosen)
-            asd_m, agd_m = distances_for(100.0)
-            ok, _, _ = field_ok(asd_m, agd_m)
-            n1 = 100.0
-            thrust_text = "MIL" if thrust_mode != "AB" else "AB"
-            if not ok:
-                notes.append("Even MIL power fails field limits — consider FULL flaps or a different runway.")
-        else:
+    # Manual Derate uses the exact user-selected N1% (no solver)
+    if thrust_mode == "DERATE":
+        n1 = enforce_derate_floor(target_n1_pct, flap_deg)
+        thrust_text = "DERATE"
+    # Auto-Select searches for MIN N1% with current flap; only if MAN@MIL fails do we escalate to FULL+MIL
+    elif thrust_mode == "Auto-Select":
+        # First, check if MAN (or current flap) at MIL passes §121.189
+        asd_mil, agd_mil = distances_for(100.0)
+        # Compute TOD limit for notes
+        tora_eff = max(0.0, tora_ft - shorten_ft)
+        toda_eff = max(0.0, toda_ft - shorten_ft)
+        clearway_allow = min(tora_eff * 0.5, max(0.0, toda_eff - tora_eff))
+        tod_limit = tora_eff + clearway_allow
+        ok_mil, req_mil, limiting_mil = field_ok(asd_mil, agd_mil)
+        if ok_mil:
+            # Bisection from floor to MIL to find minimum N1 that still passes
+            req_floor = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0
+            lo, hi = req_floor, 100.0
+            for _ in range(18):
+                mid = (lo + hi) / 2.0
+                asd_m, agd_m = distances_for(mid)
+                ok_m, _, _ = field_ok(asd_m, agd_m)
+                ok_m = ok_m and compute_oei_second_segment_ok(gw_lbs, mid, flap_deg)
+                if ok_m:
+                    hi = mid
+                else:
+                    lo = mid
+            n1 = round(hi, 1)
             thrust_text = "DERATE"
+        else:
+            # MAN@MIL fails → escalate to FULL+MIL (derate prohibited with FULL)
+            if flap_deg != 40:
+                notes.append(f"Auto: {flap_text} @ MIL required {max(asd_mil, agd_mil*OEI_AGD_FACTOR):.0f} ft > TOD limit {tod_limit:.0f} ft — escalating to FULL + MIL.")
+            # Recompute with FULL flaps enforced
+            return compute_takeoff(perfdb, rwy_heading_deg, tora_ft, toda_ft, asda_ft,
+                                   field_elev_ft, slope_pct, shorten_ft,
+                                   oat_c, qnh_inhg, wind_speed, wind_dir_deg, wind_units, wind_policy,
+                                   gw_lbs, "FULL", "MIL", 100.0)
     elif thrust_mode == "MIL":
+        n1 = 100.0
         n1 = 100.0
     else:  # AB
         n1 = 100.0
