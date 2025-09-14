@@ -266,14 +266,24 @@ def compute_takeoff(perfdb: pd.DataFrame,
             agd *= da_scale
         return asd, agd
 
-    def field_ok(asd_eff: float, agd_eff: float) -> Tuple[bool,float,str]:
-        clearway_allow = min(tora_ft * 0.5, max(0.0, toda_ft - tora_ft))
-        tod_limit = tora_ft + clearway_allow
-        agd_reg = agd_eff * OEI_AGD_FACTOR  # OEI regulatory distance to 35 ft
+    def field_ok(asd_eff: float, agd_eff: float) -> Tuple[bool, float, str]:
+        # Apply intersection/shorten to declared distances
+        tora_eff = max(0.0, tora_ft - shorten_ft)
+        toda_eff = max(0.0, toda_ft - shorten_ft)
+        asda_eff_lim = max(0.0, asda_ft - shorten_ft)
+
+        # Clearway credit capped at 50% of available runway length
+        clearway_allow = min(tora_eff * 0.5, max(0.0, toda_eff - tora_eff))
+        tod_limit = tora_eff + clearway_allow
+
+        # Regulatory OEI accelerate‑go distance to 35 ft
+        agd_reg = agd_eff * OEI_AGD_FACTOR
+
+        # Required distance and pass/fail
         req = max(asd_eff, agd_reg)
-        ok = (asd_eff <= asda_ft) and (agd_reg <= tod_limit) and (agd_reg <= toda_ft)
+        ok = (asd_eff <= asda_eff_lim) and (agd_reg <= tod_limit) and (agd_reg <= toda_eff)
         limiting = "ASD" if asd_eff >= agd_reg else "AGD (OEI)"
-        return ok, req, limiting and (agd_eff <= toda_ft)), req, ("ASD" if asd_eff >= agd_eff else "AGD")
+        return ok, req, limiting
 
     n1 = 100.0
     thrust_text = thrust_mode
