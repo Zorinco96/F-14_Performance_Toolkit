@@ -19,11 +19,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# ---- Streamlit rerun compatibility shim --------------------------------------
-# Makes both names available (st.rerun and st.experimental_rerun) on any version,
-# and provides a _safe_rerun() helper you can call anywhere.
+# ── Streamlit Compatibility + Helpers Pack ─────────────────────────────────────
+# Paste this block right after:  import streamlit as st
 
-# Try to alias whichever exists so BOTH attrs are present
+# 1) RERUN: make both names available, and expose a safe helper.
 try:
     if hasattr(st, "rerun") and not hasattr(st, "experimental_rerun"):
         st.experimental_rerun = st.rerun
@@ -33,7 +32,7 @@ except Exception:
     pass
 
 def _safe_rerun():
-    """Call rerun in a version-safe way; swallow if not available."""
+    """Version-safe rerun; use when programmatically changing session_state/URL."""
     try:
         st.rerun()
     except Exception:
@@ -41,29 +40,26 @@ def _safe_rerun():
             st.experimental_rerun()
         except Exception:
             pass
-# -----------------------------------------------------------------------------
-# ---- Streamlit query params compatibility (new API: st.query_params) --------
-# Use these helpers everywhere instead of experimental_* calls.
 
+# 2) QUERY PARAMS: new API is st.query_params (dict-like).
+#    These helpers keep you future-proof and still work on older Streamlit.
 def qp_get() -> dict:
     """Return current query params as a plain dict."""
     try:
-        # New API (Streamlit ≥ 1.31)
-        return dict(st.query_params)
+        return dict(st.query_params)  # new API (≥1.31)
     except Exception:
-        # Old API fallback
-        return {k: (v[0] if isinstance(v, list) and len(v) == 1 else v)
-                for k, v in st.experimental_get_query_params().items()}
+        q = st.experimental_get_query_params()  # legacy
+        return {k: (v[0] if isinstance(v, list) and len(v) == 1 else v) for k, v in q.items()}
 
 def qp_set(**kwargs):
-    """Replace the query string with the provided key/values."""
+    """Replace the entire query string with provided key/values."""
     try:
-        st.query_params.from_dict(kwargs)   # New API
+        st.query_params.from_dict(kwargs)  # new API
     except Exception:
-        st.experimental_set_query_params(**kwargs)  # Fallback
+        st.experimental_set_query_params(**kwargs)  # legacy
 
 def qp_update(**kwargs):
-    """Update/merge into current query params (preserving others)."""
+    """Merge/overwrite a subset of params (preserving others)."""
     params = qp_get()
     params.update({k: v for k, v in kwargs.items() if v is not None})
     qp_set(**params)
@@ -71,10 +67,46 @@ def qp_update(**kwargs):
 def qp_clear():
     """Clear all query params."""
     try:
-        st.query_params.clear()  # New API
+        st.query_params.clear()  # new API
     except Exception:
-        st.experimental_set_query_params()  # Fallback clears by setting nothing
-# -----------------------------------------------------------------------------
+        st.experimental_set_query_params()  # legacy clears when empty
+
+# Optional: attach helpers to st for convenient namespacing in your code.
+st.qp_get = qp_get
+st.qp_set = qp_set
+st.qp_update = qp_update
+st.qp_clear = qp_clear
+st.safe_rerun = _safe_rerun
+
+# Back-compat monkey patches so existing legacy calls won’t break even if removed:
+try:
+    if not hasattr(st, "experimental_set_query_params"):
+        st.experimental_set_query_params = lambda **kw: qp_set(**kw)
+    if not hasattr(st, "experimental_get_query_params"):
+        st.experimental_get_query_params = lambda: qp_get()
+except Exception:
+    pass
+
+# 3) Sensitivity table: safe headers (Unicode or ASCII fallback).
+#    Use this instead of manually constructing the DataFrame with a typo-prone header.
+import pandas as _pd  # local alias to avoid shadowing if you import pandas as pd earlier
+
+def make_sensitivity_df(rows, ascii_only: bool = False):
+    """
+    rows: list of tuples/lists, e.g. [("OAT ±5°C", -120, +180), ...]
+    ascii_only: set True if your editor/env dislikes Unicode Δ.
+    """
+    cols = ["Parameter", "-Δ (ft)", "+Δ (ft)"] if not ascii_only else ["Parameter", "-d (ft)", "+d (ft)"]
+    return _pd.DataFrame(rows, columns=cols)
+
+# ── How to use (examples):
+# params = qp_get()
+# qp_update(gw=f"{gw:.0f}", oat=f"{oat_c:.0f}", rwy=runway_id)
+# qp_clear()
+# st.safe_rerun()       # instead of st.experimental_rerun() or st.rerun()
+# df = make_sensitivity_df([("OAT ±5°C", -120, +180)])
+# st.dataframe(df, use_container_width=True)
+# ───────────────────────────────────────────────────────────────────────────────
 
 
 st.set_page_config(page_title="DCS F-14B Takeoff (Pro)", page_icon="✈️", layout="wide")
