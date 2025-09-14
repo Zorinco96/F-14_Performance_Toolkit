@@ -506,7 +506,7 @@ if run:
         st.subheader("Runway distances")
         st.metric("Stop distance (ft)", f"{res.asd_ft:.0f}")
         st.metric("Continue distance (engine-out, regulatory) (ft)", f"{res.agd_ft * OEI_AGD_FACTOR:.0f}")
-        st.metric("Required runway (regulatory) (ft)", f"{res.req_ft:.0f}")", f"{res.req_ft:.0f}")
+        st.metric("Required runway (regulatory) (ft)", f"{res.req_ft:.0f}")
     with c4:
         st.subheader("Availability")
         st.metric("Runway available (ft)", f"{res.avail_ft:.0f}")
