@@ -466,11 +466,7 @@ with st.sidebar:
             "Model calibration",
             ["FAA-conservative", "DCS-calibrated"],
             index=0,
-            help=(
-                "FAA: AEO distances uncalibrated, OEI factor 1.20 (more conservative).
-"
-                "DCS: AEO AGD ×0.74, OEI factor 1.15 — tuned to match your 40 °C/70k tests."
-            ),
+            help="FAA: AEO distances uncalibrated; OEI factor 1.20 (more conservative).\nDCS: AEO AGD ×0.74; OEI factor 1.15 — tuned to match your 40 °C/70k tests.",
         )
         if calib == "DCS-calibrated":
             globals()["AEO_CAL_FACTOR"] = 0.74
