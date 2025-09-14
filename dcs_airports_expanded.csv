@@ -1,193 +1,257 @@
 map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,opp_threshold_elev_ft,slope_percent,notes
-Caucasus,Batumi,13/31,13,126,8530,8530,8530,8530,33,39,,Public real-world data; verify TORA/TODA/ASDA in DCS
-Caucasus,Batumi,13/31,31,306,8530,8530,8530,8530,39,33,,Public real-world data; verify
-Caucasus,Kobuleti,07/25,07,73,8080,8080,8080,8080,59,58,,Public real-world data; verify
-Caucasus,Kobuleti,07/25,25,253,8080,8080,8080,8080,58,59,,Public real-world data; verify
-Caucasus,Senaki-Kolkhi,09/27,09,94,7870,7870,7870,7870,98,98,,Public real-world data; verify
-Caucasus,Senaki-Kolkhi,09/27,27,274,7870,7870,7870,7870,98,98,,Public real-world data; verify
-Caucasus,Sukhumi-Babushara,07/25,07,74,8202,8202,8202,8202,39,33,,Public real-world data; verify
-Caucasus,Sukhumi-Babushara,07/25,25,254,8202,8202,8202,8202,33,39,,Public real-world data; verify
-Caucasus,Gudauta,08/26,08,80,6562,6562,6562,6562,131,121,,Public real-world data; verify
-Caucasus,Gudauta,08/26,26,260,6562,6562,6562,6562,121,131,,Public real-world data; verify
-Caucasus,Sochi-Adler,06/24,06,62,7218,7218,7218,7218,89,89,,Public real-world data; verify
-Caucasus,Sochi-Adler,06/24,24,242,7218,7218,7218,7218,89,89,,Public real-world data; verify
-Caucasus,Anapa-Vityazevo,04/22,04,40,8858,8858,8858,8858,174,174,,Public real-world data; verify
-Caucasus,Anapa-Vityazevo,04/22,22,220,8858,8858,8858,8858,174,174,,Public real-world data; verify
-Caucasus,Krasnodar-Pashkovsky,09/27,09,90,10056,10056,10056,10056,112,115,,Public real-world data; verify
-Caucasus,Krasnodar-Pashkovsky,09/27,27,270,10056,10056,10056,10056,115,112,,Public real-world data; verify
-Caucasus,Kutaisi,08/26,08,84,8005,8005,8005,8005,223,223,,Added; verify in DCS
-Caucasus,Kutaisi,08/26,26,264,8005,8005,8005,8005,223,223,,Added; verify in DCS
-Caucasus,Tbilisi-Lochini,13/31,13,134,9800,9800,9800,9800,1624,1624,,Public real-world data; verify
-Caucasus,Tbilisi-Lochini,13/31,31,314,9800,9800,9800,9800,1624,1624,,Public real-world data; verify
-Caucasus,Vaziani,13/31,13,134,8071,8071,8071,8071,1545,1545,,Public real-world data; verify
-Caucasus,Vaziani,13/31,31,314,8071,8071,8071,8071,1545,1545,,Public real-world data; verify
-Caucasus,Mineralnye Vody,12/30,12,120,12960,12960,12960,12960,1053,1053,,Public real-world data; verify
-Caucasus,Mineralnye Vody,12/30,30,300,12960,12960,12960,12960,1053,1053,,Public real-world data; verify
-Caucasus,Nalchik,06/24,06,60,7202,7202,7202,7202,1479,1479,,Public real-world data; verify
-Caucasus,Nalchik,06/24,24,240,7202,7202,7202,7202,1479,1479,,Public real-world data; verify
-Caucasus,Mozdok,08/26,08,80,12008,12008,12008,12008,512,512,,Public real-world data; verify
-Caucasus,Mozdok,08/26,26,260,12008,12008,12008,12008,512,512,,Public real-world data; verify
-Caucasus,Beslan,10/28,10,96,8176,8176,8176,8176,1710,1710,,Public real-world data; verify
-Caucasus,Beslan,10/28,28,276,8176,8176,8176,8176,1710,1710,,Public real-world data; verify
-Nevada,Nellis AFB,03L/21R,03L,34,10050,10050,10050,10050,1870,1873,,Public real-world data; verify
-Nevada,Nellis AFB,03L/21R,21R,214,10050,10050,10050,10050,1873,1870,,Public real-world data; verify
-Nevada,Henderson Executive,17R/35L,17R,173,6501,6501,6501,6501,2492,2492,,Public real-world data; verify
-Nevada,Henderson Executive,17R/35L,35L,353,6501,6501,6501,6501,2492,2492,,Public real-world data; verify
-Nevada,North Las Vegas,12R/30L,12R,120,5004,5004,5004,5004,2205,2205,,Public real-world data; verify
-Nevada,North Las Vegas,12R/30L,30L,300,5004,5004,5004,5004,2205,2205,,Public real-world data; verify
-Nevada,Harry Reid Intl,08L/26R,08L,85,14712,14712,14712,14712,2181,2181,,Public real-world data; verify
-Nevada,Harry Reid Intl,08L/26R,26R,265,14712,14712,14712,14712,2181,2181,,Public real-world data; verify
-Nevada,Creech AFB,08/26,08,76,7999,7999,7999,7999,3135,3135,,Public real-world data; verify
-Nevada,Creech AFB,08/26,26,256,7999,7999,7999,7999,3135,3135,,Public real-world data; verify
-Persian Gulf,Al Dhafra AB,13L/31R,13L,128,12400,12400,12400,12400,77,79,,Public real-world data; verify
-Persian Gulf,Al Dhafra AB,13L/31R,31R,308,12400,12400,12400,12400,79,77,,Public real-world data; verify
-Persian Gulf,Al Maktoum Intl,12/30,12,116,14435,14435,14435,14435,114,114,,Added; verify in DCS
-Persian Gulf,Al Maktoum Intl,12/30,30,296,14435,14435,14435,14435,114,114,,Added; verify in DCS
-Persian Gulf,Dubai Intl,12L/30R,12L,115,13123,13123,13123,13123,62,62,,Added; verify in DCS
-Persian Gulf,Dubai Intl,12L/30R,30R,295,13123,13123,13123,13123,62,62,,Added; verify in DCS
-Persian Gulf,Fujairah Intl,11/29,11,113,12467,12467,12467,12467,152,152,,Public real-world data; verify
-Persian Gulf,Fujairah Intl,11/29,29,293,12467,12467,12467,12467,152,152,,Public real-world data; verify
-Persian Gulf,Bandar Abbas Intl,09/27,09,91,12004,12004,12004,12004,22,22,,Public real-world data; verify
-Persian Gulf,Bandar Abbas Intl,09/27,27,271,12004,12004,12004,12004,22,22,,Public real-world data; verify
-Persian Gulf,Khasab,01/19,01,14,8074,8074,8074,8074,100,100,,Public real-world data; verify
-Persian Gulf,Khasab,01/19,19,194,8074,8074,8074,8074,100,100,,Public real-world data; verify
-Syria,Damascus Intl,05/23,05,47,11500,11500,11500,11500,2025,2025,,Public real-world data; verify
-Syria,Damascus Intl,05/23,23,227,11500,11500,11500,11500,2025,2025,,Public real-world data; verify
-Syria,Beirut-Rafic Hariri,16/34,16,157,10660,10660,11800,10660,87,64,,Public real-world data; verify
-Syria,Beirut-Rafic Hariri,16/34,34,337,10660,10660,11800,10660,64,87,,Public real-world data; verify
-Syria,Aleppo Intl,09/27,09,85,9514,9514,9514,9514,1276,1276,,Public real-world data; verify
-Syria,Aleppo Intl,09/27,27,265,9514,9514,9514,9514,1276,1276,,Public real-world data; verify
-Syria,Hama,09/27,09,90,10500,10500,10500,10500,1023,1023,,Public real-world data; verify
-Syria,Hama,09/27,27,270,10500,10500,10500,10500,1023,1023,,Public real-world data; verify
-Syria,Khmeimim,17/35,17,168,9730,9730,9730,9730,43,47,,Public real-world data; verify
-Syria,Khmeimim,17/35,35,348,9730,9730,9730,9730,47,43,,Public real-world data; verify
-Syria,Shayrat,08/26,08,79,9800,9800,9800,9800,2614,2614,,Public real-world data; verify
-Syria,Shayrat,08/26,26,259,9800,9800,9800,9800,2614,2614,,Public real-world data; verify
-Syria,Tiyas (T-4),09/27,09,87,10050,10050,10050,10050,1570,1570,,Public real-world data; verify
-Syria,Tiyas (T-4),09/27,27,267,10050,10050,10050,10050,1570,1570,,Public real-world data; verify
-Syria,Deir ez-Zor,13/31,13,129,9970,9970,9970,9970,702,702,,Public real-world data; verify
-Syria,Deir ez-Zor,13/31,31,309,9970,9970,9970,9970,702,702,,Public real-world data; verify
-Syria,Palmyra (Tadmur),03/21,03,30,9800,9800,9800,9800,1326,1326,,Public real-world data; verify
-Syria,Palmyra (Tadmur),03/21,21,210,9800,9800,9800,9800,1326,1326,,Public real-world data; verify
-Syria,Qamishli,10/28,10,102,11800,11800,11800,11800,1480,1480,,Public real-world data; verify
-Syria,Qamishli,10/28,28,282,11800,11800,11800,11800,1480,1480,,Public real-world data; verify
-Syria,Tabqa,07/25,07,73,10300,10300,10300,10300,1000,1000,,Public real-world data; verify
-Syria,Tabqa,07/25,25,253,10300,10300,10300,10300,1000,1000,,Public real-world data; verify
-Syria,Marj Ruhayyil (Mezzeh),10/28,10,102,9100,9100,9100,9100,2234,2234,,Public real-world data; verify
-Syria,Marj Ruhayyil (Mezzeh),10/28,28,282,9100,9100,9100,9100,2234,2234,,Public real-world data; verify
-Syria,Rene Mouawad (Kleyate),07/25,07,70,10050,10050,10050,10050,75,75,,Public real-world data; verify
-Syria,Rene Mouawad (Kleyate),07/25,25,250,10050,10050,10050,10050,75,75,,Public real-world data; verify
-Syria,Larnaca Intl,04/22,04,44,8883,8883,8883,8883,7,7,,Public real-world data; verify
-Syria,Larnaca Intl,04/22,22,224,8883,8883,8883,8883,7,7,,Public real-world data; verify
-Syria,Paphos Intl,11/29,11,114,8858,8858,8858,8858,41,41,,Public real-world data; verify
-Syria,Paphos Intl,11/29,29,294,8858,8858,8858,8858,41,41,,Public real-world data; verify
-Marianas,Andersen AFB,06L/24R,06L,62,11000,11000,11000,11000,610,631,,Public real-world data; verify
-Marianas,Andersen AFB,06L/24R,24R,242,11000,11000,11000,11000,631,610,,Public real-world data; verify
-Marianas,Antonio B. Won Pat Intl,06L/24R,06L,62,10018,10018,10018,10018,298,298,,Public real-world data; verify
-Marianas,Antonio B. Won Pat Intl,06L/24R,24R,242,10018,10018,10018,10018,298,298,,Public real-world data; verify
-Marianas,Saipan Intl,07/25,07,72,8700,8700,8700,8700,215,215,,Public real-world data; verify
-Marianas,Saipan Intl,07/25,25,252,8700,8700,8700,8700,215,215,,Public real-world data; verify
-Sinai,Cairo Intl,05R/23L,05R,52,13100,13100,13100,13100,382,455,,Public real-world data; verify
-Sinai,Cairo Intl,05R/23L,23L,232,13100,13100,13100,13100,455,382,,Public real-world data; verify
-Sinai,El Arish Intl,10/28,10,99,9840,9840,9840,9840,121,121,,Public real-world data; verify
-Sinai,El Arish Intl,10/28,28,279,9840,9840,9840,9840,121,121,,Public real-world data; verify
-South Atlantic,Mount Pleasant,10/28,10,97,10000,10000,10000,10000,246,247,,Public real-world data; verify
-South Atlantic,Mount Pleasant,10/28,28,277,10000,10000,10000,10000,247,246,,Public real-world data; verify
-South Atlantic,Stanley,09/27,09,89,4100,4100,4100,4100,75,75,,Public real-world data; verify
-South Atlantic,Stanley,09/27,27,269,4100,4100,4100,4100,75,75,,Public real-world data; verify
-Normandy 2.0,Carpiquet,13/31,13,130,6234,6234,6234,6234,256,272,,Public real-world data; verify
-Normandy 2.0,Carpiquet,13/31,31,310,6234,6234,6234,6234,272,256,,Public real-world data; verify
-Normandy 2.0,Deauville-Normandie,12/30,12,117,8199,8199,8199,8199,479,479,,Added; verify in DCS
-Normandy 2.0,Deauville-Normandie,12/30,30,297,8199,8199,8199,8199,479,479,,Added; verify in DCS
-Normandy 2.0,Evreux-Fauville,10/28,10,102,7874,7874,7874,7874,464,464,,Added; verify in DCS
-Normandy 2.0,Evreux-Fauville,10/28,28,282,7874,7874,7874,7874,464,464,,Added; verify in DCS
-The Channel,Manston,10/28,10,100,9010,9010,9010,9010,178,178,,Public real-world data; verify
-The Channel,Manston,10/28,28,280,9010,9010,9010,9010,178,178,,Public real-world data; verify
-Kola,Bodø Main,07/25,07,72,9200,9200,9200,9200,42,42,,Approx real-world length; verify in DCS
-Kola,Bodø Main,07/25,25,252,9200,9200,9200,9200,42,42,,Approx real-world length; verify in DCS
-Kola,Rovaniemi,03/21,03,28,9843,9843,9843,9843,642,642,,Approx real-world length; verify in DCS
-Kola,Rovaniemi,03/21,21,208,9843,9843,9843,9843,642,642,,Approx real-world length; verify in DCS
-Kola,Banak (Lakselv),11/29,11,110,8858,8858,8858,8858,82,82,,Approx real-world length; verify in DCS
-Kola,Banak (Lakselv),11/29,29,290,8858,8858,8858,8858,82,82,,Approx real-world length; verify in DCS
-Afghanistan,Bagram AB,03/21,03,32,11000,11000,11000,11000,4895,4920,,Approx real-world length; verify in DCS
-Afghanistan,Bagram AB,03/21,21,212,11000,11000,11000,11000,4920,4895,,Approx real-world length; verify in DCS
-Afghanistan,Kandahar Intl,05/23,05,47,10500,10500,10500,10500,3337,3337,,Approx real-world length; verify in DCS
-Afghanistan,Kandahar Intl,05/23,23,227,10500,10500,10500,10500,3337,3337,,Approx real-world length; verify in DCS
-Afghanistan,Kabul Intl,11/29,11,113,11500,11500,11500,11500,5877,5877,,Approx real-world length; verify in DCS
-Afghanistan,Kabul Intl,11/29,29,293,11500,11500,11500,11500,5877,5877,,Approx real-world length; verify in DCS
-Syria,Damascus International,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Damascus International,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Aleppo International,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Aleppo International,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Bassel Al-Assad (Latakia),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Bassel Al-Assad (Latakia),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Palmyra Airport,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Palmyra Airport,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Kuweires (Rasin El Aboud),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Kuweires (Rasin El Aboud),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Jirah (Kshesh),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Jirah (Kshesh),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Abu al-Duhur,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Abu al-Duhur,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Minakh (Menagh),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Minakh (Menagh),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Marj Ruhayyil (Al-Sayqal),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Marj Ruhayyil (Al-Sayqal),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Dumeir,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Dumeir,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Khalkhalah,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Khalkhalah,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,An Nasiriyah,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,An Nasiriyah,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Mezzeh,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Mezzeh,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Tabqa (Al-Thawrah),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Tabqa (Al-Thawrah),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,As-Suwayda (Khalkhalah South?),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,As-Suwayda (Khalkhalah South?),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Al-Qusayr (Dabaa),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Al-Qusayr (Dabaa),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Taftanaz,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Taftanaz,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Kuweires East,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Kuweires East,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Tadmur (Palmyra East),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Tadmur (Palmyra East),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Beirut Rafic Hariri,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Beirut Rafic Hariri,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Rayak Air Base,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Rayak Air Base,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Ramat David,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Ramat David,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Haifa (U Michaeli),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Haifa (U Michaeli),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Megiddo,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Megiddo,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Rosh Pina (Mahanayim),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Rosh Pina (Mahanayim),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Kiryat Shmona,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Kiryat Shmona,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Akrotiri,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Akrotiri,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Larnaca,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Larnaca,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Paphos,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Paphos,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Incirlik,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Incirlik,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Adana Şakirpaşa,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Adana Şakirpaşa,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Hatay (Antakya),09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Hatay (Antakya),09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Gaziantep,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Gaziantep,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Kahramanmaras,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Kahramanmaras,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Sanliurfa,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Sanliurfa,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Diyarbakir,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Diyarbakir,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Malatya Erhac,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Malatya Erhac,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Batman,09/27,09,90,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
-Syria,Batman,09/27,27,270,8000,8000,8000,8000,0,0,0.0,"PLACEHOLDER — verify heading, length, declared distances, and elevation against ED Aerodrome Data & CW Syria diagrams."
+Afghanistan,Bagram AB,03/21,03,32,11000,11000,11000,11000,4895.0,4920.0,,Approx real-world length; verify in DCS
+Afghanistan,Bagram AB,03/21,21,212,11000,11000,11000,11000,4920.0,4895.0,,Approx real-world length; verify in DCS
+Afghanistan,Kabul Intl,11/29,11,113,11500,11500,11500,11500,5877.0,5877.0,,Approx real-world length; verify in DCS
+Afghanistan,Kabul Intl,11/29,29,293,11500,11500,11500,11500,5877.0,5877.0,,Approx real-world length; verify in DCS
+Afghanistan,Kandahar Intl,05/23,05,47,10500,10500,10500,10500,3337.0,3337.0,,Approx real-world length; verify in DCS
+Afghanistan,Kandahar Intl,05/23,23,227,10500,10500,10500,10500,3337.0,3337.0,,Approx real-world length; verify in DCS
+Caucasus,Anapa-Vityazevo,04/22,04,40,8858,8858,8858,8858,174.0,174.0,,Public real-world data; verify
+Caucasus,Anapa-Vityazevo,04/22,22,220,8858,8858,8858,8858,174.0,174.0,,Public real-world data; verify
+Caucasus,Batumi,13/31,13,126,8530,8530,8530,8530,33.0,39.0,,Public real-world data; verify TORA/TODA/ASDA in DCS
+Caucasus,Batumi,13/31,31,306,8530,8530,8530,8530,39.0,33.0,,Public real-world data; verify
+Caucasus,Beslan,10/28,10,96,8176,8176,8176,8176,1710.0,1710.0,,Public real-world data; verify
+Caucasus,Beslan,10/28,28,276,8176,8176,8176,8176,1710.0,1710.0,,Public real-world data; verify
+Caucasus,Gelendzhik,01/19,01,14,10170,10170,10170,10170,131.0,131.0,0.0,"URKG Gelendzhik — 01/19, 3100 m (10170 ft); QFU 14/194; elev ~131 ft. Sources: Wikipedia & AC-U-KWIK."
+Caucasus,Gelendzhik,01/19,19,194,10170,10170,10170,10170,131.0,131.0,0.0,"URKG Gelendzhik — 01/19, 3100 m (10170 ft); QFU 14/194; elev ~131 ft. Sources: Wikipedia & AC-U-KWIK."
+Caucasus,Gudauta,08/26,08,80,6562,6562,6562,6562,131.0,121.0,,Public real-world data; verify
+Caucasus,Gudauta,08/26,26,260,6562,6562,6562,6562,121.0,131.0,,Public real-world data; verify
+Caucasus,Kobuleti,07/25,07,73,8080,8080,8080,8080,59.0,58.0,,Public real-world data; verify
+Caucasus,Kobuleti,07/25,25,253,8080,8080,8080,8080,58.0,59.0,,Public real-world data; verify
+Caucasus,Krasnodar-Center,08/26,08,80,8202,8202,8202,8202,33.0,33.0,0.0,"Krasnodar (air base) — 08/26, 2500 m (8202 ft). Source: Wikipedia."
+Caucasus,Krasnodar-Center,08/26,26,260,8202,8202,8202,8202,33.0,33.0,0.0,"Krasnodar (air base) — 08/26, 2500 m (8202 ft). Source: Wikipedia."
+Caucasus,Krasnodar-Pashkovsky,09/27,09,90,10056,10056,10056,10056,112.0,115.0,,Public real-world data; verify
+Caucasus,Krasnodar-Pashkovsky,09/27,27,270,10056,10056,10056,10056,115.0,112.0,,Public real-world data; verify
+Caucasus,Krymsk,04/22,04,47,8104,8104,8104,8104,66.0,66.0,0.0,"Krymsk — 04/22, 2470 m (8104 ft) per Wikipedia; Airmate lists QFU 47/227; some imagery suggests ~3000 m extension — verify in DCS."
+Caucasus,Krymsk,04/22,22,227,8104,8104,8104,8104,66.0,66.0,0.0,"Krymsk — 04/22, 2470 m (8104 ft) per Wikipedia; Airmate lists QFU 47/227; some imagery suggests ~3000 m extension — verify in DCS."
+Caucasus,Kutaisi,08/26,08,84,8005,8005,8005,8005,223.0,223.0,,Added; verify in DCS
+Caucasus,Kutaisi,08/26,26,264,8005,8005,8005,8005,223.0,223.0,,Added; verify in DCS
+Caucasus,Maykop-Khanskaya,04/22,04,51,8202,8202,8202,8202,600.0,600.0,0.0,"URKH Khanskaya — 04/22, 2500 m (8202 ft); QFU 51/231; elev ~600 ft. Sources: Wikipedia & Airmate."
+Caucasus,Maykop-Khanskaya,04/22,22,231,8202,8202,8202,8202,600.0,600.0,0.0,"URKH Khanskaya — 04/22, 2500 m (8202 ft); QFU 51/231; elev ~600 ft. Sources: Wikipedia & Airmate."
+Caucasus,Mineralnye Vody,12/30,12,120,12960,12960,12960,12960,1053.0,1053.0,,Public real-world data; verify
+Caucasus,Mineralnye Vody,12/30,30,300,12960,12960,12960,12960,1053.0,1053.0,,Public real-world data; verify
+Caucasus,Mozdok,08/26,08,80,12008,12008,12008,12008,512.0,512.0,,Public real-world data; verify
+Caucasus,Mozdok,08/26,26,260,12008,12008,12008,12008,512.0,512.0,,Public real-world data; verify
+Caucasus,Nalchik,06/24,06,60,7202,7202,7202,7202,1479.0,1479.0,,Public real-world data; verify
+Caucasus,Nalchik,06/24,24,240,7202,7202,7202,7202,1479.0,1479.0,,Public real-world data; verify
+Caucasus,Novorossiysk (URKN),04/22,04,36,5905,5905,5905,5905,131.0,131.0,0.0,"URKN Novorossiysk — 04/22, 1800 m (5905 ft); headings 036/216; elev ~131 ft. Source: DCS Ground Charts v3.5.0."
+Caucasus,Novorossiysk (URKN),04/22,22,216,5905,5905,5905,5905,131.0,131.0,0.0,"URKN Novorossiysk — 04/22, 1800 m (5905 ft); headings 036/216; elev ~131 ft. Source: DCS Ground Charts v3.5.0."
+Caucasus,Senaki-Kolkhi,09/27,09,94,7870,7870,7870,7870,98.0,98.0,,Public real-world data; verify
+Caucasus,Senaki-Kolkhi,09/27,27,274,7870,7870,7870,7870,98.0,98.0,,Public real-world data; verify
+Caucasus,Sochi-Adler,06/24,06,62,7218,7218,7218,7218,89.0,89.0,,Public real-world data; verify
+Caucasus,Sochi-Adler,06/24,24,242,7218,7218,7218,7218,89.0,89.0,,Public real-world data; verify
+Caucasus,Sukhumi-Babushara,07/25,07,74,8202,8202,8202,8202,39.0,33.0,,Public real-world data; verify
+Caucasus,Sukhumi-Babushara,07/25,25,254,8202,8202,8202,8202,33.0,39.0,,Public real-world data; verify
+Caucasus,Tbilisi - Soganlug (UG24),13/31,13,126,8120,8120,8120,8120,1473.0,1492.0,0.0,"UG24 Soganlug — 13/31, 2475 m (8120 ft); headings 126/306; elevations ~1473/1492 ft. Source: DCS Ground Charts v3.5.0."
+Caucasus,Tbilisi - Soganlug (UG24),13/31,31,306,8120,8120,8120,8120,1492.0,1473.0,0.0,"UG24 Soganlug — 13/31, 2475 m (8120 ft); headings 126/306; elevations ~1473/1492 ft. Source: DCS Ground Charts v3.5.0."
+Caucasus,Tbilisi-Lochini,13/31,13,134,9800,9800,9800,9800,1624.0,1624.0,,Public real-world data; verify
+Caucasus,Tbilisi-Lochini,13/31,31,314,9800,9800,9800,9800,1624.0,1624.0,,Public real-world data; verify
+Caucasus,Vaziani,13/31,13,134,8071,8071,8071,8071,1545.0,1545.0,,Public real-world data; verify
+Caucasus,Vaziani,13/31,31,314,8071,8071,8071,8071,1545.0,1545.0,,Public real-world data; verify
+Kola,Alta (ENAT),11/29,11,109,7395,7395,7395,7395,,,,Source: Wikipedia ENAT.
+Kola,Alta (ENAT),11/29,29,289,7395,7395,7395,7395,,,,Source: Wikipedia ENAT.
+Kola,Andøya/Andenes (ENAN),14/32,14,140,8097,8097,8097,8097,,,,Source: Wikipedia ENAN.
+Kola,Andøya/Andenes (ENAN),14/32,32,320,8097,8097,8097,8097,,,,Source: Wikipedia ENAN.
+Kola,Apatity/Khibiny (ULMK),11/29,11,128,8189,8189,8189,8189,,,,Source: Airmate ULMK / Wikipedia.
+Kola,Apatity/Khibiny (ULMK),11/29,29,308,8189,8189,8189,8189,,,,Source: Airmate ULMK / Wikipedia.
+Kola,Arvidsjaur (ESNX),12/30,12,121,8202,8202,8202,8202,,,,Source: SkyVector ESNX.
+Kola,Arvidsjaur (ESNX),12/30,30,301,8202,8202,8202,8202,,,,Source: SkyVector ESNX.
+Kola,Banak (Lakselv),11/29,11,110,8858,8858,8858,8858,82.0,82.0,,Approx real-world length; verify in DCS
+Kola,Banak (Lakselv),11/29,29,290,8858,8858,8858,8858,82.0,82.0,,Approx real-world length; verify in DCS
+Kola,Bardufoss (ENDU),10/28,10,100,9826,9826,9826,9826,,,,Source: SkyVector ENDU.
+Kola,Bardufoss (ENDU),10/28,28,280,9826,9826,9826,9826,,,,Source: SkyVector ENDU.
+Kola,Berlevåg (ENBV),06/24,06,59,3376,3376,3376,3376,,,,Source: SkyBrary ENBV + charts.
+Kola,Berlevåg (ENBV),06/24,24,239,3376,3376,3376,3376,,,,Source: SkyBrary ENBV + charts.
+Kola,Bodø (ENBO),07/25,07,71,9167,9167,9167,9167,,,,Source: SkyVector ENBO.
+Kola,Bodø (ENBO),07/25,25,251,9167,9167,9167,9167,,,,Source: SkyVector ENBO.
+Kola,Bodø Main,07/25,07,72,9200,9200,9200,9200,42.0,42.0,,Approx real-world length; verify in DCS
+Kola,Bodø Main,07/25,25,252,9200,9200,9200,9200,42.0,42.0,,Approx real-world length; verify in DCS
+Kola,Båtsfjord (ENBS),03/21,03,28,3281,3281,3281,3281,,,,Source: SkyVector ENBS.
+Kola,Båtsfjord (ENBS),03/21,21,208,3281,3281,3281,3281,,,,Source: SkyVector ENBS.
+Kola,Evenes/Harstad–Narvik (ENEV),17/35,17,170,9226,9226,9226,9226,,,,Source: SkyVector ENEV.
+Kola,Evenes/Harstad–Narvik (ENEV),17/35,35,350,9226,9226,9226,9226,,,,Source: SkyVector ENEV.
+Kola,Gällivare (ESNG),12/30,12,109,5623,5623,5623,5623,,,,Source: SkyVector ESNG.
+Kola,Gällivare (ESNG),12/30,30,289,5623,5623,5623,5623,,,,Source: SkyVector ESNG.
+Kola,Hammerfest (ENHF),05/23,05,50,2894,2894,2894,2894,,,,Source: fsimnet + Wikipedia ENHF.
+Kola,Hammerfest (ENHF),05/23,23,230,2894,2894,2894,2894,,,,Source: fsimnet + Wikipedia ENHF.
+Kola,Honningsvåg/Valan (ENHV),08/26,08,77,2887,2887,2887,2887,,,,Source: Wikipedia ENHV / AirportNavFinder.
+Kola,Honningsvåg/Valan (ENHV),08/26,26,257,2887,2887,2887,2887,,,,Source: Wikipedia ENHV / AirportNavFinder.
+Kola,Ivalo (EFIV),04/22,04,33,8199,8199,8199,8199,,,,Source: SkyVector EFIV.
+Kola,Ivalo (EFIV),04/22,22,213,8199,8199,8199,8199,,,,Source: SkyVector EFIV.
+Kola,Jokkmokk (ESNJ),14/32,14,138,4301,4301,4301,4301,,,,Source: SkyVector ESNJ.
+Kola,Jokkmokk (ESNJ),14/32,32,318,4301,4301,4301,4301,,,,Source: SkyVector ESNJ.
+Kola,Kalixfors (ESUK),05/23,05,50,3018,3018,3018,3018,,,0.0,"ESUK 05/23 length ~920 m (3018 ft); aux strip. Sources: Bigorre, Airports-Worldwide, ForgottenAirfields."
+Kola,Kalixfors (ESUK),05/23,23,230,3018,3018,3018,3018,,,0.0,"ESUK 05/23 length ~920 m (3018 ft); aux strip. Sources: Bigorre, Airports-Worldwide, ForgottenAirfields."
+Kola,Kalixfors (ESUK),11/29,11,110,3015,3015,3015,3015,,,0.0,"ESUK 11/29 length ~919 m (3015 ft); aux strip. Sources: Bigorre, Airports-Worldwide, ForgottenAirfields."
+Kola,Kalixfors (ESUK),11/29,29,290,3015,3015,3015,3015,,,0.0,"ESUK 11/29 length ~919 m (3015 ft); aux strip. Sources: Bigorre, Airports-Worldwide, ForgottenAirfields."
+Kola,Kalixfors (ESUK),17/35,17,165,3949,3949,3949,3949,,,,"Source: SkyVector ESUK (plus auxiliary 05/23, 10/28)."
+Kola,Kalixfors (ESUK),17/35,35,345,3949,3949,3949,3949,,,,"Source: SkyVector ESUK (plus auxiliary 05/23, 10/28)."
+Kola,Kemi–Tornio (EFKE),18/36,18,180,8184,8184,8184,8184,,,,Source: AirportNavFinder EFKE.
+Kola,Kemi–Tornio (EFKE),18/36,36,360,8184,8184,8184,8184,,,,Source: AirportNavFinder EFKE.
+Kola,Kirkenes/Høybuktmoen (ENKR),05/23,05,53,7726,7726,7726,7726,,,,Source: Wikipedia ENKR.
+Kola,Kirkenes/Høybuktmoen (ENKR),05/23,23,233,7726,7726,7726,7726,,,,Source: Wikipedia ENKR.
+Kola,Kiruna (ESNQ),03/21,03,24,8209,8209,8209,8209,,,,Source: SkyVector ESNQ.
+Kola,Kiruna (ESNQ),03/21,21,204,8209,8209,8209,8209,,,,Source: SkyVector ESNQ.
+Kola,Lakselv/Banak (ENNA),16/34,16,162,9137,9137,9137,9137,,,,Source: SkyVector ENNA.
+Kola,Lakselv/Banak (ENNA),16/34,34,342,9137,9137,9137,9137,,,,Source: SkyVector ENNA.
+Kola,Leknes (ENLK),02/20,02,20,3511,3511,3511,3511,,,,Source: Wikipedia ENLK / AIP Norway.
+Kola,Leknes (ENLK),02/20,20,200,3511,3511,3511,3511,,,,Source: Wikipedia ENLK / AIP Norway.
+Kola,Luleå/Kallax (ESPA),14/32,14,127,10991,10991,10991,10991,,,,Source: SkyVector ESPA.
+Kola,Luleå/Kallax (ESPA),14/32,32,307,10991,10991,10991,10991,,,,Source: SkyVector ESPA.
+Kola,Mehamn (ENMH),17/35,17,167,2887,2887,2887,2887,,,,Source: Wikipedia ENMH / AirportNavFinder shows 2904 ft.
+Kola,Mehamn (ENMH),17/35,35,347,2887,2887,2887,2887,,,,Source: Wikipedia ENMH / AirportNavFinder shows 2904 ft.
+Kola,Monchegorsk (ULMG),01/19,01,10,7873,7873,7873,7873,,,,Source: Wikipedia ULMG.
+Kola,Monchegorsk (ULMG),01/19,19,190,7873,7873,7873,7873,,,,Source: Wikipedia ULMG.
+Kola,Murmansk (ULMM),13/31,13,130,8202,8202,8202,8202,,,,Source: SkyVector ULMM / Wikipedia.
+Kola,Murmansk (ULMM),13/31,31,310,8202,8202,8202,8202,,,,Source: SkyVector ULMM / Wikipedia.
+Kola,Rovaniemi,03/21,03,28,9843,9843,9843,9843,642.0,642.0,,Approx real-world length; verify in DCS
+Kola,Rovaniemi,03/21,21,208,9843,9843,9843,9843,642.0,642.0,,Approx real-world length; verify in DCS
+Kola,Rovaniemi (EFRO),03/21,03,25,9849,9849,9849,9849,,,,Source: SkyVector EFRO.
+Kola,Rovaniemi (EFRO),03/21,21,205,9849,9849,9849,9849,,,,Source: SkyVector EFRO.
+Kola,Severomorsk-1 (ULAK),14/32,14,140,9843,9843,9843,9843,,,,Source: ch-aviation ULAK + Wikipedia.
+Kola,Severomorsk-1 (ULAK),14/32,32,320,9843,9843,9843,9843,,,,Source: ch-aviation ULAK + Wikipedia.
+Kola,Severomorsk-3 (RU-4438),17/35,17,183,8202,8202,8202,8202,,,,Source: Airmate/ Wikipedia Severomorsk-3.
+Kola,Severomorsk-3 (RU-4438),17/35,35,3,8202,8202,8202,8202,,,,Source: Airmate/ Wikipedia Severomorsk-3.
+Kola,Stokmarknes/Skagen (ENSK),08/26,08,84,3031,3031,3031,3031,,,,Source: SkyVector ENSK.
+Kola,Stokmarknes/Skagen (ENSK),08/26,26,264,3031,3031,3031,3031,,,,Source: SkyVector ENSK.
+Kola,Svolvær/Helle (ENSH),01/19,01,6,3114,3114,3114,3114,,,,Source: SkyVector ENSH.
+Kola,Svolvær/Helle (ENSH),01/19,19,186,3114,3114,3114,3114,,,,Source: SkyVector ENSH.
+Kola,Sørkjosen (ENSR),15/33,15,143,3327,3327,3327,3327,,,,Source: SkyVector ENSR / AirportNavFinder.
+Kola,Sørkjosen (ENSR),15/33,33,323,3327,3327,3327,3327,,,,Source: SkyVector ENSR / AirportNavFinder.
+Kola,Tromsø/Langnes (ENTC),18/36,18,184,8041,8041,8041,8041,,,,Source: SkyVector ENTC.
+Kola,Tromsø/Langnes (ENTC),18/36,36,4,8041,8041,8041,8041,,,,Source: SkyVector ENTC.
+Kola,Vadsø (ENVD),07/25,07,72,3278,3278,3278,3278,,,,Source: SkyVector ENVD.
+Kola,Vadsø (ENVD),07/25,25,252,3278,3278,3278,3278,,,,Source: SkyVector ENVD.
+Kola,Vardø/Svartnes (ENSS),15/33,15,147,3760,3760,3760,3760,,,,Source: SkyVector ENSS.
+Kola,Vardø/Svartnes (ENSS),15/33,33,327,3760,3760,3760,3760,,,,Source: SkyVector ENSS.
+Kola,Vidsel Air Base (ESPE),11/29,11,108,7286,7286,7286,7286,,,,Source: IFATC/ Wikipedia ESPE.
+Kola,Vidsel Air Base (ESPE),11/29,29,288,7286,7286,7286,7286,,,,Source: IFATC/ Wikipedia ESPE.
+Marianas,Andersen AFB,06L/24R,06L,62,11000,11000,11000,11000,610.0,631.0,,Public real-world data; verify
+Marianas,Andersen AFB,06L/24R,24R,242,11000,11000,11000,11000,631.0,610.0,,Public real-world data; verify
+Marianas,Antonio B. Won Pat Intl,06L/24R,06L,62,10018,10018,10018,10018,298.0,298.0,,Public real-world data; verify
+Marianas,Antonio B. Won Pat Intl,06L/24R,24R,242,10018,10018,10018,10018,298.0,298.0,,Public real-world data; verify
+Marianas,Saipan Intl,07/25,07,72,8700,8700,8700,8700,215.0,215.0,,Public real-world data; verify
+Marianas,Saipan Intl,07/25,25,252,8700,8700,8700,8700,215.0,215.0,,Public real-world data; verify
+Nevada,Beatty (KBTY),16/34,16,180,5615,5615,5615,5615,,,,Source-verified; see chat citations
+Nevada,Beatty (KBTY),16/34,34,360,5615,5615,5615,5615,,,,Source-verified; see chat citations
+Nevada,Boulder City (KBVU),09/27,09,100,5103,5103,5103,5103,,,,Source-verified; see chat citations
+Nevada,Boulder City (KBVU),09/27,27,280,5103,5103,5103,5103,,,,Source-verified; see chat citations
+Nevada,Boulder City (KBVU),15/33,15,150,3852,3852,3852,3852,,,,Source-verified; see chat citations
+Nevada,Boulder City (KBVU),15/33,33,330,3852,3852,3852,3852,,,,Source-verified; see chat citations
+Nevada,Creech AFB,08/26,08,76,7999,7999,7999,7999,3135.0,3135.0,,Public real-world data; verify
+Nevada,Creech AFB,08/26,26,256,7999,7999,7999,7999,3135.0,3135.0,,Public real-world data; verify
+Nevada,Creech AFB (KINS),08/26,08,93,9002,9002,9002,9002,,,,Source-verified; see chat citations
+Nevada,Creech AFB (KINS),08/26,26,273,9002,9002,9002,9002,,,,Source-verified; see chat citations
+Nevada,Creech AFB (KINS),13/31,13,130,5476,5476,5476,5476,,,,Source-verified; see chat citations
+Nevada,Creech AFB (KINS),13/31,31,310,5476,5476,5476,5476,,,,Source-verified; see chat citations
+Nevada,Echo Bay (0L9),07/25,07,79,3400,3400,3400,3400,,,,Source-verified; see chat citations
+Nevada,Echo Bay (0L9),07/25,25,259,3400,3400,3400,3400,,,,Source-verified; see chat citations
+Nevada,Groom Lake (KXTA),12/30,12,120,5420,5420,5420,5420,,,,Source-verified; see chat citations
+Nevada,Groom Lake (KXTA),12/30,30,300,5420,5420,5420,5420,,,,Source-verified; see chat citations
+Nevada,Groom Lake (KXTA),14L/32R,14L,140,11998,11998,11998,11998,,,,Source-verified; see chat citations
+Nevada,Groom Lake (KXTA),14L/32R,32R,320,11998,11998,11998,11998,,,,Source-verified; see chat citations
+Nevada,Harry Reid Intl,08L/26R,08L,85,14712,14712,14712,14712,2181.0,2181.0,,Public real-world data; verify
+Nevada,Harry Reid Intl,08L/26R,26R,265,14712,14712,14712,14712,2181.0,2181.0,,Public real-world data; verify
+Nevada,Harry Reid Intl (KLAS),01L/19R,01L,25,9770,9770,9770,9770,,,,Source-verified; see chat citations
+Nevada,Harry Reid Intl (KLAS),01L/19R,19R,205,9770,9770,9770,9770,,,,Source-verified; see chat citations
+Nevada,Harry Reid Intl (KLAS),01R/19L,01R,25,9769,9769,9769,9769,,,,Source-verified; see chat citations
+Nevada,Harry Reid Intl (KLAS),01R/19L,19L,205,9769,9769,9769,9769,,,,Source-verified; see chat citations
+Nevada,Harry Reid Intl (KLAS),08L/26R,08L,90,14835,14835,14835,14835,,,,Source-verified; see chat citations
+Nevada,Harry Reid Intl (KLAS),08L/26R,26R,270,14835,14835,14835,14835,,,,Source-verified; see chat citations
+Nevada,Harry Reid Intl (KLAS),08R/26L,08R,90,10526,10526,10526,10526,,,,Source-verified; see chat citations
+Nevada,Harry Reid Intl (KLAS),08R/26L,26L,270,10526,10526,10526,10526,,,,Source-verified; see chat citations
+Nevada,Henderson Executive,17R/35L,17R,173,6501,6501,6501,6501,2492.0,2492.0,,Public real-world data; verify
+Nevada,Henderson Executive,17R/35L,35L,353,6501,6501,6501,6501,2492.0,2492.0,,Public real-world data; verify
+Nevada,Henderson Executive (KHND),17L/35R,17L,181,5001,5001,5001,5001,,,,Source-verified; see chat citations
+Nevada,Henderson Executive (KHND),17L/35R,35R,1,5001,5001,5001,5001,,,,Source-verified; see chat citations
+Nevada,Henderson Executive (KHND),17R/35L,17R,181,6501,6501,6501,6501,,,,Source-verified; see chat citations
+Nevada,Henderson Executive (KHND),17R/35L,35L,1,6501,6501,6501,6501,,,,Source-verified; see chat citations
+Nevada,Jean (0L7),02L/20R,02L,20,4600,4600,4600,4600,,,,Source-verified; see chat citations
+Nevada,Jean (0L7),02L/20R,20R,200,4600,4600,4600,4600,,,,Source-verified; see chat citations
+Nevada,Jean (0L7),02R/20L,02R,20,3700,3700,3700,3700,,,,Source-verified; see chat citations
+Nevada,Jean (0L7),02R/20L,20L,200,3700,3700,3700,3700,,,,Source-verified; see chat citations
+Nevada,Laughlin/Bullhead (KIFP),16/34,16,176,8501,8501,8501,8501,,,,Source-verified; see chat citations
+Nevada,Laughlin/Bullhead (KIFP),16/34,34,356,8501,8501,8501,8501,,,,Source-verified; see chat citations
+Nevada,Lincoln County (1L1),17/35,17,171,4198,4198,4198,4198,,,,Source-verified; see chat citations
+Nevada,Lincoln County (1L1),17/35,35,351,4198,4198,4198,4198,,,,Source-verified; see chat citations
+Nevada,Mesquite (67L),02/20,02,29,5121,5121,5121,5121,,,,Source-verified; see chat citations
+Nevada,Mesquite (67L),02/20,20,209,5121,5121,5121,5121,,,,Source-verified; see chat citations
+Nevada,Mina (3Q0),13/31,13,130,4600,4600,4600,4600,,,,Source-verified; see chat citations
+Nevada,Mina (3Q0),13/31,31,310,4600,4600,4600,4600,,,,Source-verified; see chat citations
+Nevada,Nellis AFB,03L/21R,03L,34,10050,10050,10050,10050,1870.0,1873.0,,Public real-world data; verify
+Nevada,Nellis AFB,03L/21R,21R,214,10050,10050,10050,10050,1873.0,1870.0,,Public real-world data; verify
+Nevada,Nellis AFB (KLSV),03L/21R,03L,41,10120,10120,10120,10120,,,,Source-verified; see chat citations
+Nevada,Nellis AFB (KLSV),03L/21R,21R,221,10120,10120,10120,10120,,,,Source-verified; see chat citations
+Nevada,Nellis AFB (KLSV),03R/21L,03R,41,10051,10051,10051,10051,,,,Source-verified; see chat citations
+Nevada,Nellis AFB (KLSV),03R/21L,21L,221,10051,10051,10051,10051,,,,Source-verified; see chat citations
+Nevada,North Las Vegas,12R/30L,12R,120,5004,5004,5004,5004,2205.0,2205.0,,Public real-world data; verify
+Nevada,North Las Vegas,12R/30L,30L,300,5004,5004,5004,5004,2205.0,2205.0,,Public real-world data; verify
+Nevada,North Las Vegas (KVGT),07/25,07,88,5005,5005,5005,5005,,,,Source-verified; see chat citations
+Nevada,North Las Vegas (KVGT),07/25,25,268,5005,5005,5005,5005,,,,Source-verified; see chat citations
+Nevada,North Las Vegas (KVGT),12L/30R,12L,134,4203,4203,4203,4203,,,,Source-verified; see chat citations
+Nevada,North Las Vegas (KVGT),12L/30R,30R,314,4203,4203,4203,4203,,,,Source-verified; see chat citations
+Nevada,North Las Vegas (KVGT),12R/30L,12R,134,5001,5001,5001,5001,,,,Source-verified; see chat citations
+Nevada,North Las Vegas (KVGT),12R/30L,30L,314,5001,5001,5001,5001,,,,Source-verified; see chat citations
+Nevada,Tonopah (KTPH),11/29,11,125,5660,5660,5660,5660,,,,Source-verified; see chat citations
+Nevada,Tonopah (KTPH),11/29,29,305,5660,5660,5660,5660,,,,Source-verified; see chat citations
+Nevada,Tonopah (KTPH),15/33,15,165,7160,7160,7160,7160,,,,Source-verified; see chat citations
+Nevada,Tonopah (KTPH),15/33,33,345,7160,7160,7160,7160,,,,Source-verified; see chat citations
+Nevada,Tonopah Test Range (KTNX),14/32,14,157,12001,12001,12001,12001,,,,Source-verified; see chat citations
+Nevada,Tonopah Test Range (KTNX),14/32,32,337,12001,12001,12001,12001,,,,Source-verified; see chat citations
+Normandy 2.0,Carpiquet,13/31,13,130,6234,6234,6234,6234,256.0,272.0,,Public real-world data; verify
+Normandy 2.0,Carpiquet,13/31,31,310,6234,6234,6234,6234,272.0,256.0,,Public real-world data; verify
+Normandy 2.0,Deauville-Normandie,12/30,12,117,8199,8199,8199,8199,479.0,479.0,,Added; verify in DCS
+Normandy 2.0,Deauville-Normandie,12/30,30,297,8199,8199,8199,8199,479.0,479.0,,Added; verify in DCS
+Normandy 2.0,Evreux-Fauville,10/28,10,102,7874,7874,7874,7874,464.0,464.0,,Added; verify in DCS
+Normandy 2.0,Evreux-Fauville,10/28,28,282,7874,7874,7874,7874,464.0,464.0,,Added; verify in DCS
+Persian Gulf,Al Dhafra AB,13L/31R,13L,128,12400,12400,12400,12400,77.0,79.0,,Public real-world data; verify
+Persian Gulf,Al Dhafra AB,13L/31R,31R,308,12400,12400,12400,12400,79.0,77.0,,Public real-world data; verify
+Persian Gulf,Al Maktoum Intl,12/30,12,116,14435,14435,14435,14435,114.0,114.0,,Added; verify in DCS
+Persian Gulf,Al Maktoum Intl,12/30,30,296,14435,14435,14435,14435,114.0,114.0,,Added; verify in DCS
+Persian Gulf,Bandar Abbas Intl,09/27,09,91,12004,12004,12004,12004,22.0,22.0,,Public real-world data; verify
+Persian Gulf,Bandar Abbas Intl,09/27,27,271,12004,12004,12004,12004,22.0,22.0,,Public real-world data; verify
+Persian Gulf,Dubai Intl,12L/30R,12L,115,13123,13123,13123,13123,62.0,62.0,,Added; verify in DCS
+Persian Gulf,Dubai Intl,12L/30R,30R,295,13123,13123,13123,13123,62.0,62.0,,Added; verify in DCS
+Persian Gulf,Fujairah Intl,11/29,11,113,12467,12467,12467,12467,152.0,152.0,,Public real-world data; verify
+Persian Gulf,Fujairah Intl,11/29,29,293,12467,12467,12467,12467,152.0,152.0,,Public real-world data; verify
+Persian Gulf,Khasab,01/19,01,14,8074,8074,8074,8074,100.0,100.0,,Public real-world data; verify
+Persian Gulf,Khasab,01/19,19,194,8074,8074,8074,8074,100.0,100.0,,Public real-world data; verify
+Sinai,Cairo Intl,05R/23L,05R,52,13100,13100,13100,13100,382.0,455.0,,Public real-world data; verify
+Sinai,Cairo Intl,05R/23L,23L,232,13100,13100,13100,13100,455.0,382.0,,Public real-world data; verify
+Sinai,El Arish Intl,10/28,10,99,9840,9840,9840,9840,121.0,121.0,,Public real-world data; verify
+Sinai,El Arish Intl,10/28,28,279,9840,9840,9840,9840,121.0,121.0,,Public real-world data; verify
+South Atlantic,Mount Pleasant,10/28,10,97,10000,10000,10000,10000,246.0,247.0,,Public real-world data; verify
+South Atlantic,Mount Pleasant,10/28,28,277,10000,10000,10000,10000,247.0,246.0,,Public real-world data; verify
+South Atlantic,Stanley,09/27,09,89,4100,4100,4100,4100,75.0,75.0,,Public real-world data; verify
+South Atlantic,Stanley,09/27,27,269,4100,4100,4100,4100,75.0,75.0,,Public real-world data; verify
+Syria,Aleppo Intl,09/27,09,85,9514,9514,9514,9514,1276.0,1276.0,,Public real-world data; verify
+Syria,Aleppo Intl,09/27,27,265,9514,9514,9514,9514,1276.0,1276.0,,Public real-world data; verify
+Syria,Beirut-Rafic Hariri,16/34,16,157,10660,10660,11800,10660,87.0,64.0,,Public real-world data; verify
+Syria,Beirut-Rafic Hariri,16/34,34,337,10660,10660,11800,10660,64.0,87.0,,Public real-world data; verify
+Syria,Damascus Intl,05/23,05,47,11500,11500,11500,11500,2025.0,2025.0,,Public real-world data; verify
+Syria,Damascus Intl,05/23,23,227,11500,11500,11500,11500,2025.0,2025.0,,Public real-world data; verify
+Syria,Deir ez-Zor,13/31,13,129,9970,9970,9970,9970,702.0,702.0,,Public real-world data; verify
+Syria,Deir ez-Zor,13/31,31,309,9970,9970,9970,9970,702.0,702.0,,Public real-world data; verify
+Syria,Hama,09/27,09,90,10500,10500,10500,10500,1023.0,1023.0,,Public real-world data; verify
+Syria,Hama,09/27,27,270,10500,10500,10500,10500,1023.0,1023.0,,Public real-world data; verify
+Syria,Khmeimim,17/35,17,168,9730,9730,9730,9730,43.0,47.0,,Public real-world data; verify
+Syria,Khmeimim,17/35,35,348,9730,9730,9730,9730,47.0,43.0,,Public real-world data; verify
+Syria,Larnaca Intl,04/22,04,44,8883,8883,8883,8883,7.0,7.0,,Public real-world data; verify
+Syria,Larnaca Intl,04/22,22,224,8883,8883,8883,8883,7.0,7.0,,Public real-world data; verify
+Syria,Marj Ruhayyil (Mezzeh),10/28,10,102,9100,9100,9100,9100,2234.0,2234.0,,Public real-world data; verify
+Syria,Marj Ruhayyil (Mezzeh),10/28,28,282,9100,9100,9100,9100,2234.0,2234.0,,Public real-world data; verify
+Syria,Palmyra (Tadmur),03/21,03,30,9800,9800,9800,9800,1326.0,1326.0,,Public real-world data; verify
+Syria,Palmyra (Tadmur),03/21,21,210,9800,9800,9800,9800,1326.0,1326.0,,Public real-world data; verify
+Syria,Paphos Intl,11/29,11,114,8858,8858,8858,8858,41.0,41.0,,Public real-world data; verify
+Syria,Paphos Intl,11/29,29,294,8858,8858,8858,8858,41.0,41.0,,Public real-world data; verify
+Syria,Qamishli,10/28,10,102,11800,11800,11800,11800,1480.0,1480.0,,Public real-world data; verify
+Syria,Qamishli,10/28,28,282,11800,11800,11800,11800,1480.0,1480.0,,Public real-world data; verify
+Syria,Rene Mouawad (Kleyate),07/25,07,70,10050,10050,10050,10050,75.0,75.0,,Public real-world data; verify
+Syria,Rene Mouawad (Kleyate),07/25,25,250,10050,10050,10050,10050,75.0,75.0,,Public real-world data; verify
+Syria,Shayrat,08/26,08,79,9800,9800,9800,9800,2614.0,2614.0,,Public real-world data; verify
+Syria,Shayrat,08/26,26,259,9800,9800,9800,9800,2614.0,2614.0,,Public real-world data; verify
+Syria,Tabqa,07/25,07,73,10300,10300,10300,10300,1000.0,1000.0,,Public real-world data; verify
+Syria,Tabqa,07/25,25,253,10300,10300,10300,10300,1000.0,1000.0,,Public real-world data; verify
+Syria,Tiyas (T-4),09/27,09,87,10050,10050,10050,10050,1570.0,1570.0,,Public real-world data; verify
+Syria,Tiyas (T-4),09/27,27,267,10050,10050,10050,10050,1570.0,1570.0,,Public real-world data; verify
+The Channel,Manston,10/28,10,100,9010,9010,9010,9010,178.0,178.0,,Public real-world data; verify
+The Channel,Manston,10/28,28,280,9010,9010,9010,9010,178.0,178.0,,Public real-world data; verify
