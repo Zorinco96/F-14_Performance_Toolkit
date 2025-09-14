@@ -195,11 +195,26 @@ def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: f
     return out
 
 # -------------- NATOPS detection --------------
+# ------------------------------ NATOPS / liftoff-mode detection (fixed) ------------------------------
 def agd_is_liftoff_mode(perfdb: pd.DataFrame, flap_deg: int, thrust: str) -> bool:
-    sub = perfdb[(perfdb["flap_deg"]==flap_deg)&(perfdb["thrust"]==thrust)]
-    if sub.empty: return False
-    mask = sub["note"].astype(str).str.contains("NATOPS", case=False, na=False)
-    return bool(mask.mean() >= 0.5)
+    """
+    Return True if AGD_ft in the CSV for (flap, thrust) already represents
+    'liftoff to 35 ft' (i.e., NATOPS-style), so we should NOT apply a
+    ground-roll -> liftoff conversion.
+
+    We consider both:
+      • Explicit NATOPS rows (note contains 'natops')
+      • Our synthesized MAN(20) rows (note contains 'synth-man'), which are
+        blended from NATOPS UP/FULL liftoff data and therefore are already liftoff.
+    """
+    sub = perfdb[(perfdb["flap_deg"] == flap_deg) & (perfdb["thrust"] == thrust)]
+    if sub.empty:
+        return False
+    note_str = sub["note"].astype(str).str.lower()
+    is_natops     = note_str.str.contains("natops", na=False)
+    is_synth_man  = note_str.str.contains("synth-man", na=False)
+    return bool((is_natops | is_synth_man).mean() >= 0.5)
+
 
 # -------------- OEI guardrail --------------
 def compute_oei_second_segment_ok(gw_lbs: float, n1pct: float, flap_deg: int) -> bool:
