@@ -55,7 +55,8 @@ ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}  # per engine, uninstalled (
 DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 1.00}   # FULL may not be derated
 ALPHA_N1_DIST = 1.55                                   # distance ∝ 1/(N1^alpha) — tightened for hot/high
 UP_FLAP_DISTANCE_FACTOR = 1.06                          # extra penalty beyond CL diff when using UP
-OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate‑go penalty vs AEO                          # extra penalty beyond CL diff when using UP
+OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate‑go penalty vs AEO
+AEO_CAL_FACTOR = 1.00                                    # AEO AGD calibration (1.00 = FAA; <1 = DCS‑cal)
 
 # ------------------------------ helpers: atmosphere / wind ------------------------------
 
@@ -264,6 +265,8 @@ def compute_takeoff(perfdb: pd.DataFrame,
             da_scale = da_out_of_grid_scale(pa, oat_c)
             asd *= da_scale
             agd *= da_scale
+        # DCS AEO calibration (optional via sidebar)
+        agd *= AEO_CAL_FACTOR
         return asd, agd
 
     def field_ok(asd_eff: float, agd_eff: float) -> tuple[bool, float, str]:
@@ -457,6 +460,24 @@ with st.sidebar:
         floor = DERATE_FLOOR_BY_FLAP.get(flap_for_floor, 0.90)*100.0
         st.caption(f"Derate floor by flap: {floor:.0f}% N1 (MIL)")
         derate_n1 = st.slider("Target N1 % (MIL)", min_value=floor, max_value=100.0, value=max(95.0, floor), step=0.5)
+
+    with st.expander("Advanced / Calibration", expanded=False):
+        calib = st.radio(
+            "Model calibration",
+            ["FAA-conservative", "DCS-calibrated"],
+            index=0,
+            help=(
+                "FAA: AEO distances uncalibrated, OEI factor 1.20 (more conservative).
+"
+                "DCS: AEO AGD ×0.74, OEI factor 1.15 — tuned to match your 40 °C/70k tests."
+            ),
+        )
+        if calib == "DCS-calibrated":
+            globals()["AEO_CAL_FACTOR"] = 0.74
+            globals()["OEI_AGD_FACTOR"] = 1.15
+        else:
+            globals()["AEO_CAL_FACTOR"] = 1.00
+            globals()["OEI_AGD_FACTOR"] = 1.20
 
 run = st.button("Compute Takeoff Performance", type="primary")
 
