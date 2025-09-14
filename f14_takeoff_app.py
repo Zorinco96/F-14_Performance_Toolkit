@@ -333,20 +333,21 @@ def trim_anu(gw_lbs: float, flap_deg: int) -> float:
     if flap_deg == 40: base += 1.0
     return float(max(2.0, min(8.0, round(base, 1))))
 
-# ------------------------------ UI helpers ------------------------------
-
-import re
-WIND_PAT = re.compile(r"^\s*(\d{1,3}(?:\.\d+)?)\s*(?:@|/|\s)\s*(\d{1,3}(?:\.\d+)?)\s*$")
+# ------------------------------ Wind parsing helper (no regex to keep canvas replace safe) ------------------------------
 
 def parse_wind_entry(entry: str, unit: str) -> Optional[Tuple[float,float]]:
-    m = WIND_PAT.match(entry or "")
-    if not m:
-        return None
-    d = float(m.group(1)) % 360.0
-    s = float(m.group(2))
-    if unit == "m/s":
-        s *= 1.943844
-    return (d, s)
+    text = (entry or "").strip().replace('/', ' ').replace('@', ' ')
+    parts = [p for p in text.split(' ') if p]
+    if len(parts) >= 2:
+        try:
+            d = float(parts[0]) % 360.0
+            s = float(parts[1])
+            if unit == "m/s":
+                s *= 1.943844
+            return (d, s)
+        except Exception:
+            return None
+    return None
 
 # ------------------------------ App ------------------------------
 
@@ -390,7 +391,7 @@ with st.sidebar:
     parsed = parse_wind_entry(wind_entry, wind_units)
     if parsed is None and (wind_entry or "") != "":
         st.warning("Enter wind as DDD@SS, DDD/SS, or DDD SS. Example: 180@12")
-        wind_dir = float(hdg); wind_spd = 0.0
+        wind_dir, wind_spd = float(hdg), 0.0
     else:
         wind_dir, wind_spd = (parsed if parsed is not None else (float(hdg), 0.0))
     wind_policy = st.selectbox("Wind Policy", ["None", "50/150"], index=0)
@@ -421,7 +422,9 @@ with st.sidebar:
         st.caption(f"Derate floor by flap: {floor:.0f}% N1 (MIL)")
         derate_n1 = st.slider("Target N1 % (MIL)", min_value=floor, max_value=100.0, value=max(95.0, floor), step=0.5)
 
-if st.button("Compute Takeoff Performance", type="primary"):
+run = st.button("Compute Takeoff Performance", type="primary")
+
+if run:
     res = compute_takeoff(perfdb,
                           float(hdg), float(tora_ft), float(toda_ft), float(asda_ft),
                           float(elev_ft), float(slope), float(shorten_total),
@@ -456,8 +459,8 @@ if st.button("Compute Takeoff Performance", type="primary"):
         st.metric("Crosswind (kt)", f"{res.cw_kn:.1f}")
         st.caption("Tailwind >10 kt or crosswind >30 kt → NOT AUTHORIZED.")
 
-    if res.notes:
-        st.warning("\n".join(res.notes))
+    for n in res.notes:
+        st.warning(n)
 
 else:
     st.info("Set inputs and click Compute.")
