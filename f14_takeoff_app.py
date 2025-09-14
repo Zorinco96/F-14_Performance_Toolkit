@@ -331,6 +331,28 @@ def parse_wind_entry(entry: str, unit: str) -> Optional[Tuple[float,float]]:
             return None
     return None
 
+def parse_length_to_ft(text: str) -> Optional[float]:
+    """
+    Parse a runway length from a free-text input.
+    Accepts:  "6501", "6501 ft", "6,501ft", "1.05 NM", "1.05nm", "1.05 nmi"
+    Returns feet (float) or None if it can't be parsed.
+    """
+    s = (text or "").strip().lower().replace(",", "")
+    if not s:
+        return None
+    mult = 1.0
+    if "nmi" in s or " nm" in s or s.endswith("nm"):
+        mult = 6076.12
+        s = s.replace("nmi", "").replace("nm", "")
+    if "ft" in s:
+        s = s.replace("ft", "")
+    s = s.strip()
+    try:
+        val = float(s)
+        return max(0.0, val * mult)
+    except Exception:
+        return None
+
 # ------------------------------ Speed floors / monotonicity ------------------------------
 def enforce_speed_floors(vs: float, v1: float, vr: float, v2: float, flap_deg: int) -> Tuple[float,float,float]:
     # Base monotonicity
@@ -550,32 +572,75 @@ perfdb = load_perf()
 
 with st.sidebar:
     st.header("Runway")
-    theatre = st.selectbox("DCS Theatre", sorted(rwy_db["map"].unique()))
-    df_t = rwy_db[rwy_db["map"] == theatre]
-    airport = st.selectbox("Airport", sorted(df_t["airport_name"].unique()))
-    df_a = df_t[df_t["airport_name"] == airport]
-    rwy_label = st.selectbox("Runway End", list(df_a["runway_label"]))
-    rwy = df_a[df_a["runway_label"] == rwy_label].iloc[0]
 
-    tora_ft = float(rwy["tora_ft"])
-    toda_ft = float(rwy["toda_ft"])
-    asda_ft = float(rwy["asda_ft"])
-    elev_ft = float(rwy["threshold_elev_ft"])
-    hdg = float(rwy["heading_deg"])
-    slope = float(rwy.get("slope_percent", 0.0) or 0.0)
+    # Toggle to override the database with manual runway values
+    manual_rwy = st.checkbox("Enter runway manually (override database)", value=False,
+                             help="When checked, you can type heading, length, and elevation directly. Length can be in feet or NM (auto-detected).")
 
-    cA, cB = st.columns(2)
-    with cA:
-        st.metric("TORA (ft)", f"{tora_ft:,.0f}")
-        st.metric("TODA (ft)", f"{toda_ft:,.0f}")
-    with cB:
-        st.metric("ASDA (ft)", f"{asda_ft:,.0f}")
-        st.metric("Elev (ft)", f"{elev_ft:,.0f}")
+    if not manual_rwy:
+        # --- Database-driven selection ---
+        theatre = st.selectbox("DCS Theatre", sorted(rwy_db["map"].unique()))
+        df_t = rwy_db[rwy_db["map"] == theatre]
+        airport = st.selectbox("Airport", sorted(df_t["airport_name"].unique()))
+        df_a = df_t[df_t["airport_name"] == airport]
+        rwy_label = st.selectbox("Runway End", list(df_a["runway_label"]))
+        rwy = df_a[df_a["runway_label"] == rwy_label].iloc[0]
 
+        tora_ft = float(rwy["tora_ft"])
+        toda_ft = float(rwy["toda_ft"])
+        asda_ft = float(rwy["asda_ft"])
+        elev_ft = float(rwy["threshold_elev_ft"])
+        hdg     = float(rwy["heading_deg"])
+        slope   = float(rwy.get("slope_percent", 0.0) or 0.0)
+
+        cA, cB = st.columns(2)
+        with cA:
+            st.metric("TORA (ft)", f"{tora_ft:,.0f}")
+            st.metric("TODA (ft)", f"{toda_ft:,.0f}")
+        with cB:
+            st.metric("ASDA (ft)", f"{asda_ft:,.0f}")
+            st.metric("Elev (ft)", f"{elev_ft:,.0f}")
+
+    else:
+        # --- Manual override path ---
+        hdg = st.number_input("Runway heading (deg, magnetic or true as used by briefing)", min_value=0.0, max_value=360.0, value=0.0, step=1.0)
+
+        base_len_input = st.text_input("Runway length (ft or NM)", value="", placeholder="e.g., 6501 or 1.07 NM")
+        base_len_ft = parse_length_to_ft(base_len_input)
+        if base_len_input and base_len_ft is None:
+            st.warning("Could not parse runway length. Try formats like '6501', '6501 ft', or '1.07 NM'.")
+
+        # Declared distances: either one value applied to all, or advanced separate fields
+        adv_decl = st.checkbox("Set TORA/TODA/ASDA separately", value=False)
+        if adv_decl:
+            tora_in  = st.text_input("TORA", value=(f"{base_len_ft:.0f} ft" if base_len_ft else ""))
+            toda_in  = st.text_input("TODA", value=(f"{base_len_ft:.0f} ft" if base_len_ft else ""))
+            asda_in  = st.text_input("ASDA", value=(f"{base_len_ft:.0f} ft" if base_len_ft else ""))
+
+            tora_ft = parse_length_to_ft(tora_in) or 0.0
+            toda_ft = parse_length_to_ft(toda_in) or 0.0
+            asda_ft = parse_length_to_ft(asda_in) or 0.0
+        else:
+            length_ft = base_len_ft or 0.0
+            tora_ft = toda_ft = asda_ft = float(length_ft)
+
+        elev_ft = st.number_input("Field elevation (ft MSL)", min_value=-1000.0, max_value=15000.0, value=0.0, step=1.0)
+        slope   = st.number_input("Runway slope (%)", min_value=-2.0, max_value=2.0, value=0.0, step=0.1)
+
+        cA, cB = st.columns(2)
+        with cA:
+            st.metric("TORA (ft)", f"{tora_ft:,.0f}")
+            st.metric("TODA (ft)", f"{toda_ft:,.0f}")
+        with cB:
+            st.metric("ASDA (ft)", f"{asda_ft:,.0f}")
+            st.metric("Elev (ft)", f"{elev_ft:,.0f}")
+
+    # This stays available in both modes
     st.caption("Intersection / manual reduction")
     sh_val = st.number_input("Shorten available runway — value", min_value=0.0, value=0.0, step=50.0, key="sh_val")
     sh_unit = st.selectbox("Units", ["ft", "NM"], index=0, key="sh_unit")
     shorten_total = float(sh_val) if sh_unit == "ft" else float(sh_val) * 6076.12
+
 
     st.header("Weather")
     oat_c = st.number_input("OAT (°C)", value=15.0, step=1.0)
