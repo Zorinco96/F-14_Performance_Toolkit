@@ -320,7 +320,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
                     lo = mid
             # add small guard so rounding doesn't flip pass->fail
             n1 = min(100.0, round(hi + 0.2, 1))
-            thrust_text = "DERATE"
+            thrust_text = "MIL" if n1 >= 99.9 else "DERATE"
             # Verify result; if solver edge-case fails, fall back to MIL (no flap escalation)
             asd_chk, agd_chk = distances_for(n1)
             ok_chk, _, _ = field_ok(asd_chk, agd_chk)
@@ -505,8 +505,8 @@ if run:
     with c3:
         st.subheader("Runway distances")
         st.metric("Stop distance (ft)", f"{res.asd_ft:.0f}")
-        st.metric("Continue distance (all engines) (ft)", f"{res.agd_ft:.0f}")
-        st.metric("Required (ft)", f"{res.req_ft:.0f}")
+        st.metric("Continue distance (engine-out, regulatory) (ft)", f"{res.agd_ft * OEI_AGD_FACTOR:.0f}")
+        st.metric("Required runway (regulatory) (ft)", f"{res.req_ft:.0f}")", f"{res.req_ft:.0f}")
     with c4:
         st.subheader("Availability")
         st.metric("Runway available (ft)", f"{res.avail_ft:.0f}")
