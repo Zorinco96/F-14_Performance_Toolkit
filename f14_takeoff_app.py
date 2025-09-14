@@ -224,26 +224,34 @@ def _interp_weight_at(sub: pd.DataFrame, pa: float, oat: float, field: str, gw_x
     return float(np.interp(gw_x, xs, ys))
 
 def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: float, oat: float):
-    use_flap = 20 if flap_deg == 0 else flap_deg  # UP uses MAN table as base
+    # Use MAN(20) table as base for UP(0)
+    use_flap = 20 if flap_deg == 0 else flap_deg
+
+    # Prefer exact (flap,thrust); fall back sensibly
     sub = perf[(perf["flap_deg"] == use_flap) & (perf["thrust"] == thrust)]
     if sub.empty:
         sub = perf[(perf["flap_deg"] == use_flap)]
-        if sub.empty:
-            sub = perf[(perf["thrust"] == thrust)]
-        if sub.empty:
-            sub = perf
+    if sub.empty:
+        sub = perf[(perf["thrust"] == thrust)]
+    if sub.empty:
+        sub = perf  # ultimate fallback
+
     pa0, pa1, wp = _bounds(sub["press_alt_ft"].unique(), pa)
     t0,  t1,  wt = _bounds(sub["oat_c"].unique(),        oat)
+
     out = {}
-    for f in ["Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]:
-        v00 = _interp_weight_at(sub, pa0, t0, f, gw)
-        v01 = _interp_weight_at(sub, pa0, t1, f, gw)
-        v10 = _interp_weight_at(sub, pa1, t0, f, gw)
-        v11 = _interp_weight_at(sub, pa1, f, gw)
-        v0  = v00*(1-wt) + v01*wt
-        v1  = v10*(1-wt) + v11*wt
-        out[f] = v0*(1-wp) + v1*wp
+    for field in ["Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]:
+        v00 = _interp_weight_at(sub, pa0, t0, field, gw)
+        v01 = _interp_weight_at(sub, pa0, t1, field, gw)
+        v10 = _interp_weight_at(sub, pa1, t0, field, gw)
+        v11 = _interp_weight_at(sub, pa1, t1, field, gw)   # <-- fixed: t1 here
+
+        v0  = v00*(1.0 - wt) + v01*wt
+        v1  = v10*(1.0 - wt) + v11*wt
+        out[field] = v0*(1.0 - wp) + v1*wp
+
     return out
+
 
 # ------------------------------ NATOPS / MAN detection ------------------------------
 def agd_is_liftoff_mode(perfdb: pd.DataFrame, flap_deg: int, thrust: str) -> bool:
