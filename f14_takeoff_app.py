@@ -423,6 +423,52 @@ if ready:
         st.download_button("Download current result (JSON)", data=pd.Series(current_payload).to_json(indent=2),
                            file_name="f14_takeoff_result.json", mime="application/json")
 
+                # ===== Permalink / Share =====
+        st.markdown("---")
+        st.caption("Permalink: update the URL with your current inputs so you can share or bookmark.")
+
+        def _qp_bool(x: bool) -> str:
+            return "1" if bool(x) else "0"
+
+        permalink_params = {
+            "map": theatre,
+            "apt": airport,
+            "rwy": str(rwy["runway_end"]),
+            "ix": (sel if (not df_ix.empty and sel != "— Full length —") else ""),
+            "tora": f"{base_tora:.0f}",
+            "toda": f"{base_toda:.0f}",
+            "asda": f"{base_asda:.0f}",
+            "elev": f"{elev_ft:.0f}",
+            "slope": f"{slope_pct:.2f}",
+            "shorten": f"{shorten_total:.0f}",
+            "oat": f"{oat_c:.1f}",
+            "qnh": f"{qnh_inhg:.2f}",
+            "wunits": wind_units,
+            "wdir": f"{wind_dir:.0f}",
+            "wspd": f"{wind_spd:.0f}",
+            "wpol": wind_policy,
+            "gw": f"{gw:.0f}",
+            "flaps": flap_mode,
+            "thrust": thrust_mode,
+            "n1": f"{derate_n1:.0f}",
+            "mode": ("REG" if compliance_mode.startswith("Regulatory") else "AEO"),
+            # calibration flags
+            "cal_aeo": f'{st.session_state.get("AEO_CAL_FACTOR", 1.00):.2f}',
+            "cal_oei": f'{st.session_state.get("OEI_AGD_FACTOR", 1.20):.2f}',
+        }
+
+        col_pl_a, col_pl_b = st.columns([1,1])
+        with col_pl_a:
+            if st.button("Update URL with current settings"):
+                try:
+                    st.query_params.update(permalink_params)
+                    st.success("URL updated — copy it from the address bar.")
+                except Exception as e:
+                    st.warning(f"Could not update URL: {e}")
+        with col_pl_b:
+            # Handy read-only view
+            st.text_input("Quick-copy query", value="&".join([f"{k}={v}" for k,v in permalink_params.items()]), label_visibility="collapsed")
+
         # Matrix CSV
         st.download_button("Download what-if matrix (CSV)", data=df_matrix.to_csv(index=False),
                            file_name="f14_takeoff_matrix.csv", mime="text/csv")
