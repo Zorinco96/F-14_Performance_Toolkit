@@ -31,131 +31,8 @@ st.set_page_config(page_title="DCS F‑14B Takeoff (FAA Model)", page_icon="✈�
 # ------------------------------
 # Embedded (minimal) F‑14B baseline grid (MAN/FULL @ MIL/AB). Distances are placeholders tuned for DCS plausibility.
 # ------------------------------
-# NATOPS-based baseline for F-14B (MIL power only). Distances are NATOPS “ground roll” (all engines).
-# We provide UP (0°) and FULL (40°, mapped from NATOPS 35°). MANEUVER (20°) is synthesized at load time.
-# Columns: model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft,note
-# Notes:
-# - AGD_ft here is NATOPS ground roll (AEO). ASD_ft ≈ 0.85 * AGD_ft (rounded).
-# - NATOPS tables used: Flaps UP & Flaps DOWN (0-kt headwind), W=58/65/72k lb, PA=0/4k/8k ft, T=20/59/90/120 F → -7/15/32/49 C.
-# - Speeds: Vr = NATOPS Rotation; V2 ≈ Vr+13; V1 ≈ Vr-9; Vs ≈ V2/1.2 (rounded to nearest kt).
-
-PERF_F14B = """model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft,note
-# --- FLAPS UP (0°) ---
-F-14B,0,Military,58000,0,-7,118,131,140,153,1760,2070,NATOPS-UP
-F-14B,0,Military,58000,0,15,118,131,140,153,1917,2255,NATOPS-UP
-F-14B,0,Military,58000,0,32,118,131,140,153,2134,2510,NATOPS-UP
-F-14B,0,Military,58000,0,49,118,131,140,153,2542,2990,NATOPS-UP
-F-14B,0,Military,58000,4000,-7,118,131,140,153,2389,2810,NATOPS-UP
-F-14B,0,Military,58000,4000,15,118,131,140,153,2601,3060,NATOPS-UP
-F-14B,0,Military,58000,4000,32,118,131,140,153,2924,3440,NATOPS-UP
-F-14B,0,Military,58000,4000,49,118,131,140,153,3490,4105,NATOPS-UP
-F-14B,0,Military,58000,8000,-7,118,131,140,153,3294,3875,NATOPS-UP
-F-14B,0,Military,58000,8000,15,118,131,140,153,3589,4225,NATOPS-UP
-F-14B,0,Military,58000,8000,32,118,131,140,153,4055,4770,NATOPS-UP
-F-14B,0,Military,58000,8000,49,118,131,140,153,4852,5720,NATOPS-UP
-
-F-14B,0,Military,65000,0,-7,125,150,159,172,2253,2650,NATOPS-UP
-F-14B,0,Military,65000,0,15,125,150,159,172,2460,2900,NATOPS-UP
-F-14B,0,Military,65000,0,32,125,150,159,172,2741,3225,NATOPS-UP
-F-14B,0,Military,65000,0,49,125,150,159,172,3273,3845,NATOPS-UP
-F-14B,0,Military,65000,4000,-7,125,150,159,172,3073,3615,NATOPS-UP
-F-14B,0,Military,65000,4000,15,125,150,159,172,3350,3940,NATOPS-UP
-F-14B,0,Military,65000,4000,32,125,150,159,172,3766,4430,NATOPS-UP
-F-14B,0,Military,65000,4000,49,125,150,159,172,4526,5325,NATOPS-UP
-F-14B,0,Military,65000,8000,-7,125,150,159,172,4246,4995,NATOPS-UP
-F-14B,0,Military,65000,8000,15,125,150,159,172,4633,5450,NATOPS-UP
-F-14B,0,Military,65000,8000,32,125,150,159,172,5245,6170,NATOPS-UP
-F-14B,0,Military,65000,8000,49,125,150,159,172,6341,7460,NATOPS-UP
-
-F-14B,0,Military,72000,0,-7,132,159,168,181,2831,3330,NATOPS-UP
-F-14B,0,Military,72000,0,15,132,159,168,181,3090,3635,NATOPS-UP
-F-14B,0,Military,72000,0,32,132,159,168,181,3450,4065,NATOPS-UP
-F-14B,0,Military,72000,0,49,132,159,168,181,4135,4865,NATOPS-UP
-F-14B,0,Military,72000,4000,-7,132,159,168,181,3876,4560,NATOPS-UP
-F-14B,0,Military,72000,4000,15,132,159,168,181,4216,4960,NATOPS-UP
-F-14B,0,Military,72000,4000,32,132,159,168,181,4760,5600,NATOPS-UP
-F-14B,0,Military,72000,4000,49,132,159,168,181,5763,6780,NATOPS-UP
-F-14B,0,Military,72000,8000,-7,132,159,168,181,5355,6300,NATOPS-UP
-F-14B,0,Military,72000,8000,15,132,159,168,181,5844,6875,NATOPS-UP
-F-14B,0,Military,72000,8000,32,132,159,168,181,6656,7830,NATOPS-UP
-F-14B,0,Military,72000,8000,49,132,159,168,181,8113,9545,NATOPS-UP
-
-# --- FLAPS FULL (mapped from NATOPS 35°) ---
-F-14B,40,Military,58000,0,-7,113,113,122,135,1526,1795,NATOPS-FULL
-F-14B,40,Military,58000,0,15,113,113,122,135,1666,1960,NATOPS-FULL
-F-14B,40,Military,58000,0,32,113,113,122,135,1870,2200,NATOPS-FULL
-F-14B,40,Military,58000,0,49,113,113,122,135,2244,2640,NATOPS-FULL
-F-14B,40,Military,58000,4000,-7,113,113,122,135,2125,2500,NATOPS-FULL
-F-14B,40,Military,58000,4000,15,113,113,122,135,2320,2730,NATOPS-FULL
-F-14B,40,Military,58000,4000,32,113,113,122,135,2606,3065,NATOPS-FULL
-F-14B,40,Military,58000,4000,49,113,113,122,135,3183,3745,NATOPS-FULL
-F-14B,40,Military,58000,8000,-7,113,113,122,135,3004,3535,NATOPS-FULL
-F-14B,40,Military,58000,8000,15,113,113,122,135,3294,3875,NATOPS-FULL
-F-14B,40,Military,58000,8000,32,113,113,122,135,3732,4390,NATOPS-FULL
-F-14B,40,Military,58000,8000,49,113,113,122,135,4603,5415,NATOPS-FULL
-
-F-14B,40,Military,65000,0,-7,120,131,140,153,1989,2340,NATOPS-FULL
-F-14B,40,Military,65000,0,15,120,131,140,153,2168,2550,NATOPS-FULL
-F-14B,40,Military,65000,0,32,120,131,140,153,2438,2860,NATOPS-FULL
-F-14B,40,Military,65000,0,49,120,131,140,153,2954,3475,NATOPS-FULL
-F-14B,40,Military,65000,4000,-7,120,131,140,153,2780,3270,NATOPS-FULL
-F-14B,40,Military,65000,4000,15,120,131,140,153,3030,3570,NATOPS-FULL
-F-14B,40,Military,65000,4000,32,120,131,140,153,3438,4045,NATOPS-FULL
-F-14B,40,Military,65000,4000,49,120,131,140,153,4231,4980,NATOPS-FULL
-F-14B,40,Military,65000,8000,-7,120,131,140,153,4103,4835,NATOPS-FULL
-F-14B,40,Military,65000,8000,15,120,131,140,153,4516,5325,NATOPS-FULL
-F-14B,40,Military,65000,8000,32,120,131,140,153,5136,6045,NATOPS-FULL
-F-14B,40,Military,65000,8000,49,120,131,140,153,6415,7540,NATOPS-FULL
-
-F-14B,40,Military,72000,0,-7,127,138,147,160,2499,2940,NATOPS-FULL
-F-14B,40,Military,72000,0,15,127,138,147,160,2733,3215,NATOPS-FULL
-F-14B,40,Military,72000,0,32,127,138,147,160,3081,3625,NATOPS-FULL
-F-14B,40,Military,72000,0,49,127,138,147,160,3761,4425,NATOPS-FULL
-F-14B,40,Military,72000,4000,-7,127,138,147,160,3525,4150,NATOPS-FULL
-F-14B,40,Military,72000,4000,15,127,138,147,160,3860,4540,NATOPS-FULL
-F-14B,40,Military,72000,4000,32,127,138,147,160,4392,5155,NATOPS-FULL
-F-14B,40,Military,72000,4000,49,127,138,147,160,5481,6425,NATOPS-FULL
-F-14B,40,Military,72000,8000,-7,127,138,147,160,3918,4865,NATOPS-FULL
-F-14B,40,Military,72000,8000,15,127,138,147,160,4369,5365,NATOPS-FULL
-F-14B,40,Military,72000,8000,32,127,138,147,160,5187,6215,NATOPS-FULL
-F-14B,40,Military,72000,8000,49,127,138,147,160,6375,7960,NATOPS-FULL
-"""
-
-def synthesize_maneuver_from_up_full(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Build flap=20 (MANEUVER) rows by blending UP (0°) and FULL (40°) at identical (gw, pa, oat).
-    Bias 55% toward FULL (shorter roll), which matched your test results best.
-    """
-    up = df[(df["flap_deg"] == 0) & (df["thrust"].str.upper() == "MILITARY")]
-    fu = df[(df["flap_deg"] == 40) & (df["thrust"].str.upper() == "MILITARY")]
-    keys = ["gw_lbs", "press_alt_ft", "oat_c"]
-    merged = pd.merge(up, fu, on=keys, suffixes=("_up", "_full"))
-    w_full = 0.55
-    w_up = 1.0 - w_full
-
-    rows = []
-    for _, r in merged.iterrows():
-        vr = w_up * float(r["Vr_kt_up"]) + w_full * float(r["Vr_kt_full"])
-        v2 = vr + 13.0
-        vs = v2 / 1.2
-        v1 = max(120.0, vr - 9.0)
-        agd = w_up * float(r["AGD_ft_up"]) + w_full * float(r["AGD_ft_full"])
-        asd = 0.85 * agd
-        rows.append(dict(
-            model="F-14B", flap_deg=20, thrust="MILITARY",
-            gw_lbs=float(r["gw_lbs"]), press_alt_ft=float(r["press_alt_ft"]), oat_c=float(r["oat_c"]),
-            Vs_kt=round(vs), V1_kt=round(v1), Vr_kt=round(vr), V2_kt=round(v2),
-            ASD_ft=round(asd), AGD_ft=round(agd), note="SYNTH-MAN(0.45UP+0.55FULL)"
-        ))
-    return pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
-
-@st.cache_data
-def load_perf() -> pd.DataFrame:
-    base = pd.read_csv(StringIO(PERF_F14B), comment="#")
-    base["thrust"] = base["thrust"].str.upper()
-    out = synthesize_maneuver_from_up_full(base)
-    return out
-
+# External performance CSV (do not embed to avoid data loss on updates)
+PERF_CSV_PATHS = ["f14_perf.csv", "data/f14_perf.csv"]
 
 # ------------------------------ constants / tuning ------------------------------
 ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}  # per engine, uninstalled (approx)
@@ -164,7 +41,7 @@ ALPHA_N1_DIST = 1.55                                   # distance ∝ 1/(N1^alph
 UP_FLAP_DISTANCE_FACTOR = 1.06                          # extra penalty beyond CL diff when using UP
 OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate‑go penalty vs AEO
 AEO_CAL_FACTOR = 1.00                                    # AEO AGD calibration (1.00 = FAA; <1 = DCS-cal)
-AEO_VR_FRAC = 0.80                                        # Vr ground roll ≈ 78% of liftoff (AEO)
+AEO_VR_FRAC = 0.66                                        # Vr ground roll ≈ 78% of liftoff (AEO)
 
 # ------------------------------ helpers: atmosphere / wind ------------------------------
 
@@ -242,11 +119,76 @@ def load_runways() -> pd.DataFrame:
     st.error("dcs_airports.csv not found in repo.")
     st.stop()
 
+# Build MAN (20 deg) from UP (0) and FULL (40) if missing to ensure complete flap set
+
+def synthesize_maneuver_from_up_full(df: pd.DataFrame) -> pd.DataFrame:
+    up = df[(df["flap_deg"] == 0) & (df["thrust"].astype(str).str.upper() == "MILITARY")]
+    fu = df[(df["flap_deg"] == 40) & (df["thrust"].astype(str).str.upper() == "MILITARY")]
+    keys = ["gw_lbs", "press_alt_ft", "oat_c"]
+    merged = pd.merge(up, fu, on=keys, suffixes=("_up", "_full"))
+    if merged.empty:
+        return df
+    w_full = 0.55
+    w_up = 1.0 - w_full
+    rows = []
+    for _, r in merged.iterrows():
+        vr = w_up * float(r["Vr_kt_up"]) + w_full * float(r["Vr_kt_full"])
+        v2 = vr + 13.0
+        vs = v2 / 1.2
+        v1 = max(120.0, vr - 9.0)
+        agd = w_up * float(r["AGD_ft_up"]) + w_full * float(r["AGD_ft_full"])
+        asd = 0.85 * agd
+        rows.append(dict(
+            model="F-14B", flap_deg=20, thrust="MILITARY",
+            gw_lbs=float(r["gw_lbs"]), press_alt_ft=float(r["press_alt_ft"]), oat_c=float(r["oat_c"]),
+            Vs_kt=round(vs), V1_kt=round(v1), Vr_kt=round(vr), V2_kt=round(v2),
+            ASD_ft=round(asd), AGD_ft=round(agd), note="SYNTH-MAN(0.45UP+0.55FULL)"
+        ))
+    return pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
+
 @st.cache_data
 def load_perf() -> pd.DataFrame:
-    df = pd.read_csv(StringIO(PERF_F14B))
-    df["thrust"] = df["thrust"].str.upper()
-    return df
+    base = None
+    for path in PERF_CSV_PATHS:
+        try:
+            base = pd.read_csv(path, comment="#")
+            break
+        except Exception:
+            continue
+    if base is None or base.empty:
+        st.error("f14_perf.csv not found. Place it at repo root or in /data.")
+        st.stop()
+
+    # Normalize columns and types
+    required = ["model","flap_deg","thrust","gw_lbs","press_alt_ft","oat_c","Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]
+    missing = [c for c in required if c not in base.columns]
+    if missing:
+        st.error("f14_perf.csv missing columns: " + ", ".join(missing))
+        st.stop()
+
+    base["thrust"] = base["thrust"].astype(str).str.upper().replace({"MIL": "MILITARY", "AB": "AFTERBURNER"})
+    numeric_cols = ["flap_deg","gw_lbs","press_alt_ft","oat_c","Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]
+    for c in numeric_cols:
+        base[c] = pd.to_numeric(base[c], errors="coerce")
+
+    # Derive speeds if any missing
+    if base["V2_kt"].isna().any():
+        base.loc[base["V2_kt"].isna(), "V2_kt"] = base["Vr_kt"] + 13.0
+    if base["V1_kt"].isna().any():
+        base.loc[base["V1_kt"].isna(), "V1_kt"] = base["Vr_kt"] - 9.0
+    if base["Vs_kt"].isna().any():
+        base.loc[base["Vs_kt"].isna(), "Vs_kt"] = base["V2_kt"] / 1.2
+
+    # Round to integers for cleaner display and interpolation stability
+    for c in ["Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]:
+        base[c] = base[c].astype(float).round(0)
+
+    # Ensure MANEUVER exists; synthesize if not provided
+    if not (base["flap_deg"] == 20).any():
+        base = synthesize_maneuver_from_up_full(base)
+        st.info("MANEUVER flap data synthesized from UP/FULL in memory (0.45UP + 0.55FULL).")
+
+    return base
 
 # ------------------------------ interpolation (tri‑linear over GW/PA/OAT) ------------------------------
 
@@ -294,6 +236,20 @@ def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: f
     return out
 
 # ------------------------------ core scaling & solver ------------------------------
+
+def derate_floor_pct(flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float) -> float:
+    """Adaptive derate floor (as % N1) that tightens in heavy / hot-high conditions.
+    - Base: by flap (FULL=100%, MAN/UP=90%).
+    - If very heavy and hot (>=72k lb and OAT>=35 C), floor -> max(95%).
+    - Else if density altitude >= 6000 ft, floor -> max(93%).
+    """
+    base = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0
+    da = density_altitude_ft(pa_ft, oat_c)
+    if gw_lbs >= 72000.0 and oat_c >= 35.0:
+        base = max(base, 95.0)
+    elif da >= 6000.0:
+        base = max(base, 93.0)
+    return float(base)
 
 def enforce_derate_floor(n1pct: float, flap_deg: int) -> float:
     return max(n1pct, DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0)
@@ -414,7 +370,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
         mil_ok, req_mil, limiting_mil = field_ok(asd_mil, agd_mil)
         if mil_ok:
             # Bisection from floor to MIL to find minimum N1 that still passes
-            req_floor = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0
+            req_floor = derate_floor_pct(flap_deg, float(gw_lbs), float(pa), float(oat_c))
             lo, hi = req_floor, 100.0
             for _ in range(18):
                 mid = (lo + hi) / 2.0
@@ -574,10 +530,11 @@ with st.sidebar:
     derate_n1 = 98.0
     if thrust_mode == "Manual Derate":
         flap_for_floor = 0 if flap_mode=="UP" else (40 if flap_mode=="FULL" else 20)
-        floor = DERATE_FLOOR_BY_FLAP.get(flap_for_floor, 0.90)*100.0
+        pa_local = pressure_altitude_ft(float(elev_ft), float(qnh_inhg))
+        floor = derate_floor_pct(flap_for_floor, float(gw), float(pa_local), float(oat_c))
         floor_int = math.ceil(floor)
-        st.caption(f"Derate floor by flap: {floor_int:.0f}% N1 (MIL)")
-        derate_n1 = st.slider("Target N1 % (MIL)", min_value=float(floor_int), max_value=100.0, value=float(max(95.0, floor_int)), step=1.0)
+        st.caption(f"Derate floor: {floor_int:.0f}% N1 (adaptive heavy/hot-high)")
+        derate_n1 = st.slider("Target N1 % (MIL)", min_value=float(floor_int), max_value=100.0, value=float(max(95.0, floor_int)), step=1.0), max_value=100.0, value=float(max(95.0, floor_int)), step=1.0)
 
     with st.expander("Advanced / Calibration", expanded=False):
         calib = st.radio("Model calibration", ["FAA-conservative", "DCS-calibrated"], index=1, help="FAA: no all-engines calibration; engine-out factor 1.20 (conservative). DCS: all-engines continue distance x0.74; engine-out factor 1.15 (tuned to your tests).")
