@@ -535,6 +535,15 @@ if run:
             st.error(f"NOT AUTHORIZED — Short by {-req_margin:.0f} ft (ASD margin {asd_margin:.0f}, AGD(OEI) margin {agd_margin:.0f}).")
             st.caption(f"TOD limit: {tod_limit:.0f} ft | ASDA: {asda_eff_lim:.0f} ft | AGD(OEI): {agd_reg:.0f} ft")
 
+    st.markdown("---")
+    st.subheader("All-engines takeoff estimates")
+    e1, e2 = st.columns(2)
+    with e1:
+        st.metric("Vr ground roll (ft)", f"{res.agd_ft * AEO_VR_FRAC:.0f}")
+    with e2:
+        st.metric("Liftoff distance (ft)", f"{res.agd_ft:.0f}")
+    st.caption("These all-engines estimates are for DCS comparison; regulatory checks assume an engine-out scenario.")
+
     for n in res.notes:
         st.warning(n)
 
