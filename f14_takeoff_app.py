@@ -614,7 +614,7 @@ with st.expander("Data Checker (CSV sanity scan)", expanded=False):
         st.download_button("Download what-if matrix (CSV)", data=df_matrix.to_csv(index=False),
                            file_name="f14_takeoff_matrix.csv", mime="text/csv")
 
-else:
+    else:
     st.info("Select fuel/stores (or enter a valid gross weight) to compute performance.")
 
 # ------------------------------ footer ------------------------------
