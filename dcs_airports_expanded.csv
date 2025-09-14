@@ -55,8 +55,32 @@ Syria,Damascus Intl,05/23,05,47,11500,11500,11500,11500,2025,2025,,Public real-w
 Syria,Damascus Intl,05/23,23,227,11500,11500,11500,11500,2025,2025,,Public real-world data; verify
 Syria,Beirut-Rafic Hariri,16/34,16,157,10660,10660,11800,10660,87,64,,Public real-world data; verify
 Syria,Beirut-Rafic Hariri,16/34,34,337,10660,10660,11800,10660,64,87,,Public real-world data; verify
+Syria,Aleppo Intl,09/27,09,85,9514,9514,9514,9514,1276,1276,,Public real-world data; verify
+Syria,Aleppo Intl,09/27,27,265,9514,9514,9514,9514,1276,1276,,Public real-world data; verify
+Syria,Hama,09/27,09,90,10500,10500,10500,10500,1023,1023,,Public real-world data; verify
+Syria,Hama,09/27,27,270,10500,10500,10500,10500,1023,1023,,Public real-world data; verify
 Syria,Khmeimim,17/35,17,168,9730,9730,9730,9730,43,47,,Public real-world data; verify
 Syria,Khmeimim,17/35,35,348,9730,9730,9730,9730,47,43,,Public real-world data; verify
+Syria,Shayrat,08/26,08,79,9800,9800,9800,9800,2614,2614,,Public real-world data; verify
+Syria,Shayrat,08/26,26,259,9800,9800,9800,9800,2614,2614,,Public real-world data; verify
+Syria,Tiyas (T-4),09/27,09,87,10050,10050,10050,10050,1570,1570,,Public real-world data; verify
+Syria,Tiyas (T-4),09/27,27,267,10050,10050,10050,10050,1570,1570,,Public real-world data; verify
+Syria,Deir ez-Zor,13/31,13,129,9970,9970,9970,9970,702,702,,Public real-world data; verify
+Syria,Deir ez-Zor,13/31,31,309,9970,9970,9970,9970,702,702,,Public real-world data; verify
+Syria,Palmyra (Tadmur),03/21,03,30,9800,9800,9800,9800,1326,1326,,Public real-world data; verify
+Syria,Palmyra (Tadmur),03/21,21,210,9800,9800,9800,9800,1326,1326,,Public real-world data; verify
+Syria,Qamishli,10/28,10,102,11800,11800,11800,11800,1480,1480,,Public real-world data; verify
+Syria,Qamishli,10/28,28,282,11800,11800,11800,11800,1480,1480,,Public real-world data; verify
+Syria,Tabqa,07/25,07,73,10300,10300,10300,10300,1000,1000,,Public real-world data; verify
+Syria,Tabqa,07/25,25,253,10300,10300,10300,10300,1000,1000,,Public real-world data; verify
+Syria,Marj Ruhayyil (Mezzeh),10/28,10,102,9100,9100,9100,9100,2234,2234,,Public real-world data; verify
+Syria,Marj Ruhayyil (Mezzeh),10/28,28,282,9100,9100,9100,9100,2234,2234,,Public real-world data; verify
+Syria,Rene Mouawad (Kleyate),07/25,07,70,10050,10050,10050,10050,75,75,,Public real-world data; verify
+Syria,Rene Mouawad (Kleyate),07/25,25,250,10050,10050,10050,10050,75,75,,Public real-world data; verify
+Syria,Larnaca Intl,04/22,04,44,8883,8883,8883,8883,7,7,,Public real-world data; verify
+Syria,Larnaca Intl,04/22,22,224,8883,8883,8883,8883,7,7,,Public real-world data; verify
+Syria,Paphos Intl,11/29,11,114,8858,8858,8858,8858,41,41,,Public real-world data; verify
+Syria,Paphos Intl,11/29,29,294,8858,8858,8858,8858,41,41,,Public real-world data; verify
 Marianas,Andersen AFB,06L/24R,06L,62,11000,11000,11000,11000,610,631,,Public real-world data; verify
 Marianas,Andersen AFB,06L/24R,24R,242,11000,11000,11000,11000,631,610,,Public real-world data; verify
 Marianas,Antonio B. Won Pat Intl,06L/24R,06L,62,10018,10018,10018,10018,298,298,,Public real-world data; verify
@@ -91,71 +115,3 @@ Afghanistan,Kandahar Intl,05/23,05,47,10500,10500,10500,10500,3337,3337,,Approx 
 Afghanistan,Kandahar Intl,05/23,23,227,10500,10500,10500,10500,3337,3337,,Approx real-world length; verify in DCS
 Afghanistan,Kabul Intl,11/29,11,113,11500,11500,11500,11500,5877,5877,,Approx real-world length; verify in DCS
 Afghanistan,Kabul Intl,11/29,29,293,11500,11500,11500,11500,5877,5877,,Approx real-world length; verify in DCS
-Syria,Qamishli,15/33,15,150,11811,11811,11811,11811,1480,1480,,Added; verify in DCS
-Syria,Qamishli,15/33,33,330,11811,11811,11811,11811,1480,1480,,Added; verify in DCS
-Syria,Deir ez-Zor,10/28,10,100,10050,10050,10050,10050,700,700,,Added; verify in DCS
-Syria,Deir ez-Zor,10/28,28,280,10050,10050,10050,10050,700,700,,Added; verify in DCS
-Syria,Palmyra (Tadmur),03/21,03,30,9840,9840,9840,9840,1320,1320,,Added; verify in DCS
-Syria,Palmyra (Tadmur),03/21,21,210,9840,9840,9840,9840,1320,1320,,Added; verify in DCS
-Syria,Shayrat AB,08/26,08,80,9800,9800,9800,9800,2640,2640,,Added; verify in DCS
-Syria,Shayrat AB,08/26,26,260,9800,9800,9800,9800,2640,2640,,Added; verify in DCS
-Syria,Tiyas (T-4),07/25,07,70,10400,10400,10400,10400,1600,1600,,Added; verify in DCS
-Syria,Tiyas (T-4),07/25,25,250,10400,10400,10400,10400,1600,1600,,Added; verify in DCS
-Syria,Sayqal (Marj Ruhayyil),10/28,10,100,11000,11000,11000,11000,2200,2200,,Added; verify in DCS
-Syria,Sayqal (Marj Ruhayyil),10/28,28,280,11000,11000,11000,11000,2200,2200,,Added; verify in DCS
-Syria,Mezze (Damascus AB),05/23,05,50,9200,9200,9200,9200,2230,2230,,Added; verify in DCS
-Syria,Mezze (Damascus AB),05/23,23,230,9200,9200,9200,9200,2230,2230,,Added; verify in DCS
-Syria,Abu al-Duhur,08/26,08,80,9800,9800,9800,9800,1000,1000,,Added; verify in DCS
-Syria,Abu al-Duhur,08/26,26,260,9800,9800,9800,9800,1000,1000,,Added; verify in DCS
-Syria,Kuweires AB,09/27,09,90,9800,9800,9800,9800,780,780,,Added; verify in DCS
-Syria,Kuweires AB,09/27,27,270,9800,9800,9800,9800,780,780,,Added; verify in DCS
-Syria,Jirah AB,09/27,09,90,9800,9800,9800,9800,820,820,,Added; verify in DCS
-Syria,Jirah AB,09/27,27,270,9800,9800,9800,9800,820,820,,Added; verify in DCS
-Syria,Tabqa (Al Thawrah),18/36,18,180,10000,10000,10000,10000,950,950,,Added; verify in DCS
-Syria,Tabqa (Al Thawrah),18/36,36,360,10000,10000,10000,10000,950,950,,Added; verify in DCS
-Lebanon,Riyaq,05/23,05,50,9200,9200,9200,9200,3010,3010,,Added; verify in DCS
-Lebanon,Riyaq,05/23,23,230,9200,9200,9200,9200,3010,3010,,Added; verify in DCS
-Israel,Ramat David,15/33,15,150,10000,10000,10000,10000,180,180,,Added; verify in DCS
-Israel,Ramat David,15/33,33,330,10000,10000,10000,10000,180,180,,Added; verify in DCS
-Israel,Haifa,16/34,16,160,4265,4265,4265,4265,28,28,,Added; verify in DCS
-Israel,Haifa,16/34,34,340,4265,4265,4265,4265,28,28,,Added; verify in DCS
-Israel,Megiddo,11/29,11,110,4200,4200,4200,4200,220,220,,Added; verify in DCS
-Israel,Megiddo,11/29,29,290,4200,4200,4200,4200,220,220,,Added; verify in DCS
-Israel,Rosh Pina,15/33,15,150,6250,6250,6250,6250,922,922,,Added; verify in DCS
-Israel,Rosh Pina,15/33,33,330,6250,6250,6250,6250,922,922,,Added; verify in DCS
-Cyprus,RAF Akrotiri,10/28,10,100,9022,9022,9022,9022,76,76,,Added; verify in DCS
-Cyprus,RAF Akrotiri,10/28,28,280,9022,9022,9022,9022,76,76,,Added; verify in DCS
-Cyprus,Larnaca Intl,04/22,04,40,9843,9843,9843,9843,8,8,,Added; verify in DCS
-Cyprus,Larnaca Intl,04/22,22,220,9843,9843,9843,9843,8,8,,Added; verify in DCS
-Cyprus,Paphos Intl,11/29,11,110,8858,8858,8858,8858,41,41,,Added; verify in DCS
-Cyprus,Paphos Intl,11/29,29,290,8858,8858,8858,8858,41,41,,Added; verify in DCS
-Turkey,Incirlik AB,05/23,05,50,10000,10000,10000,10000,235,235,,Added; verify in DCS
-Turkey,Incirlik AB,05/23,23,230,10000,10000,10000,10000,235,235,,Added; verify in DCS
-Turkey,Hatay,04/22,04,40,9843,9843,9843,9843,265,265,,Added; verify in DCS
-Turkey,Hatay,04/22,22,220,9843,9843,9843,9843,265,265,,Added; verify in DCS
-Turkey,Gaziantep,10/28,10,100,10007,10007,10007,10007,2315,2315,,Added; verify in DCS
-Turkey,Gaziantep,10/28,28,280,10007,10007,10007,10007,2315,2315,,Added; verify in DCS
-Turkey,Adana Şakirpaşa,05/23,05,50,9022,9022,9022,9022,65,65,,Added; verify in DCS
-Turkey,Adana Şakirpaşa,05/23,23,230,9022,9022,9022,9022,65,65,,Added; verify in DCS
-Jordan,King Hussein Air College (Mafraq),05/23,05,50,9810,9810,9810,9810,2240,2240,,Added; verify in DCS
-Jordan,King Hussein Air College (Mafraq),05/23,23,230,9810,9810,9810,9810,2240,2240,,Added; verify in DCS
-Syria,Taftanaz AB,04/22,04,40,9000,9000,9000,9000,1050,1050,,Added; verify in DCS
-Syria,Taftanaz AB,04/22,22,220,9000,9000,9000,9000,1050,1050,,Added; verify in DCS
-Syria,An Nasiriyah AB,08/26,08,80,9600,9600,9600,9600,2200,2200,,Added; verify in DCS
-Syria,An Nasiriyah AB,08/26,26,260,9600,9600,9600,9600,2200,2200,,Added; verify in DCS
-Syria,Homs AB,04/22,04,40,9300,9300,9300,9300,1580,1580,,Added; verify in DCS
-Syria,Homs AB,04/22,22,220,9300,9300,9300,9300,1580,1580,,Added; verify in DCS
-Syria,Al Qusayr,10/28,10,100,8200,8200,8200,8200,1800,1800,,Added; verify in DCS
-Syria,Al Qusayr,10/28,28,280,8200,8200,8200,8200,1800,1800,,Added; verify in DCS
-Syria,Dumayr AB,09/27,09,90,9800,9800,9800,9800,2240,2240,,Added; verify in DCS
-Syria,Dumayr AB,09/27,27,270,9800,9800,9800,9800,2240,2240,,Added; verify in DCS
-Syria,Marj as-Sultan AB,09/27,09,90,8500,8500,8500,8500,2150,2150,,Added; verify in DCS
-Syria,Marj as-Sultan AB,09/27,27,270,8500,8500,8500,8500,2150,2150,,Added; verify in DCS
-Syria,An Nasiriya East,17/35,17,170,8000,8000,8000,8000,2100,2100,,Added; verify in DCS
-Syria,An Nasiriya East,17/35,35,350,8000,8000,8000,8000,2100,2100,,Added; verify in DCS
-
-Jordan,Amman Civil (Marka),06/24,06,60,10700,10700,10700,10700,2555,2555,,Added; verify in DCS
-Jordan,Amman Civil (Marka),06/24,24,240,10700,10700,10700,10700,2555,2555,,Added; verify in DCS
-Jordan,Queen Alia Intl,08L/26R,08L,83,12000,12000,12000,12000,2395,2395,,Added; verify in DCS
-Jordan,Queen Alia Intl,08L/26R,26R,263,12000,12000,12000,12000,2395,2395,,Added; verify in DCS
-
