@@ -345,6 +345,12 @@ def compute_takeoff(perfdb: pd.DataFrame,
         n1 = 100.0
         notes.append("Afterburner selected - NOT AUTHORIZED for F‑14B except as last resort.")
 
+    # Round N1 to next 1% for gauge resolution (and use that for compliance)
+    n1_cmd = math.ceil(n1)
+    if n1_cmd != n1:
+        notes.append(f"N1 rounded up from {n1:.1f}% to {n1_cmd:.0f}% to match gauge resolution.")
+    n1 = float(n1_cmd)
+
     # Final distances and compliance
     asd_fin, agd_fin = distances_for(n1)
     ok, req, limiting = field_ok(asd_fin, agd_fin)
@@ -464,8 +470,9 @@ with st.sidebar:
     if thrust_mode == "Manual Derate":
         flap_for_floor = 0 if flap_mode=="UP" else (40 if flap_mode=="FULL" else 20)
         floor = DERATE_FLOOR_BY_FLAP.get(flap_for_floor, 0.90)*100.0
-        st.caption(f"Derate floor by flap: {floor:.0f}% N1 (MIL)")
-        derate_n1 = st.slider("Target N1 % (MIL)", min_value=floor, max_value=100.0, value=max(95.0, floor), step=0.5)
+        floor_int = math.ceil(floor)
+        st.caption(f"Derate floor by flap: {floor_int:.0f}% N1 (MIL)")
+        derate_n1 = st.slider("Target N1 % (MIL)", min_value=float(floor_int), max_value=100.0, value=float(max(95.0, floor_int)), step=1.0), step=0.5)
 
     with st.expander("Advanced / Calibration", expanded=False):
         calib = st.radio("Model calibration", ["FAA-conservative", "DCS-calibrated"], index=1, help="FAA: no all-engines calibration; engine-out factor 1.20 (conservative). DCS: all-engines continue distance x0.74; engine-out factor 1.15 (tuned to your tests).")
