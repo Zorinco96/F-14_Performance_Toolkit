@@ -298,7 +298,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
 
     # Convert ground roll → liftoff-to-35 ft with a gentle DA-aware factor (no extra temp/PA scaling if inside grid)
     # ~1.45 at ISA SL, ~1.55 around DA ~5k, capped near ~1.70 at very high DA
-    liftoff_factor = 1.45 + 0.20 * max(0.0, min(da/8000.0, 1.25))
+    liftoff_factor = 1.42 + 0.15 * max(0.0, min(da/8000.0, 1.25))
     agd_aeo_liftoff_base = agd_gr_base * liftoff_factor
 
     # UP penalty vs MAN baseline
