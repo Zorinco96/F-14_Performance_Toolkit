@@ -56,7 +56,8 @@ DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 1.00}   # FULL may not be derated
 ALPHA_N1_DIST = 1.55                                   # distance ∝ 1/(N1^alpha) - tightened for hot/high
 UP_FLAP_DISTANCE_FACTOR = 1.06                          # extra penalty beyond CL diff when using UP
 OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate‑go penalty vs AEO
-AEO_CAL_FACTOR = 1.00                                    # AEO AGD calibration (1.00 = FAA; <1 = DCS‑cal)
+AEO_CAL_FACTOR = 1.00                                    # AEO AGD calibration (1.00 = FAA; <1 = DCS-cal)
+AEO_VR_FRAC = 0.78                                        # Vr ground roll ≈ 78% of liftoff (AEO)
 
 # ------------------------------ helpers: atmosphere / wind ------------------------------
 
@@ -478,7 +479,6 @@ with st.sidebar:
         globals()["OEI_AGD_FACTOR"] = OEI_FAC
 
 run = st.button("Compute Takeoff Performance", type="primary")
-"Compute Takeoff Performance", type="primary")
 
 if run:
     res = compute_takeoff(perfdb,
@@ -503,14 +503,15 @@ if run:
         flap_deg = 0 if res.flap_text.upper().startswith("UP") else (40 if res.flap_text.upper().startswith("FULL") else 20)
         st.metric("Trim (ANU)", f"{trim_anu(float(gw), flap_deg):.1f}")
     with c3:
-        st.subheader("Runway Distances")
-        st.metric("Accelerate‑Stop (ft)", f"{res.asd_ft:.0f}")
-        st.metric("Accelerate‑Go (ft)", f"{res.agd_ft:.0f}")
+        st.subheader("Runway distances")
+        st.metric("Stop distance (ft)", f"{res.asd_ft:.0f}")
+        st.metric("Continue distance (all engines) (ft)", f"{res.agd_ft:.0f}")
         st.metric("Required (ft)", f"{res.req_ft:.0f}")
     with c4:
         st.subheader("Availability")
-        st.metric("Available (ft)", f"{res.avail_ft:.0f}")
-        st.metric("Limiting", res.limiting)
+        st.metric("Runway available (ft)", f"{res.avail_ft:.0f}")
+        lim_friendly = "Stop distance" if res.limiting.startswith("ASD") else "Engine-out continue distance"
+        st.metric("Limiting factor", lim_friendly)
         st.metric("Headwind (kt)", f"{res.hw_kn:.1f}")
         st.metric("Crosswind (kt)", f"{res.cw_kn:.1f}")
         st.caption("Tailwind >10 kt or crosswind >30 kt -> NOT AUTHORIZED.")
