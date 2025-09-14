@@ -296,13 +296,12 @@ def compute_takeoff(perfdb: pd.DataFrame,
     elif thrust_mode == "Auto-Select":
         # First, check if MAN (or current flap) at MIL passes §121.189
         asd_mil, agd_mil = distances_for(100.0)
-        # Compute TOD limit for notes
         tora_eff = max(0.0, tora_ft - shorten_ft)
         toda_eff = max(0.0, toda_ft - shorten_ft)
         clearway_allow = min(tora_eff * 0.5, max(0.0, toda_eff - tora_eff))
         tod_limit = tora_eff + clearway_allow
-        ok_mil, req_mil, limiting_mil = field_ok(asd_mil, agd_mil)
-        if ok_mil:
+        mil_ok, req_mil, limiting_mil = field_ok(asd_mil, agd_mil)
+        if mil_ok:
             # Bisection from floor to MIL to find minimum N1 that still passes
             req_floor = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0
             lo, hi = req_floor, 100.0
@@ -315,18 +314,27 @@ def compute_takeoff(perfdb: pd.DataFrame,
                     hi = mid
                 else:
                     lo = mid
-            n1 = round(hi, 1)
+            # add small guard so rounding doesn't flip pass→fail
+            n1 = min(100.0, round(hi + 0.2, 1))
             thrust_text = "DERATE"
+            # Verify result; if solver edge-case fails, fall back to MIL (no flap escalation)
+            asd_chk, agd_chk = distances_for(n1)
+            ok_chk, _, _ = field_ok(asd_chk, agd_chk)
+            ok_chk = ok_chk and compute_oei_second_segment_ok(gw_lbs, n1, flap_deg)
+            if not ok_chk:
+                notes.append("Auto derate landed on an edge; reverting to MAN @ MIL to satisfy §121.189 without changing flaps.")
+                n1 = 100.0
+                thrust_text = "MIL"
         else:
             # MAN@MIL fails → escalate to FULL+MIL (derate prohibited with FULL)
             if flap_deg != 40:
                 notes.append(f"Auto: {flap_text} @ MIL required {max(asd_mil, agd_mil*OEI_AGD_FACTOR):.0f} ft > TOD limit {tod_limit:.0f} ft — escalating to FULL + MIL.")
-            # Recompute with FULL flaps enforced
             return compute_takeoff(perfdb, rwy_heading_deg, tora_ft, toda_ft, asda_ft,
                                    field_elev_ft, slope_pct, shorten_ft,
                                    oat_c, qnh_inhg, wind_speed, wind_dir_deg, wind_units, wind_policy,
                                    gw_lbs, "FULL", "MIL", 100.0)
     elif thrust_mode == "MIL":
+        n1 = 100.0
         n1 = 100.0
         n1 = 100.0
     else:  # AB
