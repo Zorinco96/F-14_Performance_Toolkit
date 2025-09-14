@@ -1,24 +1,5 @@
-# f14_takeoff_app.py — DCS F-14B Takeoff Performance (FAA-style, NATOPS-aware, AB fix, compliance toggle)
-#
-# Requires in repo root (exact case):
-#   • dcs_airports.csv
-#   • f14_perf.csv      # columns: model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft,note
-#
-# Highlights
-# • Compliance toggle: Regulatory (OEI per 14 CFR 121.189) vs AEO Practical (what you see in DCS).
-# • MIL-anchored derate solver + simple OEI climb guardrail.
-# • CSV AGD_ft treated correctly:
-#       - If NATOPS block: AGD_ft already “liftoff to 35 ft”  ➜ no extra liftoff factor.
-#       - Else: AGD_ft is AEO ground roll ➜ convert to liftoff with DA-aware factor.
-# • MAN(20°) synthesized from UP(0°) & FULL(40°): MAN ≈ 0.4*UP + 0.6*FULL (matches hot/high).
-# • AB: use AB table when available; otherwise reduce MIL distances by learned AB/MIL ratio.
-# • DA scaling only outside the CSV grid (avoids double-count).
-# • Flaps Auto: defaults to MAN; escalates to FULL+MIL only if MAN cannot meet limits.
-# • FULL may NOT derate. AB flagged “not authorized” note.
-# • UI: Weather, wind (single entry), runway shorten, weight via Direct or Fuel+Stores.
-# • Outputs: V1/Vr/V2/Vs, Flaps, Thrust (N1), Trim, Stop, Continue (OEI + AEO), Required (per mode), Available, Limiting, Head/Crosswind.
-#
-# NOT FOR REAL-WORLD USE.
+# f14_takeoff_app.py — DCS F-14B Takeoff Performance
+# (FAA-style, NATOPS-aware, AB fixed, V1/Vmcg floor, Vr/V2 sanity, MAN Vr weight-fit)
 
 from __future__ import annotations
 import math
@@ -36,14 +17,26 @@ ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}  # per engine (approx) for O
 
 DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 1.00}  # FULL cannot derate
 
-ALPHA_N1_DIST = 2.0           # distance ∝ 1/(N1^alpha) — realistic derate effect
-AEO_VR_FRAC   = 0.88          # Vr ground roll ≈ 0.88 × AEO liftoff-to-35ft (MAN/UP)
-AEO_VR_FRAC_FULL = 0.82       # crisper Vr fraction for FULL flaps
+ALPHA_N1_DIST = 2.0  # distance ∝ 1/(N1^alpha) — realistic derate effect
 
-OEI_AGD_FACTOR = 1.20         # default; UI can set to 1.15 for DCS-calibrated
-AEO_CAL_FACTOR = 1.00         # keep 1.00; we handle DA conversion explicitly
+# Vr ground-roll fraction of AEO liftoff-to-35 ft (weight-aware for MAN)
+def vr_frac_weighted(gw_lbs: float, flap_deg: int) -> float:
+    if flap_deg == 20:  # MAN: ~0.70 @50k → ~0.42 @70k
+        # Linear fit: 0.70 - 0.014 per 1,000 lb above 50k, clamped
+        frac = 0.70 - max(0.0, (gw_lbs - 50000.0) / 1000.0) * 0.014
+        return float(min(0.72, max(0.40, frac)))
+    if flap_deg == 40:  # FULL: later rotation vs MAN
+        return 0.82
+    return 0.88  # UP (or unknown)
+
+# OEI regulatory scaling (UI can switch 1.20 ↔ 1.15)
+OEI_AGD_FACTOR = 1.20
+AEO_CAL_FACTOR = 1.00  # keep 1.00; DA conversion handled explicitly
 
 WIND_FACTORS = {"None": (1.0, 1.0), "50/150": (0.5, 1.5)}  # headwind credit, tailwind penalty
+
+# V1/Vmcg floors by flap (kt). A small DA/weight add-on is applied.
+V1_FLOOR_BY_FLAP = {0: 130.0, 20: 125.0, 40: 115.0}
 
 # ------------------------------ atmosphere & wind ------------------------------
 def hpa_to_inhg(hpa: float) -> float:
@@ -221,6 +214,7 @@ def _interp_weight_at(sub: pd.DataFrame, pa: float, oat: float, field: str, gw_x
     ys = s[field].values.astype(float)
     if len(xs) < 2:
         return float(ys[0])
+    # linear extrapolation on ends, interpolation inside
     if gw_x <= xs[0]:
         x0, x1 = xs[0], xs[1]; y0, y1 = ys[0], ys[1]
         return float(y0 + (y1 - y0)/(x1 - x0) * (gw_x - x0))
@@ -245,23 +239,27 @@ def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: f
         v00 = _interp_weight_at(sub, pa0, t0, f, gw)
         v01 = _interp_weight_at(sub, pa0, t1, f, gw)
         v10 = _interp_weight_at(sub, pa1, t0, f, gw)
-        v11 = _interp_weight_at(sub, pa1, t1, f, gw)
+        v11 = _interp_weight_at(sub, pa1, f, gw)
         v0  = v00*(1-wt) + v01*wt
         v1  = v10*(1-wt) + v11*wt
         out[f] = v0*(1-wp) + v1*wp
     return out
 
-# ------------------------------ NATOPS detection ------------------------------
+# ------------------------------ NATOPS / MAN detection ------------------------------
 def agd_is_liftoff_mode(perfdb: pd.DataFrame, flap_deg: int, thrust: str) -> bool:
     """
-    Heuristic: if most rows for this (flap, thrust) carry a NATOPS note,
-    assume AGD_ft in the CSV is already 'liftoff to 35 ft' (not ground roll).
+    If rows for this (flap, thrust) are NATOPS-based or 'synth-MAN', treat AGD_ft
+    as 'liftoff to 35 ft' already (do not re-apply a liftoff factor).
     """
     sub = perfdb[(perfdb["flap_deg"] == flap_deg) & (perfdb["thrust"] == thrust)]
     if sub.empty:
         return False
-    mask = sub["note"].astype(str).str.contains("NATOPS", case=False, na=False)
-    return bool(mask.mean() >= 0.5)
+    notes = sub["note"].astype(str).str.upper()
+    if notes.str.contains("NATOPS").mean() >= 0.5:
+        return True
+    if flap_deg == 20 and notes.str.contains("SYNTH-MAN").mean() >= 0.3:
+        return True
+    return False
 
 # ------------------------------ OEI guardrail ------------------------------
 def compute_oei_second_segment_ok(gw_lbs: float, n1pct: float, flap_deg: int) -> bool:
@@ -293,6 +291,38 @@ def parse_wind_entry(entry: str, unit: str) -> Optional[Tuple[float,float]]:
             return None
     return None
 
+# ------------------------------ speed sanity & floors ------------------------------
+def v1_floor_value(vs: float, flap_deg: int, pa_ft: float, oat_c: float, gw_lbs: float) -> float:
+    base = V1_FLOOR_BY_FLAP.get(flap_deg, 125.0)
+    # +DA / +weight bias (max +6 kt)
+    da = density_altitude_ft(pa_ft, oat_c)
+    add_da = max(0.0, (da - 5000.0) / 4000.0) * 3.0  # 0 → +3 kt by ~9000 ft DA
+    add_wt = max(-2.0, min(3.0, (gw_lbs - 60000.0) / 5000.0))  # -2..+3 kt over 50–75k
+    # ensure above Vs by some usable margin
+    return float(max(base + add_da + add_wt, vs + 5.0))
+
+def sanitize_speeds(vs: float, v1: float, vr: float, v2: float,
+                    flap_deg: int, pa_ft: float, oat_c: float, gw_lbs: float) -> Tuple[float,float,float,float]:
+    # Floor Vs lightly to avoid extreme extrapolation at very low GW
+    vs = float(max(110.0, vs))
+
+    # Apply V1/Vmcg floor and keep ordering
+    v1_floor = v1_floor_value(vs, flap_deg, pa_ft, oat_c, gw_lbs)
+    v1 = float(max(v1, v1_floor))
+
+    # Vr and V2 sanity relative to Vs and each other
+    vr_min = max(vs + 10.0, vs * 1.08)
+    vr = float(max(vr, vr_min, v1 + 2.0))  # keep Vr > V1
+
+    v2_min = max(vr + 7.0, vs + 15.0, vs * 1.18)
+    v2 = float(max(v2, v2_min))
+
+    # Final ordering guarantee
+    if not (vs < v1 < vr < v2):
+        vr = max(vr, v1 + 2.0, vs + 12.0)
+        v2 = max(v2, vr + 7.0, vs + 17.0)
+    return vs, v1, vr, v2
+
 # ------------------------------ core data structures ------------------------------
 @dataclass
 class Result:
@@ -315,7 +345,6 @@ def compute_takeoff(perfdb: pd.DataFrame,
 
     # Atmosphere & wind
     pa = pressure_altitude_ft(field_elev_ft, qnh_inhg)
-    da = density_altitude_ft(pa, oat_c)
     spd_kn = wind_speed if wind_units == "kts" else wind_speed * 1.943844
     hw, cw = wind_components(spd_kn, wind_dir_deg, rwy_heading_deg)
 
@@ -332,18 +361,16 @@ def compute_takeoff(perfdb: pd.DataFrame,
     # Which performance slice (for interpolation *and* grid bounds)
     use_flap_for_table = 20 if flap_deg == 0 else flap_deg
 
-    # Check if AB slice exists for this flap
+    # AB table available for this flap?
     has_ab_slice = not perfdb[(perfdb["flap_deg"] == use_flap_for_table) & (perfdb["thrust"] == "AFTERBURNER")].empty
 
     # Choose table thrust:
-    #  • AB only if explicitly selected AND slice exists; otherwise use MIL table
-    #  • Derates always MIL-anchored
     if thrust_mode == "AB" and has_ab_slice:
         table_thrust = "AFTERBURNER"
     else:
         table_thrust = "MILITARY"
 
-    # Bounds used to decide if we’re outside grid (disable DA top-up inside the grid)
+    # Bounds used to decide grid coverage
     sub_bounds = perfdb[(perfdb["flap_deg"] == use_flap_for_table) & (perfdb["thrust"] == table_thrust)]
     if sub_bounds.empty:
         sub_bounds = perfdb[(perfdb["flap_deg"] == use_flap_for_table)]
@@ -351,7 +378,6 @@ def compute_takeoff(perfdb: pd.DataFrame,
         sub_bounds = perfdb[(perfdb["thrust"] == table_thrust)]
     if sub_bounds.empty:
         sub_bounds = perfdb
-
     pa_min = float(sub_bounds["press_alt_ft"].min()); pa_max = float(sub_bounds["press_alt_ft"].max())
     t_min  = float(sub_bounds["oat_c"].min());        t_max  = float(sub_bounds["oat_c"].max())
     outside_grid = (pa < pa_min or pa > pa_max or oat_c < t_min or oat_c > t_max)
@@ -360,19 +386,22 @@ def compute_takeoff(perfdb: pd.DataFrame,
     base = interp_perf(perfdb, use_flap_for_table, table_thrust, float(gw_lbs), float(pa), float(oat_c))
     vs = float(base["Vs_kt"]); v1 = float(base["V1_kt"]); vr = float(base["Vr_kt"]); v2 = float(base["V2_kt"])
 
+    # Apply V1/Vmcg floor + Vr/V2 sanity
+    vs, v1, vr, v2 = sanitize_speeds(vs, v1, vr, v2, flap_deg, pa, oat_c, gw_lbs)
+
     # CSV distances
     asd_base = float(base["ASD_ft"])
     agd_csv  = float(base["AGD_ft"])
 
-    # If the source block is NATOPS-based for this flap/thrust, treat AGD as already 'liftoff to 35 ft'
+    # If NATOPS or synth-MAN: AGD already liftoff-to-35 ft
     agd_already_liftoff = agd_is_liftoff_mode(perfdb, use_flap_for_table, table_thrust)
-
     if agd_already_liftoff:
         agd_aeo_liftoff_base = agd_csv
     else:
-        # Convert ground roll → liftoff-to-35 ft (gentle DA-aware factor; no extra scaling inside grid)
+        # Convert ground roll → liftoff-to-35 ft (gentle DA-aware factor outside grid)
+        da = density_altitude_ft(pa, oat_c)
         liftoff_factor = 1.42 + 0.15 * max(0.0, min(da/8000.0, 1.25))
-        agd_aeo_liftoff_base = agd_csv * liftoff_factor
+        agd_aeo_liftoff_base = agd_csv * (liftoff_factor if outside_grid else 1.42)
 
     # UP penalty vs MAN baseline
     if flap_deg == 0:
@@ -470,9 +499,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
 
     # Final distances (AEO liftoff & ASD)
     asd_fin, agd_aeo_fin = distances_for(n1)
-    # Regulatory OEI continue distance is derived in field_ok when engine_out=True
-
-    # Default to regulatory limiting for auto-flap escalate logic
+    # Regulatory OEI continue distance derived in field_ok when engine_out=True
     ok_reg, req_reg, limiting_reg = field_ok(asd_fin, agd_aeo_fin, engine_out=True)
 
     # Auto-flap escalation if not OK at MAN
@@ -483,9 +510,8 @@ def compute_takeoff(perfdb: pd.DataFrame,
                                gw_lbs, "FULL", "MIL", 100.0)
 
     avail = max(0.0, tora_ft - shorten_ft)
-
-    # Package result (regulatory numbers for req/limiting by default; UI may recompute for AEO mode)
     agd_reg_fin = agd_aeo_fin * OEI_AGD_FACTOR
+
     return Result(
         v1=v1, vr=vr, v2=v2, vs=vs,
         flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
@@ -495,7 +521,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
     )
 
 # ------------------------------ UI ------------------------------
-st.title("DCS F-14B Takeoff — FAA-Based Model (NATOPS-aware, AB fixed)")
+st.title("DCS F-14B Takeoff — FAA-Based Model (NATOPS-aware, AB fixed, V1 floor)")
 
 rwy_db = load_runways()
 perfdb = load_perf()
@@ -663,9 +689,10 @@ if run:
     st.markdown("---")
     st.subheader("All-engines takeoff estimates (for DCS comparison)")
     e1, e2 = st.columns(2)
-    vr_frac = AEO_VR_FRAC_FULL if res.flap_text.upper().startswith("FULL") else AEO_VR_FRAC
+    flap_deg_out = 0 if res.flap_text.upper().startswith("UP") else (40 if res.flap_text.upper().startswith("FULL") else 20)
+    vrf = vr_frac_weighted(float(gw), flap_deg_out)
     with e1:
-        st.metric("Vr ground roll (ft)", f"{res.agd_aeo_liftoff_ft * vr_frac:.0f}")
+        st.metric("Vr ground roll (ft)", f"{res.agd_aeo_liftoff_ft * vrf:.0f}")
     with e2:
         st.metric("Liftoff distance to 35 ft (ft)", f"{res.agd_aeo_liftoff_ft:.0f}")
     st.caption("AEO estimates shown for DCS. Regulatory checks assume an engine-out per 14 CFR 121.189.")
