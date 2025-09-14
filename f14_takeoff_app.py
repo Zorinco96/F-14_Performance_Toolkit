@@ -42,6 +42,39 @@ def _safe_rerun():
         except Exception:
             pass
 # -----------------------------------------------------------------------------
+# ---- Streamlit query params compatibility (new API: st.query_params) --------
+# Use these helpers everywhere instead of experimental_* calls.
+
+def qp_get() -> dict:
+    """Return current query params as a plain dict."""
+    try:
+        # New API (Streamlit ≥ 1.31)
+        return dict(st.query_params)
+    except Exception:
+        # Old API fallback
+        return {k: (v[0] if isinstance(v, list) and len(v) == 1 else v)
+                for k, v in st.experimental_get_query_params().items()}
+
+def qp_set(**kwargs):
+    """Replace the query string with the provided key/values."""
+    try:
+        st.query_params.from_dict(kwargs)   # New API
+    except Exception:
+        st.experimental_set_query_params(**kwargs)  # Fallback
+
+def qp_update(**kwargs):
+    """Update/merge into current query params (preserving others)."""
+    params = qp_get()
+    params.update({k: v for k, v in kwargs.items() if v is not None})
+    qp_set(**params)
+
+def qp_clear():
+    """Clear all query params."""
+    try:
+        st.query_params.clear()  # New API
+    except Exception:
+        st.experimental_set_query_params()  # Fallback clears by setting nothing
+# -----------------------------------------------------------------------------
 
 
 st.set_page_config(page_title="DCS F-14B Takeoff (Pro)", page_icon="✈️", layout="wide")
