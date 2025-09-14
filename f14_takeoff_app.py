@@ -1,4 +1,4 @@
-# f14_takeoff_app.py — DCS F-14B Takeoff Performance (autorun + stability fixes)
+# f14_takeoff_app.py — DCS F-14B Takeoff Performance (autorun + MAN synthesis + manual runway override)
 #
 # Requires (exact case) in repo root:
 #   • dcs_airports.csv
@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 import math
+import re
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -191,7 +192,7 @@ def estimate_ab_multiplier(perfdb: pd.DataFrame, flap_deg: int) -> float:
     # Default if no AB rows at all
     return 0.82
 
-# ------------------------------ interpolation (tri-linear) ------------------------------
+# ------------------------------ interpolation helpers ------------------------------
 def _bounds(vals, x):
     vals = sorted(set(map(float, vals)))
     lo = max([v for v in vals if v <= x], default=vals[0])
@@ -215,11 +216,13 @@ def _interp_weight_at(sub: pd.DataFrame, pa: float, oat: float, field: str, gw_x
         return float(y0 + (y1 - y0)/(x1 - x0) * (gw_x - x0))
     return float(np.interp(gw_x, xs, ys))
 
-def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: float, oat: float):
-    use_flap = 20 if flap_deg == 0 else flap_deg  # UP uses MAN table as base
-    sub = perf[(perf["flap_deg"] == use_flap) & (perf["thrust"] == thrust)]
+def _interp_slice(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: float, oat: float) -> dict:
+    """Interpolate a single flap/thrust slice at (gw, pa, oat).
+       Returns dict with Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft."""
+    sub = perf[(perf["flap_deg"] == flap_deg) & (perf["thrust"] == thrust)]
     if sub.empty:
-        sub = perf[(perf["flap_deg"] == use_flap)]
+        # fallbacks: any thrust for that flap, else any flap with thrust, else whole table
+        sub = perf[(perf["flap_deg"] == flap_deg)]
         if sub.empty:
             sub = perf[(perf["thrust"] == thrust)]
         if sub.empty:
@@ -236,6 +239,28 @@ def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: f
         v1  = v10*(1-wt) + v11*wt
         out[f] = v0*(1-wp) + v1*wp
     return out
+
+def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: float, oat: float):
+    """
+    Interpolate the requested flap/thrust. If MAN(20°) is missing at this condition,
+    synthesize it from UP(0°) and FULL(40°) by blending their *interpolated* values.
+    UP requests still use MAN as the base to avoid unrealistically short distances.
+    """
+    # UP uses MAN table as base
+    flap_req = 20 if flap_deg == 0 else flap_deg
+
+    # If we need MAN and the table is sparse/absent, synthesize from UP & FULL
+    if flap_req == 20 and (perf[(perf["flap_deg"] == 20) & (perf["thrust"] == thrust)].empty):
+        up   = _interp_slice(perf, 0,  thrust, gw, pa, oat)
+        full = _interp_slice(perf, 40, thrust, gw, pa, oat)
+        w_up, w_full = 0.45, 0.55
+        out = {}
+        for f in ["Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]:
+            out[f] = w_up*up[f] + w_full*full[f]
+        return out
+
+    # Normal slice
+    return _interp_slice(perf, flap_req, thrust, gw, pa, oat)
 
 # ------------------------------ NATOPS detection ------------------------------
 def agd_is_liftoff_mode(perfdb: pd.DataFrame, flap_deg: int, thrust: str) -> bool:
@@ -380,7 +405,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
     t_min  = float(sub_bounds["oat_c"].min());        t_max  = float(sub_bounds["oat_c"].max())
     outside_grid = (pa < pa_min or pa > pa_max or oat_c < t_min or oat_c > t_max)
 
-    # Interpolate speeds & base distances
+    # Interpolate speeds & base distances (now MAN synthesis is built-in)
     base = interp_perf(perfdb, use_flap_for_table, table_thrust, float(gw_lbs), float(pa), float(oat_c))
 
     # Pull raw speeds, then enforce floors IMMEDIATELY (prevents NaNs on first render)
@@ -470,9 +495,11 @@ def compute_takeoff(perfdb: pd.DataFrame,
         n1 = float(int(math.ceil(max(floor_pct, target_n1_pct))))  # whole %
         thrust_text = "DERATE" if n1 < 100.0 else "MIL"
     elif thrust_mode == "Auto-Select":
+        # Evaluate MAN @ MIL first (now robust even if MAN is sparse in CSV)
         asd_mil, agd_aeo_mil = distances_for(100.0)
         ok_mil, _, _ = field_ok(asd_mil, agd_aeo_mil, engine_out=True)  # regulatory check for escalation
         if ok_mil:
+            # Find lowest compliant derate
             floor_pct = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90)*100.0
             lo, hi = floor_pct, 100.0
             for _ in range(18):
@@ -540,12 +567,40 @@ with st.sidebar:
     rwy_label = st.selectbox("Runway End", list(df_a["runway_label"]))
     rwy = df_a[df_a["runway_label"] == rwy_label].iloc[0]
 
+    # Base values from the database
     tora_ft = float(rwy["tora_ft"])
     toda_ft = float(rwy["toda_ft"])
     asda_ft = float(rwy["asda_ft"])
     elev_ft = float(rwy["threshold_elev_ft"])
     hdg = float(rwy["heading_deg"])
     slope = float(rwy.get("slope_percent", 0.0) or 0.0)
+
+    # Manual runway override (length in ft or NM, elevation in ft)
+    st.checkbox("Override runway data", value=False, key="rw_override")
+    if st.session_state.rw_override:
+        st.caption("Manual runway override")
+        manual_len_txt = st.text_input("Runway Length (ft or NM)", value="")
+        def _parse_len(txt: str) -> float:
+            t = (txt or "").strip().lower()
+            if not t:
+                return float(rwy["tora_ft"])
+            m = re.search(r"([0-9]+(?:\.[0-9]+)?)", t)
+            if not m:
+                return float(rwy["tora_ft"])
+            val = float(m.group(1))
+            is_nm = ("nm" in t) or (" nmi" in t)
+            feet = val * 6076.12 if is_nm else val
+            return max(0.0, feet)
+
+        manual_elev_ft = st.number_input("Field Elevation (ft)", value=float(elev_ft), step=1.0)
+        length_ft = _parse_len(manual_len_txt)
+
+        # Apply to TORA/TODA/ASDA uniformly (simple & conservative). Shorten will still apply below.
+        tora_ft = float(length_ft)
+        toda_ft = float(length_ft)
+        asda_ft = float(length_ft)
+        elev_ft = float(manual_elev_ft)
+        st.info(f"Override active → TORA/TODA/ASDA set to {tora_ft:.0f} ft, Elev {elev_ft:.0f} ft")
 
     cA, cB = st.columns(2)
     with cA:
