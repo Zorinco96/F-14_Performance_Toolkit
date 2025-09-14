@@ -334,10 +334,12 @@ def compute_takeoff(perfdb: pd.DataFrame,
 
     avail = max(0.0, tora_ft - shorten_ft)
 
-    return Result(v1=v1, vr=vr, v2=v2, vs=vs,
+    return Result(
+                  v1=v1, vr=vr, v2=v2, vs=vs,
                   flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
                   asd_ft=asd_fin, agd_ft=agd_fin, req_ft=req, avail_ft=avail, limiting=limiting,
-                  hw_kn=hw, cw_kn=cw, notes=notes)v1=v1, vr=vr, v2=v2, vs=vs,
+                  hw_kn=hw, cw_kn=cw, notes=notes
+              )v1=v1, vr=vr, v2=v2, vs=vs,
                   flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
                   asd_ft=asd_fin, agd_ft=agd_fin, req_ft=max(asd_fin, agd_fin), avail_ft=avail, limiting=limiting,
                   hw_kn=hw, cw_kn=cw, notes=notes)
