@@ -269,21 +269,35 @@ def compute_takeoff(perfdb: pd.DataFrame,
     flap_text = "MANEUVER" if flap_mode == "Auto-Select" else flap_mode
     flap_deg = 0 if flap_text.upper().startswith("UP") else (40 if flap_text.upper().startswith("FULL") else 20)
 
-    # Baseline interpolation — use MIL for Auto/MIL/Derate; AB only if explicitly selected
+    # Which performance slice (for interpolation AND for grid bounds)
     use_flap_for_table = 20 if flap_deg == 0 else flap_deg
     table_thrust = "AFTERBURNER" if thrust_mode == "AB" else "MILITARY"
+
+    # Build the same fallback chain used by interp to get the slice bounds
+    sub_bounds = perfdb[(perfdb["flap_deg"] == use_flap_for_table) & (perfdb["thrust"] == table_thrust)]
+    if sub_bounds.empty:
+        sub_bounds = perfdb[(perfdb["flap_deg"] == use_flap_for_table)]
+    if sub_bounds.empty:
+        sub_bounds = perfdb[(perfdb["thrust"] == table_thrust)]
+    # If still empty, just use the whole table (shouldn’t happen with your CSV)
+    if sub_bounds.empty:
+        sub_bounds = perfdb
+
+    pa_min = float(sub_bounds["press_alt_ft"].min()); pa_max = float(sub_bounds["press_alt_ft"].max())
+    t_min  = float(sub_bounds["oat_c"].min());        t_max  = float(sub_bounds["oat_c"].max())
+    outside_grid = (pa < pa_min or pa > pa_max or oat_c < t_min or oat_c > t_max)
+
+    # Interpolate baseline speeds & distances at the requested PA/OAT (inside-grid variation comes from CSV only)
     base = interp_perf(perfdb, use_flap_for_table, table_thrust, float(gw_lbs), float(pa), float(oat_c))
+    vs = float(base["Vs_kt"]); v1 = float(base["V1_kt"]); vr = float(base["Vr_kt"]); v2 = float(base["V2_kt"])
 
-    vs = float(base["Vs_kt"]); v1 = float(base["V1_kt"])
-    vr = float(base["Vr_kt"]); v2 = float(base["V2_kt"])
+    # CSV distances: ASD_ft = AEO stop; AGD_ft = AEO ground roll (we convert to liftoff-to-35 ft)
+    asd_base    = float(base["ASD_ft"])
+    agd_gr_base = float(base["AGD_ft"])
 
-    # CSV distances
-    asd_base = float(base["ASD_ft"])                   # AEO accelerate-stop (we keep as “stop” baseline)
-    agd_gr_base = float(base["AGD_ft"])                # AEO ground roll from CSV
-
-    # Convert ground roll → liftoff-to-35 ft with a DA-aware factor:
-    #    factor ≈ 1.40 + 0.20 * clamp(DA/8000, 0..1.5)  → 1.40 at sea level ISA, ~1.55 at DA~5k, cap ~1.70
-    liftoff_factor = 1.40 + 0.20 * max(0.0, min(da/8000.0, 1.5))
+    # Convert ground roll → liftoff-to-35 ft with a gentle DA-aware factor (no extra temp/PA scaling if inside grid)
+    # ~1.45 at ISA SL, ~1.55 around DA ~5k, capped near ~1.70 at very high DA
+    liftoff_factor = 1.45 + 0.20 * max(0.0, min(da/8000.0, 1.25))
     agd_aeo_liftoff_base = agd_gr_base * liftoff_factor
 
     # UP penalty vs MAN baseline
@@ -296,13 +310,14 @@ def compute_takeoff(perfdb: pd.DataFrame,
         notes.append("Derate with FULL flaps not allowed — using MIL for calculation.")
         thrust_mode = "MIL"
 
-    # Distance multiplier from N1 (MIL-anchored)
+    # MIL-anchored N1 multiplier
     def mult_from_n1(n1pct: float) -> float:
         eff = max(0.90, min(1.0, n1pct/100.0))
         return 1.0 / (eff ** ALPHA_N1_DIST)
 
+    # Apply DA top-up ONLY when outside the CSV grid
     def maybe_da_scale(d_ft: float) -> float:
-        if pa > 5000.0 or oat_c > 30.0:
+        if outside_grid:
             return d_ft * da_out_of_grid_scale(pa, oat_c)
         return d_ft
 
@@ -392,6 +407,7 @@ def compute_takeoff(perfdb: pd.DataFrame,
         req_ft=req, avail_ft=avail, limiting=limiting,
         hw_kn=hw, cw_kn=cw, notes=notes
     )
+
 
 # ------------------------------ UI ------------------------------
 st.title("DCS F-14B Takeoff — FAA-Based Model (MIL-anchored)")
