@@ -492,7 +492,8 @@ if run:
         st.metric("Available (ft)", f"{res.avail_ft:.0f}")
         st.metric("Limiting", res.limiting)
         st.metric("Headwind (kt)", f"{res.hw_kn:.1f}")
-        st.metric("Crosswind (kt)", f"{res.cw_kn:.1f}")        st.caption("Tailwind >10 kt or crosswind >30 kt → NOT AUTHORIZED.")
+        st.metric("Crosswind (kt)", f"{res.cw_kn:.1f}")
+        st.caption("Tailwind >10 kt or crosswind >30 kt → NOT AUTHORIZED.")
 
         # --- Compliance banner & margins ---
         tora_eff = max(0.0, float(tora_ft) - float(shorten_total))
