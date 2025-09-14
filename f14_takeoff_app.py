@@ -615,7 +615,7 @@ with st.expander("Data Checker (CSV sanity scan)", expanded=False):
                            file_name="f14_takeoff_matrix.csv", mime="text/csv")
 
     else:
-    st.info("Select fuel/stores (or enter a valid gross weight) to compute performance.")
+        st.info("Select fuel/stores (or enter a valid gross weight) to compute performance.")
 
 # ------------------------------ footer ------------------------------
 st.caption("Wind Policy 50/150: apply 50% of headwind as credit, 150% of tailwind as penalty when adjusting distances. Common airline rule of thumb.")
