@@ -466,7 +466,8 @@ with st.sidebar:
             "Model calibration",
             ["FAA-conservative", "DCS-calibrated"],
             index=1,
-            help="FAA: no AEO calibration; engine-out factor 1.20 (conservative).\nDCS: AEO continue distance ×0.74; engine-out factor 1.15 (tuned to your tests).",
+            help="FAA: no AEO calibration; engine-out factor 1.20 (conservative).
+DCS: AEO continue distance ×0.74; engine-out factor 1.15 (tuned to your tests).",
 DCS: AEO AGD ×0.74; OEI factor 1.15 — tuned to match your 40 °C/70k tests.",
         )
         if calib == "DCS-calibrated":
