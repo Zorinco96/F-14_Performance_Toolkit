@@ -19,6 +19,31 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+# ---- Streamlit rerun compatibility shim --------------------------------------
+# Makes both names available (st.rerun and st.experimental_rerun) on any version,
+# and provides a _safe_rerun() helper you can call anywhere.
+
+# Try to alias whichever exists so BOTH attrs are present
+try:
+    if hasattr(st, "rerun") and not hasattr(st, "experimental_rerun"):
+        st.experimental_rerun = st.rerun
+    elif hasattr(st, "experimental_rerun") and not hasattr(st, "rerun"):
+        st.rerun = st.experimental_rerun
+except Exception:
+    pass
+
+def _safe_rerun():
+    """Call rerun in a version-safe way; swallow if not available."""
+    try:
+        st.rerun()
+    except Exception:
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
+# -----------------------------------------------------------------------------
+
+
 st.set_page_config(page_title="DCS F-14B Takeoff (Pro)", page_icon="✈️", layout="wide")
 
 # ============================= TUNING / CONSTANTS =============================
