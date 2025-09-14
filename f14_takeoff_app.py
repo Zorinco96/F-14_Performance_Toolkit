@@ -2,17 +2,14 @@
 # External file required in repo root (exact case):
 #   • dcs_airports.csv  (runway DB)
 #
-# V11 = V8 feature set + V10 calculation fixes
-# • Tri‑linear interpolation (with safe linear extrapolation) across GW / PA / OAT
+# V11.1 = V11 + derate tightening & guardrails
+# • Tri‑linear interpolation across GW / PA / OAT (hot/high works correctly)
 # • Auto‑flap policy: Auto tries MANEUVER first; escalates to FULL only if needed to meet 121.189
-# • Rule: No reduced‑thrust (DERATE) with FULL flaps (calc auto‑uses MIL in that case)
-# • Derate solver uses interpolated bases (not nearest row)
-# • DCS AEO estimates: Vr & Liftoff (as fraction of Regulatory Required), auto‑cal from N1% or manual sliders
-# • Trim (ANU) estimate from GW & flap shown alongside settings
-# • Weather UI: OAT, QNH (value + units), single wind entry (DIR@SPD) w/ kts or m/s, 50/150 option
-# • Runway: optional "Shorten Available" (ft or NM)
-# • Thrust UI: MIL / DERATE / AB + "Find minimum N1%" button
-# • Model: F‑14B only (no CG/stores, no F‑14D)
+# • Rule: No reduced‑thrust (DERATE) with FULL flaps (auto‑uses MIL in that case)
+# • Derate solver on MIL bases at actual GW/PA/OAT; compute path auto‑raises N1 to the minimum that still meets 121.189
+# • Stronger N1→distance sensitivity (ALPHA_N1_DIST=1.9)
+# • DCS AEO estimates unchanged; UI warns if your selected derate had to be raised
+# • Trim (ANU) estimate from GW & flap
 #
 # DISCLAIMER: Training aid for DCS only. Do NOT use for real‑world flight planning.
 
@@ -84,7 +81,7 @@ F-14B,40,Afterburner,70000,5000,30,126,139,151,163,6000,7500,B_est
 # constants (approximate)
 ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}
 DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 0.95}  # min eff (N1 fraction) by flap
-ALPHA_N1_DIST = 1.12  # non-linear exponent for distance scaling vs N1 (tunable)
+ALPHA_N1_DIST = 1.9  # stronger non-linear distance scaling vs N1
 UP_FLAP_DISTANCE_FACTOR = 1.12  # UP (0°) tends to require more runway vs 20° baseline
 
 # ---------- helpers ----------
@@ -306,9 +303,21 @@ def compute_performance(perfdb: pd.DataFrame, heading_deg: float, tora_ft: float
 
     base_asd = float(vals["ASD_ft"]) ; base_agd = float(vals["AGD_ft"]) ; mult = 1.0
     n1_used_pct = 100.0
+
+    # If DERATE, auto-raise to the minimum N1 that meets 121.189 using MIL bases at the actual conditions
     if effective_thrust == "DERATE":
-        n1_used_pct = enforce_derate_floor(derate_n1_pct, flap_deg)
+        vals_min = interp_perf_values(perfdb, flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c)
+        min_n1 = solve_min_derate_for_121_from_bases(
+            base_asd=float(vals_min["ASD_ft"]), base_agd=float(vals_min["AGD_ft"]),
+            tora_ft=float(tora_ft), toda_ft=float(toda_ft), asda_ft=float(asda_ft),
+            slope_pct=float(slope_pct), headwind_kn=float(headwind), wind_policy=str(wind_policy),
+            flap_deg=int(flap_deg), gw_lbs=float(gw_lbs)
+        )
+        if min_n1 > 100.0:
+            min_n1 = 100.0
+        n1_used_pct = enforce_derate_floor(max(derate_n1_pct, min_n1), flap_deg)
         mult = distance_scale_factor_from_n1(n1_used_pct, flap_deg)
+
     asd_eff = dist_with_adjustments(base_asd * mult, slope_pct, headwind, wind_policy)
     agd_eff = dist_with_adjustments(base_agd * mult, slope_pct, headwind, wind_policy)
 
@@ -373,12 +382,12 @@ def choose_flap_for_limits(perfdb: pd.DataFrame, heading_deg: float, tora_ft: fl
 # ------------------------------
 
 def dcs_vr_factor_from_n1(n1_pct: float) -> float:
-    # ~0.44 @ 96.5%, ~0.56 @ 90%
-    return float(max(0.40, min(0.70, 0.38 + 0.0185 * (100.0 - n1_pct))))
+    # ~0.44 @ 96.5%, ~0.56 @ 90%; users can override in UI
+    return float(max(0.40, min(0.85, 0.38 + 0.0185 * (100.0 - n1_pct))))
 
 def dcs_lo_factor_from_n1(n1_pct: float) -> float:
-    # ~0.65 @ 96.5%, ~0.74–0.78 @ 90%
-    return float(max(0.55, min(0.85, 0.607 + 0.0135 * (100.0 - n1_pct))))
+    # ~0.65 @ 96.5%, ~0.74–0.78 @ 90%; allow up to 1.05
+    return float(max(0.55, min(1.05, 0.607 + 0.0135 * (100.0 - n1_pct))))
 
 # ------------------------------
 # Input parsing helpers (UI)
@@ -461,8 +470,7 @@ with st.sidebar:
             pa_ft = pressure_altitude_ft(float(row_rwy["threshold_elev_ft"]), float(qnh_inhg))
             chosen_flap_for_solver = (flap_sel if flap_sel != "Auto-Select" else "MANEUVER")
             flap_deg_solver = flap_to_deg(chosen_flap_for_solver)
-            table_thrust = "MILITARY"  # bases from MIL
-            vals = interp_perf_values(perfdb, flap_deg_solver, table_thrust, float(gw_lbs), float(pa_ft), float(oat_c))
+            vals = interp_perf_values(perfdb, flap_deg_solver, "MILITARY", float(gw_lbs), float(pa_ft), float(oat_c))
             m = solve_min_derate_for_121_from_bases(
                 base_asd=float(vals["ASD_ft"]), base_agd=float(vals["AGD_ft"]),
                 tora_ft=float(row_rwy["tora_ft"]), toda_ft=float(row_rwy["toda_ft"]), asda_ft=float(row_rwy["asda_ft"]),
@@ -483,8 +491,8 @@ with st.sidebar:
         dcs_lo_factor = dcs_lo_factor_from_n1(n1_for_est)
         st.caption(f"Auto Vr factor ≈ {dcs_vr_factor:.2f}, Liftoff factor ≈ {dcs_lo_factor:.2f}")
     else:
-        dcs_vr_factor = st.slider("Vr factor vs Required", 0.40, 0.70, 0.52, 0.01)
-        dcs_lo_factor = st.slider("Liftoff factor vs Required", 0.55, 0.85, 0.71, 0.01)
+        dcs_vr_factor = st.slider("Vr factor vs Required", 0.40, 0.85, 0.52, 0.01)
+        dcs_lo_factor = st.slider("Liftoff factor vs Required", 0.55, 1.05, 0.71, 0.01)
 
 # compute
 if st.button("Compute Takeoff Performance", type="primary"):
@@ -524,6 +532,10 @@ if st.button("Compute Takeoff Performance", type="primary"):
             st.subheader("DCS Estimates (AEO)")
             st.metric("Vr distance est (ft)", f"{perf.dcs_vr_est_ft:.0f}")
             st.metric("Liftoff dist est (ft)", f"{perf.dcs_lo_est_ft:.0f}")
+
+        # Warn if the solver had to raise your selected derate to meet 121.189
+        if thrust_mode == "DERATE" and perf.n1_used_pct > float(derate_n1_pct) + 0.05:
+            st.warning(f"Derate raised from {float(derate_n1_pct):.1f}% to {perf.n1_used_pct:.1f}% to satisfy 121.189 limits.")
 
         st.markdown("✅ " + ("DISPATCH OK (approx)" if ok else "NOT PERMITTED by 121.189 field limits"))
 
