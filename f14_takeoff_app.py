@@ -404,7 +404,12 @@ with st.sidebar:
     rwy_label = st.selectbox("Runway End", list(df_a["runway_label"]))
     rwy = df_a[df_a["runway_label"] == rwy_label].iloc[0]
 
-    tora_ft = float(rwy["tora_ft"]) ; toda_ft = float(rwy["toda_ft"]) ; asda_ft = float(rwy["asda_ft"]) ; elev_ft = float(rwy["threshold_elev_ft"]) ; hdg = float(rwy["heading_deg"]) ; slope = float(rwy.get("slope_percent", 0.0) or 0.0)
+    tora_ft = float(rwy["tora_ft"]) 
+    toda_ft = float(rwy["toda_ft"]) 
+    asda_ft = float(rwy["asda_ft"]) 
+    elev_ft = float(rwy["threshold_elev_ft"]) 
+    hdg = float(rwy["heading_deg"]) 
+    slope = float(rwy.get("slope_percent", 0.0) or 0.0)
 
     cA, cB = st.columns(2)
     with cA:
@@ -420,7 +425,7 @@ with st.sidebar:
     shorten_total = float(sh_val) if sh_unit == "ft" else float(sh_val) * 6076.12
 
     st.header("Weather")
-    oat_c = st.number_input("OAT ( degC)", value=15.0, step=1.0)
+    oat_c = st.number_input("OAT (C)", value=15.0, step=1.0)
     qnh_val = st.number_input("QNH value", value=29.92, step=0.01, format="%.2f")
     qnh_unit = st.selectbox("QNH Units", ["inHg", "hPa"], index=0)
     qnh_inhg = float(qnh_val) if qnh_unit == "inHg" else hpa_to_inhg(float(qnh_val))
@@ -443,9 +448,9 @@ with st.sidebar:
         empty_w = st.number_input("Empty weight (lb)", min_value=38000.0, max_value=46000.0, value=41780.0, step=50.0)
         fuel_lb = st.number_input("Internal fuel (lb)", min_value=0.0, max_value=20000.0, value=8000.0, step=100.0)
         ext_tanks = st.selectbox("External tanks (267 gal)", [0,1,2], index=0)
-        aim9 = st.slider("AIM‑9 count", 0, 2, 0)
-        aim7 = st.slider("AIM‑7 count", 0, 4, 0)
-        aim54 = st.slider("AIM‑54 count", 0, 6, 0)
+        aim9 = st.slider("AIM-9 count", 0, 2, 0)
+        aim7 = st.slider("AIM-7 count", 0, 4, 0)
+        aim54 = st.slider("AIM-54 count", 0, 6, 0)
         lantirn = st.checkbox("LANTIRN pod")
         wcalc = empty_w + fuel_lb + ext_tanks*1900 + aim9*190 + aim7*510 + aim54*1000 + (440 if lantirn else 0)
         gw = st.number_input("Computed GW (editable)", min_value=40000.0, max_value=80000.0, value=float(wcalc), step=10.0)
