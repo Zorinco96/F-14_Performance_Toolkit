@@ -57,7 +57,7 @@ ALPHA_N1_DIST = 1.55                                   # distance ∝ 1/(N1^alph
 UP_FLAP_DISTANCE_FACTOR = 1.06                          # extra penalty beyond CL diff when using UP
 OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate‑go penalty vs AEO
 AEO_CAL_FACTOR = 1.00                                    # AEO AGD calibration (1.00 = FAA; <1 = DCS-cal)
-AEO_VR_FRAC = 0.78                                        # Vr ground roll ≈ 78% of liftoff (AEO)
+AEO_VR_FRAC = 0.80                                        # Vr ground roll ≈ 78% of liftoff (AEO)
 
 # ------------------------------ helpers: atmosphere / wind ------------------------------
 
@@ -470,7 +470,7 @@ with st.sidebar:
     with st.expander("Advanced / Calibration", expanded=False):
         calib = st.radio("Model calibration", ["FAA-conservative", "DCS-calibrated"], index=1, help="FAA: no all-engines calibration; engine-out factor 1.20 (conservative). DCS: all-engines continue distance x0.74; engine-out factor 1.15 (tuned to your tests).")
         if calib == "DCS-calibrated":
-            AEO_CAL = 0.74
+            AEO_CAL = 0.85
             OEI_FAC = 1.15
         else:
             AEO_CAL = 1.00
