@@ -467,16 +467,18 @@ with st.sidebar:
             ["FAA-conservative", "DCS-calibrated"],
             index=1,
             help="FAA: no all-engines calibration; engine-out factor 1.20 (conservative). DCS: all-engines continue distance x0.74; engine-out factor 1.15 (tuned to your tests).",
-DCS: AEO AGD x0.74; OEI factor 1.15 - tuned to match your 40  degC/70k tests.",
         )
         if calib == "DCS-calibrated":
-            globals()["AEO_CAL_FACTOR"] = 0.74
-            globals()["OEI_AGD_FACTOR"] = 1.15
+            AEO_CAL = 0.74
+            OEI_FAC = 1.15
         else:
-            globals()["AEO_CAL_FACTOR"] = 1.00
-            globals()["OEI_AGD_FACTOR"] = 1.20
+            AEO_CAL = 1.00
+            OEI_FAC = 1.20
+        globals()["AEO_CAL_FACTOR"] = AEO_CAL
+        globals()["OEI_AGD_FACTOR"] = OEI_FAC
 
 run = st.button("Compute Takeoff Performance", type="primary")
+"Compute Takeoff Performance", type="primary")
 
 if run:
     res = compute_takeoff(perfdb,
