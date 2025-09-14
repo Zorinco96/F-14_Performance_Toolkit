@@ -1,22 +1,24 @@
-# f14_takeoff_app.py - DCS F‑14B Takeoff Performance (FAA‑style model)
+# f14_takeoff_app.py — DCS F-14B Takeoff Performance (FAA-style model, MIL-anchored derates)
 #
-# EXPECTS in repo root (exact case):
-#   • dcs_airports.csv  - runway DB with: map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,slope_percent(optional)
+# External data files expected in repo root (exact case):
+#   • dcs_airports.csv  (runway DB with: map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,slope_percent(optional))
+#   • f14_perf.csv      (performance grid with columns: model,flap_deg,thrust,gw_lbs,press_alt_ft,oat_c,Vs_kt,V1_kt,Vr_kt,V2_kt,ASD_ft,AGD_ft,note)
 #
-# Key features
-# • FAA 14 CFR 121.189 field‑length checks (ASD ≤ ASDA; TOD ≤ TORA + clearway_cap; TOR ≤ TORA; clearway credit ≤ 50% TORA).
-# • Tri‑linear interpolation of MIL baseline performance over GW / Press Alt / OAT.
-# • Thrust derate solver (bisection) finds MIN N1% (MIL scale) that satisfies §121.189 (+ simple OEI climb guardrail).
-# • Density‑altitude correction when outside the table (PA>5000 ft or OAT>30  degC) via density ratio scaling.
-# • Flaps: UP / MANEUVER / FULL / Auto‑Select (defaults to MAN; escalates to FULL only if MAN can’t meet limits). No derate with FULL.
-# • Thrust: Auto‑Select / Manual Derate / MIL / AB (AB warned as not authorized). Manual Derate enforces flap‑based floor.
-# • Weather: OAT ( degC), QNH (inHg or hPa), single wind entry (DIR@SPD) with units (kts or m/s) and policy (None or 50/150).
-# • Runway: auto‑populate from dcs_airports.csv, single “Shorten Available Runway” input (ft or NM).
-# • Weight: Direct GW, or Fuel + Stores builder (AIM‑9/7/54, LANTIRN, external tanks) -> editable computed GW.
-# • Outputs: V1/Vr/V2/Vs, flap/thrust/N1, Trim (ANU), ASD/AGD/Required/Available/limiting, headwind & crosswind, policy notes.
+# Highlights
+# • 14 CFR 121.189 checks: ASD ≤ ASDA, OEI continue ≤ TORA+(≤50% TORA clearway), and ≤ TODA.
+# • MIL-anchored derate solver (bisection) finds MIN N1% that passes regulatory limits + OEI climb guardrail.
+# • Treat CSV AGD_ft as AEO ground roll; convert to AEO liftoff-to-35ft via LIFTOFF_FACTOR, then apply OEI penalty for regulatory checks.
+# • Density-altitude scaling outside the grid (PA>5k ft or OAT>30 °C).
+# • Flaps: Auto-Select (defaults to MAN), UP, MANEUVER (20°), FULL (40°). FULL may NOT be derated.
+# • Thrust: Auto-Select, Manual Derate (whole-% N1), MIL, AB (AB not authorized—shows warning).
+# • Weather: OAT (°C), QNH (inHg or hPa), Wind (DDD@SS in kts or m/s) with policy (None or 50/150). Tailwind>10 kt / Xwind>30 kt → NOT AUTHORIZED note.
+# • Weight: Direct GW or Fuel + Stores builder; editable computed GW.
+# • Outputs: V1/Vr/V2/Vs, flaps, thrust w/ N1, trim (ANU), Stop distance, Continue distance (engine-out, regulatory), Required runway, Available runway, limiting factor.
+# • All-engines takeoff estimates (Vr ground roll & liftoff distance) shown separately for DCS comparison.
 #
-# DISCLAIMER: Training aid for DCS only - NOT for real‑world flight planning.
+# DISCLAIMER: Training aid for DCS only — NOT for real-world flight planning.
 
+from __future__ import annotations
 import math
 from dataclasses import dataclass
 from io import StringIO
@@ -26,43 +28,46 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="DCS F‑14B Takeoff (FAA Model)", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="DCS F-14B Takeoff (FAA Model)", page_icon="✈️", layout="wide")
 
-# ------------------------------
-# Embedded (minimal) F‑14B baseline grid (MAN/FULL @ MIL/AB). Distances are placeholders tuned for DCS plausibility.
-# ------------------------------
-# External performance CSV (do not embed to avoid data loss on updates)
-PERF_CSV_PATHS = ["f14_perf.csv", "data/f14_perf.csv"]
+# ------------------------------ tuning constants ------------------------------
+# Per-engine approximate thrust (not used directly in distances; used in OEI guardrail heuristic)
+ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}
 
-# ------------------------------ constants / tuning ------------------------------
-ENGINE_THRUST_LBF = {"MIL": 16333.0, "AB": 26950.0}  # per engine, uninstalled (approx)
-DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 1.00}   # FULL may not be derated
-ALPHA_N1_DIST = 1.55                                   # distance ∝ 1/(N1^alpha) - tightened for hot/high
-UP_FLAP_DISTANCE_FACTOR = 1.06                          # extra penalty beyond CL diff when using UP
-OEI_AGD_FACTOR = 1.20                                   # regulatory OEI accelerate-go penalty vs AEO
-AB_ASD_SCALE = 0.88                                      # when AB table missing, ASD scaled vs MIL
-AB_AGD_SCALE = 0.83                                      # when AB table missing, AGD scaled vs MIL
-AEO_CAL_FACTOR = 1.00                                    # AEO AGD calibration (1.00 = FAA; <1 = DCS-cal)
-AEO_VR_FRAC = 0.66                                        # Vr ground roll ≈ 78% of liftoff (AEO)
+# FULL flaps cannot be derated; UP/MAN may derate to 90% N1 floor
+DERATE_FLOOR_BY_FLAP = {0: 0.90, 20: 0.90, 40: 1.00}
+
+# Distance sensitivity to N1 derate (stronger than before)
+ALPHA_N1_DIST = 2.0
+
+# Treat CSV AGD_ft as AEO ground roll; convert to AEO liftoff-to-35ft by this factor
+LIFTOFF_FACTOR = 2.15
+
+# Regulatory engine-out continue penalty vs AEO liftoff distance (toggle in Advanced)
+OEI_AGD_FACTOR = 1.20  # set to 1.15 for DCS-calibrated behavior
+
+# Optional global AEO calibration (keep 1.00 when using LIFTOFF_FACTOR)
+AEO_CAL_FACTOR = 1.00
+
+# AEO Vr ground-roll fraction relative to AEO liftoff distance (for display only)
+AEO_VR_FRAC = 0.78
+
+# Wind policy factors (headwind credit, tailwind penalty)
+WIND_FACTORS = {"None": (1.0, 1.0), "50/150": (0.5, 1.5)}
 
 # ------------------------------ helpers: atmosphere / wind ------------------------------
-
 def hpa_to_inhg(hpa: float) -> float:
     return hpa * 0.0295299830714
-
 
 def pressure_altitude_ft(field_elev_ft: float, qnh_inhg: float) -> float:
     return float(field_elev_ft + (29.92 - qnh_inhg) * 1000.0)
 
-
 def isa_temp_c_at_ft(h_ft: float) -> float:
     return 15.0 - 1.98 * (h_ft / 1000.0)
 
-
 def density_altitude_ft(pa_ft: float, oat_c: float) -> float:
-    # FAA approximation: DA ≈ PA + 120 x (OAT − ISA)
+    # FAA approximation: DA ≈ PA + 120 × (OAT − ISA)
     return float(pa_ft + 120.0 * (oat_c - isa_temp_c_at_ft(pa_ft)))
-
 
 def sigma_from_da(da_ft: float) -> float:
     # ISA troposphere density ratio
@@ -74,9 +79,8 @@ def sigma_from_da(da_ft: float) -> float:
     rho = p/(R*T)
     return float(rho/rho0)
 
-
 def da_out_of_grid_scale(pa_ft: float, oat_c: float) -> float:
-    """Outside the grid (PA>5000 or OAT>30), upscale distances by density ratio vs a clamped ref (≤5000 ft, ≤30  degC)."""
+    """Outside the grid (PA>5000 or OAT>30), upscale distances by density ratio vs a clamped ref (≤5000 ft, ≤30 °C)."""
     da_act = density_altitude_ft(pa_ft, oat_c)
     da_ref = density_altitude_ft(min(pa_ft, 5000.0), min(oat_c, 30.0))
     sig_act = sigma_from_da(da_act)
@@ -84,20 +88,16 @@ def da_out_of_grid_scale(pa_ft: float, oat_c: float) -> float:
     BETA = 0.85  # tuning knob: 0.6–0.9 reasonable
     return (sig_ref / max(1e-6, sig_act)) ** BETA
 
-
 def wind_components(speed_kn: float, dir_deg: float, rwy_heading_deg: float) -> Tuple[float, float]:
-    delta = math.radians((dir_deg - rwy_heading_deg) % 360)
-    hw = speed_kn * math.cos(delta)
-    cw = speed_kn * math.sin(delta)
+    # dir is FROM direction
+    delta = math.radians((dir_deg - rwy_heading_deg) % 360.0)
+    hw = speed_kn * math.cos(delta)   # headwind (+) / tailwind (−)
+    cw = speed_kn * math.sin(delta)   # crosswind component (signed)
     return hw, cw
-
-# Wind policy: headwind credit / tailwind penalty factors
-WIND_FACTORS = {"None": (1.0, 1.0), "50/150": (0.5, 1.5)}
-
 
 def apply_wind_slope(distance_ft: float, slope_pct: float, headwind_kn: float, policy: str) -> float:
     d = float(distance_ft)
-    # conservative slope: +20% per +1% uphill (downhill ignored)
+    # conservative slope: +20% per +1% uphill (ignore downhill credit)
     if slope_pct > 0:
         d *= (1.0 + 0.20 * slope_pct)
     head_fac, tail_fac = WIND_FACTORS.get(policy, (1.0, 1.0))
@@ -108,7 +108,6 @@ def apply_wind_slope(distance_ft: float, slope_pct: float, headwind_kn: float, p
     return max(d, 0.0)
 
 # ------------------------------ loaders ------------------------------
-
 @st.cache_data
 def load_runways() -> pd.DataFrame:
     for path in ["dcs_airports.csv", "data/dcs_airports.csv"]:
@@ -118,89 +117,31 @@ def load_runways() -> pd.DataFrame:
             return df
         except Exception:
             continue
-    st.error("dcs_airports.csv not found in repo.")
+    st.error("dcs_airports.csv not found in repo root.")
     st.stop()
-
-# Build MAN (20 deg) from UP (0) and FULL (40) if missing to ensure complete flap set
-
-def synthesize_maneuver_from_up_full(df: pd.DataFrame) -> pd.DataFrame:
-    up = df[(df["flap_deg"] == 0) & (df["thrust"].astype(str).str.upper() == "MILITARY")]
-    fu = df[(df["flap_deg"] == 40) & (df["thrust"].astype(str).str.upper() == "MILITARY")]
-    keys = ["gw_lbs", "press_alt_ft", "oat_c"]
-    merged = pd.merge(up, fu, on=keys, suffixes=("_up", "_full"))
-    if merged.empty:
-        return df
-    w_full = 0.55
-    w_up = 1.0 - w_full
-    rows = []
-    for _, r in merged.iterrows():
-        vr = w_up * float(r["Vr_kt_up"]) + w_full * float(r["Vr_kt_full"])
-        v2 = vr + 13.0
-        vs = v2 / 1.2
-        v1 = max(120.0, vr - 9.0)
-        agd = w_up * float(r["AGD_ft_up"]) + w_full * float(r["AGD_ft_full"])
-        asd = 0.85 * agd
-        rows.append(dict(
-            model="F-14B", flap_deg=20, thrust="MILITARY",
-            gw_lbs=float(r["gw_lbs"]), press_alt_ft=float(r["press_alt_ft"]), oat_c=float(r["oat_c"]),
-            Vs_kt=round(vs), V1_kt=round(v1), Vr_kt=round(vr), V2_kt=round(v2),
-            ASD_ft=round(asd), AGD_ft=round(agd), note="SYNTH-MAN(0.45UP+0.55FULL)"
-        ))
-    return pd.concat([df, pd.DataFrame(rows)], ignore_index=True)
 
 @st.cache_data
 def load_perf() -> pd.DataFrame:
-    base = None
-    for path in PERF_CSV_PATHS:
-        try:
-            base = pd.read_csv(path, comment="#")
-            break
-        except Exception:
-            continue
-    if base is None or base.empty:
-        st.error("f14_perf.csv not found. Place it at repo root or in /data.")
+    try:
+        df = pd.read_csv("f14_perf.csv", comment="#")
+    except Exception as e:
+        st.error("f14_perf.csv not found in repo root.")
         st.stop()
+    # Normalize types & labels
+    df["thrust"] = df["thrust"].astype(str).str.upper().replace({"MIL": "MILITARY", "AB": "AFTERBURNER"})
+    num_cols = ["flap_deg","gw_lbs","press_alt_ft","oat_c","Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]
+    for c in num_cols:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna(subset=["flap_deg","gw_lbs","press_alt_ft","oat_c","Vr_kt","ASD_ft","AGD_ft"])
+    return df
 
-    # Normalize columns and types
-    required = ["model","flap_deg","thrust","gw_lbs","press_alt_ft","oat_c","Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]
-    missing = [c for c in required if c not in base.columns]
-    if missing:
-        st.error("f14_perf.csv missing columns: " + ", ".join(missing))
-        st.stop()
-
-    base["thrust"] = base["thrust"].astype(str).str.upper().replace({"MIL": "MILITARY", "AB": "AFTERBURNER"})
-    numeric_cols = ["flap_deg","gw_lbs","press_alt_ft","oat_c","Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]
-    for c in numeric_cols:
-        base[c] = pd.to_numeric(base[c], errors="coerce")
-
-    # Derive speeds if any missing
-    if base["V2_kt"].isna().any():
-        base.loc[base["V2_kt"].isna(), "V2_kt"] = base["Vr_kt"] + 13.0
-    if base["V1_kt"].isna().any():
-        base.loc[base["V1_kt"].isna(), "V1_kt"] = base["Vr_kt"] - 9.0
-    if base["Vs_kt"].isna().any():
-        base.loc[base["Vs_kt"].isna(), "Vs_kt"] = base["V2_kt"] / 1.2
-
-    # Round to integers for cleaner display and interpolation stability
-    for c in ["Vs_kt","V1_kt","Vr_kt","V2_kt","ASD_ft","AGD_ft"]:
-        base[c] = base[c].astype(float).round(0)
-
-    # Ensure MANEUVER exists; synthesize if not provided
-    if not (base["flap_deg"] == 20).any():
-        base = synthesize_maneuver_from_up_full(base)
-        st.info("MANEUVER flap data synthesized from UP/FULL in memory (0.45UP + 0.55FULL).")
-
-    return base
-
-# ------------------------------ interpolation (tri‑linear over GW/PA/OAT) ------------------------------
-
+# ------------------------------ interpolation (tri-linear over GW/PA/OAT) ------------------------------
 def _bounds(vals, x):
     vals = sorted(set(map(float, vals)))
     lo = max([v for v in vals if v <= x], default=vals[0])
     hi = min([v for v in vals if v >= x], default=vals[-1])
     w = 0.0 if hi == lo else (x - lo) / (hi - lo)
     return lo, hi, w
-
 
 def _interp_weight_at(sub: pd.DataFrame, pa: float, oat: float, field: str, gw_x: float) -> float:
     s = sub[(sub["press_alt_ft"] == pa) & (sub["oat_c"] == oat)].sort_values("gw_lbs")
@@ -218,12 +159,15 @@ def _interp_weight_at(sub: pd.DataFrame, pa: float, oat: float, field: str, gw_x
         return float(y0 + (y1 - y0)/(x1 - x0) * (gw_x - x0))
     return float(np.interp(gw_x, xs, ys))
 
-
 def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: float, oat: float):
-    use_flap = 20 if flap_deg == 0 else flap_deg  # UP uses MAN table as base
+    # For UP (0°), use MAN (20°) table as base
+    use_flap = 20 if flap_deg == 0 else flap_deg
     sub = perf[(perf["flap_deg"] == use_flap) & (perf["thrust"] == thrust)]
     if sub.empty:
-        sub = perf[perf["flap_deg"] == use_flap]
+        # fallback: same flap, any thrust (rare), or same thrust, any flap
+        sub = perf[(perf["flap_deg"] == use_flap)]
+        if sub.empty:
+            sub = perf[(perf["thrust"] == thrust)]
     pa0, pa1, wp = _bounds(sub["press_alt_ft"].unique(), pa)
     t0,  t1,  wt = _bounds(sub["oat_c"].unique(),        oat)
     out = {}
@@ -237,220 +181,24 @@ def interp_perf(perf: pd.DataFrame, flap_deg: int, thrust: str, gw: float, pa: f
         out[f] = v0*(1-wp) + v1*wp
     return out
 
-# ------------------------------ core scaling & solver ------------------------------
-
-def derate_floor_pct(flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float) -> float:
-    """Adaptive derate floor (as % N1) that tightens in heavy / hot-high conditions.
-    - Base: by flap (FULL=100%, MAN/UP=90%).
-    - If very heavy and hot (>=72k lb and OAT>=35 C), floor -> max(95%).
-    - Else if density altitude >= 6000 ft, floor -> max(93%).
-    """
-    base = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0
-    da = density_altitude_ft(pa_ft, oat_c)
-    if gw_lbs >= 72000.0 and oat_c >= 35.0:
-        base = max(base, 95.0)
-    elif da >= 6000.0:
-        base = max(base, 93.0)
-    return float(base)
-
-def enforce_derate_floor(n1pct: float, flap_deg: int) -> float:
-    return max(n1pct, DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90) * 100.0)
-
-
-def distance_scale_from_n1(n1pct: float, flap_deg: int) -> float:
-    n1pct = enforce_derate_floor(n1pct, flap_deg)
-    eff = max(0.90, min(1.0, n1pct/100.0))
-    return 1.0 / (eff ** ALPHA_N1_DIST)
-
-
+# ------------------------------ OEI climb guardrail ------------------------------
 def compute_oei_second_segment_ok(gw_lbs: float, n1pct: float, flap_deg: int) -> bool:
-    # Very simple OEI guardrail to avoid unrealistically deep derates
+    # Very simple guardrail to avoid unrealistically deep derates
+    # gradient ≈ T/W − D/W ; demand ~ 2.4% (121.189(b))
     drag_over_w = {0: 0.06, 20: 0.08, 40: 0.10}.get(flap_deg, 0.08)
-    t_oei = ENGINE_THRUST_LBF["MIL"] * (n1pct/100.0)  # MIL‑scaled per‑engine
+    t_oei = ENGINE_THRUST_LBF["MIL"] * (n1pct/100.0)  # MIL-scaled per-engine
     t_over_w = t_oei / max(gw_lbs, 1.0)
     gradient_net = t_over_w - drag_over_w
     return gradient_net >= 0.024
 
-
-@dataclass
-class Result:
-    v1: float; vr: float; v2: float; vs: float
-    flap_text: str; thrust_text: str; n1_pct: float
-    asd_ft: float; agd_ft: float; req_ft: float; avail_ft: float; limiting: str
-    hw_kn: float; cw_kn: float; notes: list
-
-
-def compute_takeoff(perfdb: pd.DataFrame,
-                    rwy_heading_deg: float, tora_ft: float, toda_ft: float, asda_ft: float,
-                    field_elev_ft: float, slope_pct: float, shorten_ft: float,
-                    oat_c: float, qnh_inhg: float,
-                    wind_speed: float, wind_dir_deg: float, wind_units: str, wind_policy: str,
-                    gw_lbs: float,
-                    flap_mode: str,
-                    thrust_mode: str,
-                    target_n1_pct: float) -> Result:
-    """Compute takeoff performance and regulatory compliance."""
-    # Atmosphere & wind
-    pa = pressure_altitude_ft(field_elev_ft, qnh_inhg)
-    spd_kn = wind_speed if wind_units == "kts" else wind_speed * 1.943844
-    hw, cw = wind_components(spd_kn, wind_dir_deg, rwy_heading_deg)
-
-    notes: list[str] = []
-    if hw < -10.0:
-        notes.append("Tailwind component exceeds 10 kt - NOT AUTHORIZED.")
-    if abs(cw) > 30.0:
-        notes.append("Crosswind component exceeds 30 kt - NOT AUTHORIZED.")
-
-    # Flaps (auto favors MAN)
-    flap_text = "MANEUVER" if flap_mode == "Auto-Select" else flap_mode
-    flap_deg = 0 if flap_text.upper().startswith("UP") else (40 if flap_text.upper().startswith("FULL") else 20)
-
-    # Baseline (MIL unless AB explicitly picked)
-    # Determine thrust table; if AB rows missing in CSV, fall back to MIL and apply AB scaling later
-    use_flap_for_table = 20 if flap_deg == 0 else flap_deg
-    has_ab_rows = not perfdb[(perfdb["flap_deg"] == use_flap_for_table) & (perfdb["thrust"] == "AFTERBURNER")].empty
-    table_thrust = "AFTERBURNER" if (thrust_mode == "AB" and has_ab_rows) else "MILITARY"
-    base = interp_perf(perfdb, use_flap_for_table, table_thrust, float(gw_lbs), float(pa), float(oat_c))
-
-    vs = float(base["Vs_kt"]) ; v1 = float(base["V1_kt"]) ; vr = float(base["Vr_kt"]) ; v2 = float(base["V2_kt"]) 
-    asd_base = float(base["ASD_ft"]) ; agd_base = float(base["AGD_ft"]) 
-
-    # UP: extra penalty to distances relative to MAN base
-    if flap_deg == 0:
-        asd_base *= UP_FLAP_DISTANCE_FACTOR
-        agd_base *= UP_FLAP_DISTANCE_FACTOR
-
-    # Derate logic: FULL flaps cannot derate
-    if flap_deg == 40 and thrust_mode in ("Auto-Select", "DERATE", "Manual Derate"):
-        notes.append("Derate with FULL flaps not allowed - using MIL for calculation.")
-        thrust_mode = "MIL"
-
-    def distances_for(n1pct: float) -> tuple[float, float]:
-        mult = distance_scale_from_n1(n1pct, flap_deg)
-        asd = apply_wind_slope(asd_base * mult, slope_pct, hw, wind_policy)
-        agd = apply_wind_slope(agd_base * mult, slope_pct, hw, wind_policy)
-        # Density‑altitude scale if outside the grid
-        if pa > 5000.0 or oat_c > 30.0:
-            da_scale = da_out_of_grid_scale(pa, oat_c)
-            asd *= da_scale
-            agd *= da_scale
-        # DCS AEO calibration (optional via sidebar)
-        agd *= AEO_CAL_FACTOR
-        # If AB selected and no AB rows in CSV, apply heuristic AB scaling
-        if thrust_mode == "AB" and not has_ab_rows:
-            asd *= AB_ASD_SCALE
-            agd *= AB_AGD_SCALE
-        return asd, agd
-
-    def field_ok(asd_eff: float, agd_eff: float) -> tuple[bool, float, str]:
-        # Apply intersection/shorten to declared distances
-        tora_eff = max(0.0, tora_ft - shorten_ft)
-        toda_eff = max(0.0, toda_ft - shorten_ft)
-        asda_eff_lim = max(0.0, asda_ft - shorten_ft)
-
-        # Clearway credit capped at 50% of available runway length
-        clearway_allow = min(tora_eff * 0.5, max(0.0, toda_eff - tora_eff))
-        tod_limit = tora_eff + clearway_allow
-
-        # Regulatory OEI accelerate‑go distance to 35 ft
-        agd_reg = agd_eff * OEI_AGD_FACTOR
-
-        # Required distance and pass/fail
-        req = max(asd_eff, agd_reg)
-        ok = (asd_eff <= asda_eff_lim) and (agd_reg <= tod_limit) and (agd_reg <= toda_eff)
-        limiting = "ASD" if asd_eff >= agd_reg else "AGD (OEI)"
-        return ok, req, limiting
-
-    n1 = 100.0
-    thrust_text = thrust_mode
-
-    # Manual Derate uses the exact user-selected N1% (no solver)
-    if thrust_mode == "DERATE":
-        n1 = enforce_derate_floor(target_n1_pct, flap_deg)
-        thrust_text = "DERATE"
-    # Auto-Select searches for MIN N1% with current flap; only if MAN@MIL fails do we escalate to FULL+MIL
-    elif thrust_mode == "Auto-Select":
-        # First, check if MAN (or current flap) at MIL passes §121.189
-        asd_mil, agd_mil = distances_for(100.0)
-        tora_eff = max(0.0, tora_ft - shorten_ft)
-        toda_eff = max(0.0, toda_ft - shorten_ft)
-        clearway_allow = min(tora_eff * 0.5, max(0.0, toda_eff - tora_eff))
-        tod_limit = tora_eff + clearway_allow
-        mil_ok, req_mil, limiting_mil = field_ok(asd_mil, agd_mil)
-        if mil_ok:
-            # Bisection from floor to MIL to find minimum N1 that still passes
-            req_floor = derate_floor_pct(flap_deg, float(gw_lbs), float(pa), float(oat_c))
-            lo, hi = req_floor, 100.0
-            for _ in range(18):
-                mid = (lo + hi) / 2.0
-                asd_m, agd_m = distances_for(mid)
-                ok_m, _, _ = field_ok(asd_m, agd_m)
-                ok_m = ok_m and compute_oei_second_segment_ok(gw_lbs, mid, flap_deg)
-                if ok_m:
-                    hi = mid
-                else:
-                    lo = mid
-            # add small guard so rounding doesn't flip pass->fail
-            n1 = min(100.0, round(hi + 0.2, 1))
-            thrust_text = "MIL" if n1 >= 99.9 else "DERATE"
-            # Verify result; if solver edge-case fails, fall back to MIL (no flap escalation)
-            asd_chk, agd_chk = distances_for(n1)
-            ok_chk, _, _ = field_ok(asd_chk, agd_chk)
-            ok_chk = ok_chk and compute_oei_second_segment_ok(gw_lbs, n1, flap_deg)
-            if not ok_chk:
-                notes.append("Auto derate landed on an edge; reverting to MAN @ MIL to satisfy §121.189 without changing flaps.")
-                n1 = 100.0
-                thrust_text = "MIL"
-        else:
-            # MAN@MIL fails -> escalate to FULL+MIL (derate prohibited with FULL)
-            if flap_deg != 40:
-                notes.append(f"Auto: {flap_text} @ MIL required {max(asd_mil, agd_mil*OEI_AGD_FACTOR):.0f} ft > TOD limit {tod_limit:.0f} ft - escalating to FULL + MIL.")
-            return compute_takeoff(perfdb, rwy_heading_deg, tora_ft, toda_ft, asda_ft,
-                                   field_elev_ft, slope_pct, shorten_ft,
-                                   oat_c, qnh_inhg, wind_speed, wind_dir_deg, wind_units, wind_policy,
-                                   gw_lbs, "FULL", "MIL", 100.0)
-    elif thrust_mode == "MIL":
-        n1 = 100.0
-        n1 = 100.0
-        n1 = 100.0
-    else:  # AB
-        n1 = 100.0
-        notes.append("Afterburner selected - NOT AUTHORIZED for F‑14B except as last resort.")
-
-    # Round N1 to next 1% for gauge resolution (and use that for compliance)
-    n1_cmd = math.ceil(n1)
-    if n1_cmd != n1:    n1 = float(n1_cmd)
-
-    # Final distances and compliance
-    asd_fin, agd_fin = distances_for(n1)
-    ok, req, limiting = field_ok(asd_fin, agd_fin)
-
-    # If Auto‑flap and not OK at MAN, escalate once to FULL+MIL
-    if flap_mode == "Auto-Select" and not ok and flap_deg != 40:
-        return compute_takeoff(perfdb, rwy_heading_deg, tora_ft, toda_ft, asda_ft,
-                               field_elev_ft, slope_pct, shorten_ft,
-                               oat_c, qnh_inhg, wind_speed, wind_dir_deg, wind_units, wind_policy,
-                               gw_lbs, "FULL", "MIL", 100.0)
-
-    avail = max(0.0, tora_ft - shorten_ft)
-
-    return Result(
-        v1=v1, vr=vr, v2=v2, vs=vs,
-        flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
-        asd_ft=asd_fin, agd_ft=agd_fin, req_ft=req, avail_ft=avail, limiting=limiting,
-        hw_kn=hw, cw_kn=cw, notes=notes
-    )
-
 # ------------------------------ trim model ------------------------------
-
 def trim_anu(gw_lbs: float, flap_deg: int) -> float:
     base = 4.5 + (gw_lbs - 60000.0)/10000.0 * 0.8
     if flap_deg == 0: base -= 1.0
     if flap_deg == 40: base += 1.0
     return float(max(2.0, min(8.0, round(base, 1))))
 
-# ------------------------------ Wind parsing helper (no regex to keep canvas replace safe) ------------------------------
-
+# ------------------------------ wind entry parsing ------------------------------
 def parse_wind_entry(entry: str, unit: str) -> Optional[Tuple[float,float]]:
     text = (entry or "").strip().replace('/', ' ').replace('@', ' ')
     parts = [p for p in text.split(' ') if p]
@@ -465,9 +213,165 @@ def parse_wind_entry(entry: str, unit: str) -> Optional[Tuple[float,float]]:
             return None
     return None
 
-# ------------------------------ App ------------------------------
+# ------------------------------ core computation ------------------------------
+@dataclass
+class Result:
+    v1: float; vr: float; v2: float; vs: float
+    flap_text: str; thrust_text: str; n1_pct: float
+    asd_ft: float; agd_aeo_liftoff_ft: float; agd_reg_oei_ft: float
+    req_ft: float; avail_ft: float; limiting: str
+    hw_kn: float; cw_kn: float; notes: list
 
-st.title("DCS F‑14B Takeoff - FAA‑Based Model (v1.2)")
+def compute_takeoff(perfdb: pd.DataFrame,
+                    rwy_heading_deg: float, tora_ft: float, toda_ft: float, asda_ft: float,
+                    field_elev_ft: float, slope_pct: float, shorten_ft: float,
+                    oat_c: float, qnh_inhg: float,
+                    wind_speed: float, wind_dir_deg: float, wind_units: str, wind_policy: str,
+                    gw_lbs: float,
+                    flap_mode: str,
+                    thrust_mode: str,
+                    target_n1_pct: float) -> Result:
+    # Atmosphere & wind
+    pa = pressure_altitude_ft(field_elev_ft, qnh_inhg)
+    spd_kn = wind_speed if wind_units == "kts" else wind_speed * 1.943844
+    hw, cw = wind_components(spd_kn, wind_dir_deg, rwy_heading_deg)
+
+    notes: list[str] = []
+    if hw < -10.0:
+        notes.append("Tailwind component exceeds 10 kt — NOT AUTHORIZED.")
+    if abs(cw) > 30.0:
+        notes.append("Crosswind component exceeds 30 kt — NOT AUTHORIZED.")
+
+    # Flaps (auto favors MAN)
+    flap_text = "MANEUVER" if flap_mode == "Auto-Select" else flap_mode
+    flap_deg = 0 if flap_text.upper().startswith("UP") else (40 if flap_text.upper().startswith("FULL") else 20)
+
+    # Baseline table: always MIL for derate math; AB only if explicitly selected
+    use_flap_for_table = 20 if flap_deg == 0 else flap_deg
+    table_thrust = "AFTERBURNER" if thrust_mode == "AB" else "MILITARY"
+    base = interp_perf(perfdb, use_flap_for_table, table_thrust, float(gw_lbs), float(pa), float(oat_c))
+
+    vs = float(base["Vs_kt"]); v1 = float(base["V1_kt"])
+    vr = float(base["Vr_kt"]); v2 = float(base["V2_kt"])
+
+    # CSV: ASD_ft ≈ AEO accelerate-stop; AGD_ft ≈ AEO ground roll
+    asd_base = float(base["ASD_ft"])
+    agd_aeo_liftoff_base = float(base["AGD_ft"]) * LIFTOFF_FACTOR
+
+    # UP penalty vs MAN baseline
+    if flap_deg == 0:
+        asd_base *= 1.06
+        agd_aeo_liftoff_base *= 1.06
+
+    # FULL cannot derate
+    if flap_deg == 40 and thrust_mode in ("Auto-Select", "DERATE", "Manual Derate"):
+        notes.append("Derate with FULL flaps not allowed — using MIL for calculation.")
+        thrust_mode = "MIL"
+
+    def n1_mult(n1pct: float) -> float:
+        # MIL-anchored distance scaling
+        eff = max(0.90, min(1.0, n1pct/100.0))
+        return 1.0 / (eff ** ALPHA_N1_DIST)
+
+    def maybe_da_scale(d_ft: float) -> float:
+        d = d_ft
+        if pa > 5000.0 or oat_c > 30.0:
+            d *= da_out_of_grid_scale(pa, oat_c)
+        return d
+
+    def wind_slope(d_ft: float) -> float:
+        return apply_wind_slope(d_ft, slope_pct, hw, wind_policy)
+
+    def distances_for(n1pct: float) -> Tuple[float, float]:
+        mult = n1_mult(n1pct)
+        asd = wind_slope(maybe_da_scale(asd_base * mult))
+        agd_aeo = wind_slope(maybe_da_scale(agd_aeo_liftoff_base * mult))
+        agd_aeo *= AEO_CAL_FACTOR
+        return asd, agd_aeo
+
+    def field_ok(asd_eff: float, agd_aeo_eff: float) -> Tuple[bool, float, str]:
+        tora_eff = max(0.0, tora_ft - shorten_ft)
+        toda_eff = max(0.0, toda_ft - shorten_ft)
+        asda_eff_lim = max(0.0, asda_ft - shorten_ft)
+        # Clearway credit capped at 50% of available runway length
+        clearway_allow = min(tora_eff * 0.5, max(0.0, toda_eff - tora_eff))
+        tod_limit = tora_eff + clearway_allow
+        # Regulatory OEI continue distance
+        agd_reg = agd_aeo_eff * OEI_AGD_FACTOR
+        req = max(asd_eff, agd_reg)
+        ok = (asd_eff <= asda_eff_lim) and (agd_reg <= tod_limit) and (agd_reg <= toda_eff)
+        limiting = "ASD (stop)" if asd_eff >= agd_reg else "Engine-out continue"
+        return ok, req, limiting
+
+    # Choose thrust / N1
+    n1 = 100.0
+    thrust_text = thrust_mode
+
+    if thrust_mode == "DERATE":
+        floor_pct = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90)*100.0
+        n1 = max(floor_pct, float(target_n1_pct))
+        n1 = float(int(math.ceil(n1)))  # round up to whole percent for gauge
+        thrust_text = "DERATE" if n1 < 100.0 else "MIL"
+    elif thrust_mode == "Auto-Select":
+        # Check MIL first
+        asd_mil, agd_aeo_mil = distances_for(100.0)
+        ok_mil, _, _ = field_ok(asd_mil, agd_aeo_mil)
+        if ok_mil:
+            # Find minimal N1 that passes
+            floor_pct = DERATE_FLOOR_BY_FLAP.get(flap_deg, 0.90)*100.0
+            lo, hi = floor_pct, 100.0
+            for _ in range(18):
+                mid = (lo + hi) / 2.0
+                asd_m, agd_aeo_m = distances_for(mid)
+                ok_m, _, _ = field_ok(asd_m, agd_aeo_m)
+                ok_m = ok_m and compute_oei_second_segment_ok(gw_lbs, mid, flap_deg)
+                if ok_m:
+                    hi = mid
+                else:
+                    lo = mid
+            n1 = float(int(math.ceil(hi)))
+            thrust_text = "DERATE" if n1 < 100.0 else "MIL"
+        else:
+            # Escalate once: FULL + MIL (derate not allowed)
+            if flap_deg != 40:
+                notes.append("Auto: MAN @ MIL fails §121.189; escalating to FULL @ MIL.")
+            return compute_takeoff(perfdb, rwy_heading_deg, tora_ft, toda_ft, asda_ft,
+                                   field_elev_ft, slope_pct, shorten_ft,
+                                   oat_c, qnh_inhg, wind_speed, wind_dir_deg, wind_units, wind_policy,
+                                   gw_lbs, "FULL", "MIL", 100.0)
+    elif thrust_mode == "MIL":
+        n1 = 100.0
+        thrust_text = "MIL"
+    else:  # AB
+        n1 = 100.0
+        thrust_text = "AFTERBURNER"
+        notes.append("Afterburner selected — NOT AUTHORIZED for F-14B except as last resort.")
+
+    # Final distances
+    asd_fin, agd_aeo_fin = distances_for(n1)
+    agd_reg_fin = agd_aeo_fin * OEI_AGD_FACTOR
+
+    ok, req, limiting = field_ok(asd_fin, agd_aeo_fin)
+
+    # If Auto-flap and not OK at MAN, escalate to FULL+MIL
+    if flap_mode == "Auto-Select" and not ok and flap_deg != 40:
+        return compute_takeoff(perfdb, rwy_heading_deg, tora_ft, toda_ft, asda_ft,
+                               field_elev_ft, slope_pct, shorten_ft,
+                               oat_c, qnh_inhg, wind_speed, wind_dir_deg, wind_units, wind_policy,
+                               gw_lbs, "FULL", "MIL", 100.0)
+
+    avail = max(0.0, tora_ft - shorten_ft)
+
+    return Result(
+        v1=v1, vr=vr, v2=v2, vs=vs,
+        flap_text=flap_text, thrust_text=thrust_text, n1_pct=n1,
+        asd_ft=asd_fin, agd_aeo_liftoff_ft=agd_aeo_fin, agd_reg_oei_ft=agd_reg_fin,
+        req_ft=req, avail_ft=avail, limiting=limiting,
+        hw_kn=hw, cw_kn=cw, notes=notes
+    )
+
+# ------------------------------ UI ------------------------------
+st.title("DCS F-14B Takeoff — FAA-Based Model (MIL-anchored)")
 
 rwy_db = load_runways()
 perfdb = load_perf()
@@ -481,11 +385,11 @@ with st.sidebar:
     rwy_label = st.selectbox("Runway End", list(df_a["runway_label"]))
     rwy = df_a[df_a["runway_label"] == rwy_label].iloc[0]
 
-    tora_ft = float(rwy["tora_ft"]) 
-    toda_ft = float(rwy["toda_ft"]) 
-    asda_ft = float(rwy["asda_ft"]) 
-    elev_ft = float(rwy["threshold_elev_ft"]) 
-    hdg = float(rwy["heading_deg"]) 
+    tora_ft = float(rwy["tora_ft"])
+    toda_ft = float(rwy["toda_ft"])
+    asda_ft = float(rwy["asda_ft"])
+    elev_ft = float(rwy["threshold_elev_ft"])
+    hdg = float(rwy["heading_deg"])
     slope = float(rwy.get("slope_percent", 0.0) or 0.0)
 
     cA, cB = st.columns(2)
@@ -502,7 +406,7 @@ with st.sidebar:
     shorten_total = float(sh_val) if sh_unit == "ft" else float(sh_val) * 6076.12
 
     st.header("Weather")
-    oat_c = st.number_input("OAT (C)", value=15.0, step=1.0)
+    oat_c = st.number_input("OAT (°C)", value=15.0, step=1.0)
     qnh_val = st.number_input("QNH value", value=29.92, step=0.01, format="%.2f")
     qnh_unit = st.selectbox("QNH Units", ["inHg", "hPa"], index=0)
     qnh_inhg = float(qnh_val) if qnh_unit == "inHg" else hpa_to_inhg(float(qnh_val))
@@ -539,16 +443,16 @@ with st.sidebar:
     derate_n1 = 98.0
     if thrust_mode == "Manual Derate":
         flap_for_floor = 0 if flap_mode=="UP" else (40 if flap_mode=="FULL" else 20)
-        pa_local = pressure_altitude_ft(float(elev_ft), float(qnh_inhg))
-        floor = derate_floor_pct(flap_for_floor, float(gw), float(pa_local), float(oat_c))
-        floor_int = math.ceil(floor)
-        st.caption(f"Derate floor: {floor_int:.0f}% N1 (adaptive heavy/hot-high)")
-        derate_n1 = st.slider("Target N1 % (MIL)", min_value=float(floor_int), max_value=100.0, value=float(max(95.0, floor_int)), step=1.0)
+        floor = DERATE_FLOOR_BY_FLAP.get(flap_for_floor, 0.90)*100.0
+        st.caption(f"Derate floor by flap: {floor:.0f}% N1 (MIL)")
+        derate_n1 = st.slider("Target N1 % (MIL)", min_value=float(int(floor)), max_value=100.0, value=max(95.0, float(int(floor))), step=1.0)
 
     with st.expander("Advanced / Calibration", expanded=False):
-        calib = st.radio("Model calibration", ["FAA-conservative", "DCS-calibrated"], index=1, help="FAA: no all-engines calibration; engine-out factor 1.20 (conservative). DCS: all-engines continue distance x0.74; engine-out factor 1.15 (tuned to your tests).")
+        calib = st.radio("Model calibration", ["FAA-conservative", "DCS-calibrated"], index=1,
+                         help=("FAA: AEO liftoff uncalibrated; engine-out factor 1.20 (conservative). "
+                               "DCS: engine-out factor 1.15 (matches your hot/high tests)."))
         if calib == "DCS-calibrated":
-            AEO_CAL = 0.85
+            AEO_CAL = 1.00
             OEI_FAC = 1.15
         else:
             AEO_CAL = 1.00
@@ -569,7 +473,7 @@ if run:
 
     c1,c2,c3,c4 = st.columns(4)
     with c1:
-        st.subheader("V‑Speeds")
+        st.subheader("V-Speeds")
         st.metric("V1 (kt)", f"{res.v1:.0f}")
         st.metric("Vr (kt)", f"{res.vr:.0f}")
         st.metric("V2 (kt)", f"{res.v2:.0f}")
@@ -577,31 +481,31 @@ if run:
     with c2:
         st.subheader("Settings")
         st.metric("Flaps", res.flap_text)
-        st.metric("Thrust", f"{res.thrust_text} ({res.n1_pct:.1f}% N1)")
+        thrust_label = "MIL" if (res.thrust_text.upper().startswith("MIL") or res.n1_pct >= 100.0) else "DERATE"
+        st.metric("Thrust", f"{thrust_label} ({res.n1_pct:.0f}% N1)")
         flap_deg = 0 if res.flap_text.upper().startswith("UP") else (40 if res.flap_text.upper().startswith("FULL") else 20)
         st.metric("Trim (ANU)", f"{trim_anu(float(gw), flap_deg):.1f}")
     with c3:
         st.subheader("Runway distances")
         st.metric("Stop distance (ft)", f"{res.asd_ft:.0f}")
-        st.metric("Continue distance (engine-out, regulatory) (ft)", f"{res.agd_ft * OEI_AGD_FACTOR:.0f}")
+        st.metric("Continue distance (engine-out, regulatory) (ft)", f"{res.agd_reg_oei_ft:.0f}")
         st.metric("Required runway (regulatory) (ft)", f"{res.req_ft:.0f}")
     with c4:
         st.subheader("Availability")
         st.metric("Runway available (ft)", f"{res.avail_ft:.0f}")
-        lim_friendly = "Stop distance" if res.limiting.startswith("ASD") else "Engine-out continue distance"
-        st.metric("Limiting factor", lim_friendly)
+        st.metric("Limiting factor", res.limiting)
         st.metric("Headwind (kt)", f"{res.hw_kn:.1f}")
         st.metric("Crosswind (kt)", f"{res.cw_kn:.1f}")
-        st.caption("Tailwind >10 kt or crosswind >30 kt -> NOT AUTHORIZED.")
+        st.caption("Tailwind > 10 kt or crosswind > 30 kt → NOT AUTHORIZED.")
 
-        # --- Compliance banner & margins ---
+        # Compliance banner & margins
         tora_eff = max(0.0, float(tora_ft) - float(shorten_total))
         toda_eff = max(0.0, float(toda_ft) - float(shorten_total))
         asda_eff_lim = max(0.0, float(asda_ft) - float(shorten_total))
         clearway_allow = min(tora_eff * 0.5, max(0.0, toda_eff - tora_eff))
         tod_limit = tora_eff + clearway_allow
 
-        agd_reg = res.agd_ft * OEI_AGD_FACTOR
+        agd_reg = res.agd_reg_oei_ft
         asd_ok = res.asd_ft <= asda_eff_lim
         agd_ok = (agd_reg <= tod_limit) and (agd_reg <= toda_eff)
         ok = asd_ok and agd_ok
@@ -611,25 +515,22 @@ if run:
         req_margin = min(asd_margin, agd_margin)
 
         if ok:
-            st.success(f"COMPLIANT - Margin {req_margin:.0f} ft (ASD margin {asd_margin:.0f}, AGD(OEI) margin {agd_margin:.0f}).")
+            st.success(f"COMPLIANT — Margin {req_margin:.0f} ft (ASD margin {asd_margin:.0f}, OEI-continue margin {agd_margin:.0f}).")
         else:
-            st.error(f"NOT AUTHORIZED - Short by {-req_margin:.0f} ft (ASD margin {asd_margin:.0f}, AGD(OEI) margin {agd_margin:.0f}).")
-            st.caption(f"TOD limit: {tod_limit:.0f} ft | ASDA: {asda_eff_lim:.0f} ft | AGD(OEI): {agd_reg:.0f} ft")
+            st.error(f"NOT AUTHORIZED — Short by {-req_margin:.0f} ft (ASD margin {asd_margin:.0f}, OEI-continue margin {agd_margin:.0f}).")
+            st.caption(f"TOD limit: {tod_limit:.0f} ft | ASDA: {asda_eff_lim:.0f} ft | OEI-continue: {agd_reg:.0f} ft")
 
     st.markdown("---")
-    st.subheader("All-engines takeoff estimates")
+    st.subheader("All-engines takeoff estimates (for DCS comparison)")
     e1, e2 = st.columns(2)
     with e1:
-        st.metric("Vr ground roll (ft)", f"{res.agd_ft * AEO_VR_FRAC:.0f}")
+        st.metric("Vr ground roll (ft)", f"{res.agd_aeo_liftoff_ft * AEO_VR_FRAC:.0f}")
     with e2:
-        st.metric("Liftoff distance (ft)", f"{res.agd_ft:.0f}")
-    st.caption("These all-engines estimates are for DCS comparison; regulatory checks assume an engine-out scenario.")
+        st.metric("Liftoff distance to 35 ft (ft)", f"{res.agd_aeo_liftoff_ft:.0f}")
+    st.caption("These are all-engines estimates. Regulatory checks assume an engine-out at V1 per 14 CFR 121.189.")
 
     for n in res.notes:
         st.warning(n)
 
 else:
     st.info("Set inputs and click Compute.")
-
-st.markdown("---")
-st.caption("This tool estimates F‑14B takeoff performance for DCS per FAA‑style rules (14 CFR 121.189). Not for real‑world use.")
