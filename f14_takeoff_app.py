@@ -7,7 +7,7 @@
 # • Thrust: MIL / AB / DERATE (90–100% N1) with flap‑dependent derate floors and non‑linear distance scaling.
 # • “Find Min N1%” solver meets 14 CFR 121.189 field‑length checks + conservative OEI climb guardrail.
 # • Weather: manual entry; single wind entry (DIR@SPD) with kts or m/s; QNH numeric + unit (default inHg).
-# • Runway shortening: single input + unit selector (ft or NM).
+# • **Runway shortening removed** (reverted UI): we now use published TORA/TODA/ASDA only.
 # • Model: F‑14B only. (No CG/stores, no F‑14D rows.)
 #
 # DISCLAIMER: Training aid for DCS only. Do NOT use for real‑world flight planning.
@@ -313,11 +313,8 @@ with st.sidebar:
     st.metric("TODA (ft)", f"{int(row_rwy['toda_ft']):,}")
     st.metric("ASDA (ft)", f"{int(row_rwy['asda_ft']):,}")
 
-    # Single shortening input
-    st.caption("Shorten Available Runway")
-    sh_val = st.number_input("Value", min_value=0.0, value=0.0, step=100.0, key="sh_val")
-    sh_unit = st.selectbox("Units", ["ft", "NM"], index=0, key="sh_unit")
-    shorten_total_ft = float(sh_val) if sh_unit == "ft" else float(sh_val) * 6076.12
+    # Reverted: no runway shortening input
+    shorten_total_ft = 0.0
 
     st.header("Weather")
     oat_c = st.number_input("OAT (°C)", value=15.0, step=1.0)
@@ -327,7 +324,7 @@ with st.sidebar:
     qnh_unit = st.selectbox("QNH Units", ["inHg", "hPa"], index=0)
     qnh_inhg = float(qnh_val) if qnh_unit == "inHg" else hpa_to_inhg(float(qnh_val))
 
-    # Single wind entry + unit type
+    # Wind (single entry, reverted style)
     wind_unit = st.selectbox("Wind Units", ["kts", "m/s"], index=0)
     wind_entry = st.text_input("Wind (DIR@SPD)", placeholder="e.g., 180@12")
     wind_parsed = parse_wind_entry(wind_entry, wind_unit)
