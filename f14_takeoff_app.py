@@ -467,12 +467,7 @@ with st.sidebar:
         derate_n1 = st.slider("Target N1 % (MIL)", min_value=floor, max_value=100.0, value=max(95.0, floor), step=0.5)
 
     with st.expander("Advanced / Calibration", expanded=False):
-        calib = st.radio(
-            "Model calibration",
-            ["FAA-conservative", "DCS-calibrated"],
-            index=1,
-            help="FAA: no all-engines calibration; engine-out factor 1.20 (conservative). DCS: all-engines continue distance x0.74; engine-out factor 1.15 (tuned to your tests).",
-        )
+        calib = st.radio("Model calibration", ["FAA-conservative", "DCS-calibrated"], index=1, help="FAA: no all-engines calibration; engine-out factor 1.20 (conservative). DCS: all-engines continue distance x0.74; engine-out factor 1.15 (tuned to your tests).")
         if calib == "DCS-calibrated":
             AEO_CAL = 0.74
             OEI_FAC = 1.15
