@@ -128,7 +128,7 @@ def ensure_flap20(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     def blend(a, b, w=0.4):  # w = weight on UP; 0.4*UP + 0.6*FULL
-    return w*a + (1.0 - w)*b
+        return w*a + (1.0 - w)*b
 
 
     new = pd.DataFrame({
