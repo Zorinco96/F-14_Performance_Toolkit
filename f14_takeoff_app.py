@@ -231,13 +231,34 @@ def parse_wind_entry(entry: str, unit: str) -> Optional[Tuple[float,float]]:
             return None
     return None
 
-# -------------- speed floors --------------
-def enforce_speed_floors(vs: float, v1: float, vr: float, v2: float, flap_deg: int) -> Tuple[float,float,float]:
+# -------------- speed floors (robust) --------------
+def enforce_speed_floors(vs: float, v1: float, vr: float, v2: float, flap_deg: int) -> tuple[float, float, float]:
+    """Apply sane floors and monotonic relationships to V1/Vr/V2.
+    Robust against NaN/Inf by falling back to reasonable values derived from Vs."""
+    def _safe(x, fallback):
+        try:
+            x = float(x)
+            if math.isfinite(x):
+                return x
+        except Exception:
+            pass
+        return float(fallback)
+
+    # Base fallbacks if the interpolator ever yields junk
+    vs  = _safe(vs, 120.0)
+    v1  = _safe(v1, vs + 10.0)
+    vr  = _safe(vr, vs + 20.0)
+    v2  = _safe(v2, vs + 30.0)
+
+    # Vmcg-ish floor by flap + monotonic relationships
     vmcg = VMCG_FLOOR.get(flap_deg, 120.0)
     v1f = max(v1, vmcg, vs + 5.0)
     vrf = max(vr, v1f + 5.0, vs + 10.0)
     v2f = max(v2, vrf + 10.0, 1.2 * vs)
-    return float(round(v1f)), float(round(vrf)), float(round(v2f))
+
+    # Return floats; UI already formats with .0f
+    return v1f, vrf, v2f
+
 
 # -------------- result struct --------------
 @dataclass
