@@ -797,7 +797,7 @@ rows.append(sensitivity_row("Headwind ±5 kt", lambda p,dv: {**p, "wind_speed": 
 rows.append(sensitivity_row("GW ±1000 lb", lambda p,dv: {**p, "gw_lbs": p["gw_lbs"] + 1000.0*dv}))
 rows.append(sensitivity_row("N1 ±2%", lambda p,dv: {**p, "thrust_mode":"DERATE", "target_n1_pct": min(100.0, max(DERATE_FLOOR_BY_FLAP.get(0 if p['flap_mode']=='UP' else (40 if p['flap_mode']=='FULL' else 20),0.9)*100.0, (res.n1_pct + 2*dv))) }))
 
-sens_df = pd.DataFrame(rows, columns=["Parameter","-Δ (ft)","+"+Δ (ft)"])
+sens_df = pd.DataFrame(rows, columns=["Parameter", "-Δ (ft)", "+Δ (ft)"])
 st.dataframe(sens_df, use_container_width=True, hide_index=True)
 
 # Comparison table: candidate configs
