@@ -268,6 +268,64 @@ if ready:
         st.metric("Liftoff distance to 35 ft (ft)", f"{res.agd_aeo_liftoff_ft:.0f}")
     st.caption("AEO estimates shown for DCS. Regulatory checks assume an engine-out per 14 CFR 121.189.")
 
+    st.markdown("---")
+with st.expander("Data Checker (CSV sanity scan)", expanded=False):
+    st.caption("Quick sanity checks for f14_perf.csv, dcs_airports_expanded.csv, and intersections.csv.")
+
+    issues = []
+
+    # --- PERF: duplicate keys
+    key_cols = ["model","flap_deg","thrust","gw_lbs","press_alt_ft","oat_c"]
+    if all(k in perfdb.columns for k in key_cols):
+        dups = (perfdb
+                .assign(_cnt=1)
+                .groupby(key_cols, dropna=False)["_cnt"].sum()
+                .reset_index()
+                .query("_cnt > 1"))
+        if not dups.empty:
+            issues.append(f"Performance table: {len(dups)} duplicate key rows.")
+            st.dataframe(dups, use_container_width=True)
+        else:
+            st.success("Performance table: no duplicate key rows.")
+    else:
+        issues.append("Performance table: missing expected columns for duplicate check.")
+
+    # --- PERF: missing MAN(20) synthesized? (just a heads up)
+    if not (perfdb["flap_deg"] == 20).any():
+        st.info("Performance: MAN(20) rows not present; app will synthesize from UP/FULL where possible.")
+
+    # --- AIRPORTS: both runway ends present?
+    rw_counts = (rwy_db.groupby(["map","airport_name","runway_pair"])["runway_end"]
+                   .nunique().reset_index(name="ends"))
+    missing_ends = rw_counts[rw_counts["ends"] < 2]
+    if not missing_ends.empty:
+        issues.append(f"Airports: {len(missing_ends)} runway pairs have only one end.")
+        st.dataframe(missing_ends, use_container_width=True)
+    else:
+        st.success("Airports: all runway pairs have both ends.")
+
+    # --- INTERSECTIONS: orphaned refs?
+    if not ix_db.empty:
+        merged = ix_db.merge(
+            rwy_db[["map","airport_name","runway_pair","runway_end"]],
+            on=["map","airport_name","runway_pair","runway_end"],
+            how="left",
+            indicator=True
+        )
+        orphans = merged[merged["_merge"] == "left_only"]
+        if not orphans.empty:
+            issues.append(f"Intersections: {len(orphans)} rows reference missing airports/runways.")
+            st.dataframe(orphans.drop(columns=["_merge"]), use_container_width=True)
+        else:
+            st.success("Intersections: all rows reference known airports/runways.")
+    else:
+        st.info("Intersections: file empty or not provided — nothing to check.")
+
+    if issues:
+        st.warning("Summary: " + "  •  ".join(issues))
+    else:
+        st.success("CSV sanity scan: clean ✅")
+
     # ===== Optimizer & What-ifs =====
     st.markdown("---")
     with st.expander("Optimizer & What-ifs", expanded=True):
