@@ -492,8 +492,29 @@ if run:
         st.metric("Available (ft)", f"{res.avail_ft:.0f}")
         st.metric("Limiting", res.limiting)
         st.metric("Headwind (kt)", f"{res.hw_kn:.1f}")
-        st.metric("Crosswind (kt)", f"{res.cw_kn:.1f}")
-        st.caption("Tailwind >10 kt or crosswind >30 kt → NOT AUTHORIZED.")
+        st.metric("Crosswind (kt)", f"{res.cw_kn:.1f}")        st.caption("Tailwind >10 kt or crosswind >30 kt → NOT AUTHORIZED.")
+
+        # --- Compliance banner & margins ---
+        tora_eff = max(0.0, float(tora_ft) - float(shorten_total))
+        toda_eff = max(0.0, float(toda_ft) - float(shorten_total))
+        asda_eff_lim = max(0.0, float(asda_ft) - float(shorten_total))
+        clearway_allow = min(tora_eff * 0.5, max(0.0, toda_eff - tora_eff))
+        tod_limit = tora_eff + clearway_allow
+
+        agd_reg = res.agd_ft * OEI_AGD_FACTOR
+        asd_ok = res.asd_ft <= asda_eff_lim
+        agd_ok = (agd_reg <= tod_limit) and (agd_reg <= toda_eff)
+        ok = asd_ok and agd_ok
+
+        asd_margin = asda_eff_lim - res.asd_ft
+        agd_margin = tod_limit - agd_reg
+        req_margin = min(asd_margin, agd_margin)
+
+        if ok:
+            st.success(f"COMPLIANT — Margin {req_margin:.0f} ft (ASD margin {asd_margin:.0f}, AGD(OEI) margin {agd_margin:.0f}).")
+        else:
+            st.error(f"NOT AUTHORIZED — Short by {-req_margin:.0f} ft (ASD margin {asd_margin:.0f}, AGD(OEI) margin {agd_margin:.0f}).")
+            st.caption(f"TOD limit: {tod_limit:.0f} ft | ASDA: {asda_eff_lim:.0f} ft | AGD(OEI): {agd_reg:.0f} ft")
 
     for n in res.notes:
         st.warning(n)
