@@ -1,23 +1,12 @@
 # f14_takeoff_app.py — Streamlit UI for DCS F-14B takeoff performance
-# Version: Revert to stable UI/UX bundle (pre-EFB overhaul)
-# Includes:
-# - Tabs (Results / Trends / Matrix)
-# - Sticky status bar
-# - Compact mode toggle
-# - Quick actions (swap runway end / flip wind / reset shorten)
-# - Save/Load scenarios
-# - Dual-runway A/B compare
-# - Copyable V-speed line
-# - Kneeboard PDF (ReportLab)
-# - Debounced recompute toggle
-# - Color-cued summary card
-# - LRU micro-cache
-# - Flaps in "Config & Thrust"
+# Merged UI: tabs + presets + data checker + climb guidance + kneeboard + optimizer
 from __future__ import annotations
+
 import math
+import json
 from typing import List, Dict
 from functools import lru_cache
-import json
+
 import pandas as pd
 import streamlit as st
 
@@ -32,7 +21,7 @@ from f14_takeoff_core import (
 
 st.set_page_config(page_title="DCS F-14B Takeoff", page_icon="✈️", layout="wide")
 
-# ---------------- Styles ----------------
+# ============================== Global styling & helpers ==============================
 st.markdown("""
 <style>
 section[data-testid="stSidebar"] .block-container { padding-top: 0.5rem; }
@@ -49,6 +38,7 @@ div.block-container { padding-top: 1rem; }
 }
 .f14-card-ok  { background: rgba(0, 128, 0, 0.06) !important; }
 .f14-card-bad { background: rgba(255, 0, 0, 0.06) !important; }
+small.help { color: var(--text-color-secondary); font-size: 0.85rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -58,13 +48,15 @@ def _warn_if(cond: bool, msg: str):
 def _info_if(cond: bool, msg: str):
     if cond: st.info(msg)
 
-# ---------------- Data ----------------
+# ============================== cached loaders ==============================
 @st.cache_data
 def load_runways(path_primary="dcs_airports_expanded.csv", path_alt="data/dcs_airports_expanded.csv") -> pd.DataFrame:
     for p in (path_primary, path_alt):
         try:
             df = pd.read_csv(p)
-            df["runway_label"] = df["airport_name"] + " " + df["runway_end"].astype(str) + " (" + df["runway_pair"].astype(str) + ")"
+            df["runway_label"] = (
+                df["airport_name"] + " " + df["runway_end"].astype(str) + " (" + df["runway_pair"].astype(str) + ")"
+            )
             return df
         except Exception:
             continue
@@ -88,17 +80,18 @@ def load_intersections(path_primary="intersections.csv", path_alt="data/intersec
         "intersection_id","tora_ft","toda_ft","asda_ft","distance_from_threshold_ft","notes"
     ])
 
+# ============================== load data ==============================
 perfdb = load_perf_csv("f14_perf.csv")
 rwy_db = load_runways()
 ix_db  = load_intersections()
 
-# ---------------- UI ----------------
+# ============================== UI ==============================
 st.title("DCS F-14B Takeoff — FAA-Based Model")
 
 with st.sidebar:
     st.header("Setup")
 
-    # Runway
+    # ------------------------------ RUNWAY ------------------------------
     with st.expander("Runway", expanded=True):
         theatre = st.selectbox("DCS Theatre", sorted(rwy_db["map"].unique()))
         df_t = rwy_db[rwy_db["map"] == theatre]
@@ -111,15 +104,23 @@ with st.sidebar:
         elev_ft = float(rwy["threshold_elev_ft"]); hdg = float(rwy["heading_deg"])
         slope_pct = float(rwy.get("slope_percent", 0.0) or 0.0)
 
-        # Intersection
+        # Intersection selector (if available)
         st.caption("Intersection (if available)")
-        df_ix = ix_db[(ix_db["map"] == theatre) & (ix_db["airport_name"] == airport) & (ix_db["runway_end"].astype(str) == str(rwy["runway_end"]))]
+        df_ix = ix_db[
+            (ix_db["map"] == theatre)
+            & (ix_db["airport_name"] == airport)
+            & (ix_db["runway_end"].astype(str) == str(rwy["runway_end"]))
+        ]
         if not df_ix.empty:
-            inter_opts = ["— Full length —"] + [f'{row["intersection_id"]} (TORA {int(row["tora_ft"]):,} ft)' for _, row in df_ix.iterrows()]
+            inter_opts = ["— Full length —"] + [
+                f'{row["intersection_id"]} (TORA {int(row["tora_ft"]):,} ft)' for _, row in df_ix.iterrows()
+            ]
             sel = st.selectbox("Intersection", inter_opts, index=0)
             if sel != "— Full length —":
                 row = df_ix.iloc[inter_opts.index(sel) - 1]
-                base_tora = float(row["tora_ft"]); base_toda = float(row["toda_ft"]); base_asda = float(row["asda_ft"])
+                base_tora = float(row["tora_ft"])
+                base_toda = float(row["toda_ft"])
+                base_asda = float(row["asda_ft"])
         else:
             sel = "— Full length —"
 
@@ -158,7 +159,7 @@ with st.sidebar:
             sh_unit = st.selectbox("Units", ["ft", "NM"], index=0, key="sh_unit")
         shorten_total = float(sh_val) if sh_unit == "ft" else float(sh_val) * 6076.12
 
-        # Manual overrides
+        # Manual override block
         with st.expander("Manual runway override (optional)", expanded=False):
             st.text_input("Runway available (e.g., 7200, 1.2nm, 7200ft)", value="", key="manual_len")
             st.text_input("Field elevation (ft)", value="", key="manual_elev")
@@ -171,8 +172,10 @@ with st.sidebar:
                 except Exception:
                     st.warning("Could not parse runway length. Examples: 7200, 7200ft, 1.1nm")
             if manual_elev.strip():
-                try: elev_ft = detect_elev_text_to_ft(manual_elev)
-                except Exception: st.warning("Could not parse elevation (feet).")
+                try:
+                    elev_ft = detect_elev_text_to_ft(manual_elev)
+                except Exception:
+                    st.warning("Could not parse elevation (feet).")
 
         cA, cB = st.columns(2)
         with cA:
@@ -182,7 +185,7 @@ with st.sidebar:
             st.metric("ASDA (ft)", f"{base_asda:,.0f}")
             st.metric("Elev (ft)", f"{elev_ft:,.0f}")
 
-    # Weather
+    # ------------------------------ WEATHER ------------------------------
     with st.expander("Weather", expanded=False):
         oat_c = float(st.number_input("OAT (°C)", value=15.0, step=1.0))
         qnh_val = float(st.number_input("QNH value", value=29.92, step=0.01, format="%.2f"))
@@ -199,9 +202,9 @@ with st.sidebar:
         else:
             wind_dir, wind_spd = (parsed if parsed is not None else (float(hdg), 0.0))
         wind_policy = st.selectbox("Wind Policy", ["None", "50/150"], index=0,
-            help="‘50/150’ = 50% headwind credit, 150% tailwind penalty.")
+                                   help="‘50/150’ = 50% headwind credit, 150% tailwind penalty.")
 
-    # Weight
+    # ------------------------------ WEIGHT & CONFIG ------------------------------
     with st.expander("Weight", expanded=True):
         mode = st.radio("Weight entry", ["Direct GW", "Fuel + Stores"], index=0)
         if mode == "Direct GW":
@@ -217,10 +220,10 @@ with st.sidebar:
             wcalc = empty_w + fuel_lb + ext_tanks * 1900.0 + aim9 * 190.0 + aim7 * 510.0 + aim54 * 1000.0 + (440.0 if lantirn else 0.0)
             gw = float(st.number_input("Computed GW (editable)", min_value=40000.0, max_value=80000.0, value=float(wcalc), step=10.0))
 
-    # Config & Thrust (flaps here)
     with st.expander("Config & Thrust", expanded=False):
         flap_mode = st.selectbox("Flaps", ["Auto-Select", "UP", "MANEUVER", "FULL"], index=0)
         thrust_mode = st.radio("Thrust Mode", ["Auto-Select", "Manual Derate", "MIL", "AB"], index=0)
+        # Always define derate_n1
         derate_n1 = 98.0
         if thrust_mode == "Manual Derate":
             if flap_mode == "FULL":
@@ -229,12 +232,14 @@ with st.sidebar:
             else:
                 derate_floor = 90.0
             st.caption(f"Derate floor: {derate_floor:.0f}% N1 (MIL basis)")
-            derate_n1 = float(st.slider("Target N1 % (MIL)", min_value=int(derate_floor), max_value=100, value=max(95, int(derate_floor)), step=1))
+            derate_n1 = float(st.slider("Target N1 % (MIL)", min_value=float(int(derate_floor)), max_value=100.0,
+                                        value=max(95.0, float(int(derate_floor))), step=1.0))
 
-    # Advanced / Compliance
+    # ------------------------------ ADVANCED / COMPLIANCE ------------------------------
     with st.expander("Advanced / Calibration", expanded=False):
         calib = st.radio("Model calibration", ["FAA-conservative", "DCS-calibrated"], index=1,
-                         help=("FAA: OEI 1.20 (conservative). DCS: OEI 1.15 (tuned)."))
+                         help=("FAA: OEI factor 1.20 (conservative). "
+                               "DCS: OEI factor 1.15 (tuned to hot/high tests)."))
         if calib == "DCS-calibrated":
             st.session_state["AEO_CAL_FACTOR"] = 1.00
             st.session_state["OEI_AGD_FACTOR"] = 1.15
@@ -243,18 +248,22 @@ with st.sidebar:
             st.session_state["OEI_AGD_FACTOR"] = 1.20
 
     with st.expander("Compliance Mode", expanded=False):
-        compliance_mode = st.radio("Check against:", ["Regulatory (OEI §121.189)", "AEO Practical"], index=0)
+        compliance_mode = st.radio(
+            "How should limits be checked?",
+            ["Regulatory (OEI §121.189)", "AEO Practical"],
+            index=0
+        )
 
-    # Display tweaks
+    # ------------------------------ Display & Controls ------------------------------
     with st.expander("Display & Controls", expanded=False):
-        compact = st.toggle("Compact mode (denser UI)", value=False)
-        autorun = st.toggle("Auto-recompute on change", value=True)
+        compact  = st.toggle("Compact mode (denser UI)", value=False)
+        autorun  = st.toggle("Auto-recompute on change", value=True)
 
-# Guards
-_warn_if('gw' in locals() and (gw < 42000 or gw > 78000), "GW outside typical F-14B takeoff band — double-check.")
+# quick guardrails on inputs
+_warn_if('gw' in locals() and (gw < 42000 or gw > 78000), "GW is outside a typical F-14B takeoff band — double-check.")
 _warn_if('wind_spd' in locals() and abs(wind_spd) > 40, "Wind speed seems high for common DCS presets.")
 
-# ---------------- Compute (debounced) ----------------
+# ============================== compute (debounced) ==============================
 ready = "gw" in locals() and isinstance(gw, (int, float)) and gw >= 40000.0
 should_compute = ready and (autorun or st.button("Recompute"))
 
@@ -281,11 +290,11 @@ def _calc(perfdb, flap_mode_s, thrust_mode_s, n1pct):
                         st.session_state.get("AEO_CAL_FACTOR", 1.00),
                         st.session_state.get("OEI_AGD_FACTOR", 1.20))
 
-# ---------------- Main content ----------------
+# ============================== Main content ==============================
 if should_compute:
     res = _calc(perfdb, flap_mode, thrust_mode, derate_n1)
 
-    # Top metrics
+    # ===== Top cards =====
     c1,c2,c3,c4 = st.columns(4)
     with c1:
         st.subheader("V-Speeds")
@@ -305,6 +314,8 @@ if should_compute:
         st.metric("Stop distance (ft)", f"{res.asd_ft:.0f}")
         st.metric("Continue distance (engine-out, regulatory) (ft)", f"{res.agd_reg_oei_ft:.0f}")
         st.metric("Continue distance (all engines) (ft)", f"{res.agd_aeo_liftoff_ft:.0f}")
+
+        # Required + margins by mode
         tora_eff = max(0.0, float(base_tora) - float(shorten_total))
         toda_eff = max(0.0, float(base_toda) - float(shorten_total))
         asda_eff_lim = max(0.0, float(base_asda) - float(shorten_total))
@@ -335,7 +346,6 @@ if should_compute:
         st.metric("Headwind (kt)", f"{res.hw_kn:.1f}")
         st.metric("Crosswind (kt)", f"{res.cw_kn:.1f}")
         st.caption("Tailwind > 10 kt or crosswind > 30 kt → NOT AUTHORIZED.")
-        st.caption("Climb gradients: " + ("✅ OEI 2.4%" if res.oei_grad_ok else "⛔ OEI 2.4%") + "  |  " + ("✅ AEO 200 ft/nm" if res.aeo_grad_ok else "⛔ AEO 200 ft/nm"))
         req_margin = min(asd_margin, cont_margin)
         if ok:
             st.success(f"COMPLIANT — Margin {req_margin:.0f} ft (ASD {asd_margin:.0f}, continue {cont_margin:.0f}).")
@@ -349,36 +359,70 @@ if should_compute:
         f"{res.flap_text}/{('MIL' if res.n1_pct>=100 else f'DERATE {int(res.n1_pct)}%')} • "
         f"OAT {oat_c:.0f}°C • QNH {qnh_inhg:.2f} • Wind {int(wind_dir):03d}@{int(wind_spd)} {wind_units}"
     )
-    st.markdown(f"<div class='f14-sticky'><b>{'✅ COMPLIANT' if ok else '⛔ NOT AUTHORIZED'}</b> — {summary_line}</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='f14-sticky'><b>{'✅ COMPLIANT' if ok else '⛔ NOT AUTHORIZED'}</b> — {summary_line}</div>",
+        unsafe_allow_html=True
+    )
 
-    # Climb Recommendation (Regulatory + Efficiency-Aware)
+    # Climb guidance
     sched = recommend_climb_schedule(gw_lbs=float(gw), flap_after_cleanup="UP", accel_alt_ft_agl=1000.0, policy="conservative")
     st.markdown(format_climb_card(sched), unsafe_allow_html=True)
-    
-
     n1_cmd, climb_ias = recommend_climb(gw_lbs=float(gw), flap_after_cleanup="UP", accel_alt_ft_agl=1000.0, policy="conservative")
-    st.markdown("""
-    <div class='f14-card'>
-      <b>Climb Recommendation (1,000 AGL, flaps UP):</b>
-      <div>Set <b>{n1}% N1</b> and fly <b>{ias} KIAS</b>, then transition to Mach climb.</div>
-    </div>
-    """.format(n1=int(n1_cmd), ias=int(climb_ias)), unsafe_allow_html=True)
-    
-    # Compact mode & color cue
+    st.markdown(
+        f"<div class='f14-card'>"
+        f"<b>Climb Recommendation (1,000 AGL, flaps UP):</b> "
+        f"Set <b>{int(n1_cmd)}% N1</b> and fly <b>{int(climb_ias)} KIAS</b>, then transition to Mach climb."
+        f"</div>",
+        unsafe_allow_html=True
+    )
+
     if compact:
         st.write("<style>.stMetric {margin-bottom: 2px !important} table {font-size: 12px}</style>", unsafe_allow_html=True)
     if not res.aeo_grad_ok:
         st.warning('Selected N1 fails AEO 200 ft/nm climb gradient — increase N1 or reduce weight.')
-    st.markdown(f"<div class='f14-card {'f14-card-ok' if ok else 'f14-card-bad'}'>"
-                f"{'✅ COMPLIANT' if ok else '⛔ NOT AUTHORIZED'} — Margin {min(asd_margin, cont_margin):.0f} ft"
-                f"</div>", unsafe_allow_html=True)
+    st.markdown(
+        f"<div class='f14-card {'f14-card-ok' if ok else 'f14-card-bad'}'>"
+        f"{'✅ COMPLIANT' if ok else '⛔ NOT AUTHORIZED'} — Margin {min(asd_margin, cont_margin):.0f} ft"
+        f"</div>",
+        unsafe_allow_html=True
+    )
 
-    # Tabs
+    # ===== Tabs =====
     st.markdown("---")
-    tab_results, tab_trends, tab_matrix = st.tabs(["Results", "Trends", "Matrix"])
+    tab_results, tab_trends, tab_matrix, tab_checker = st.tabs(["Results", "Trends", "Matrix", "Data Checker"])
 
-    # Results tab
+    # ------------------------------ Results tab ------------------------------
     with tab_results:
+        st.subheader("Quick presets (preview)")
+        colp1, colp2, colp3 = st.columns(3)
+        preset_defs = [
+            {"label": "Clean • 54k GW • MAN • MIL", "gw": 54000, "flaps": "MANEUVER", "thrust": "MIL", "n1": 100},
+            {"label": "Strike • 68k GW • FULL • MIL", "gw": 68000, "flaps": "FULL", "thrust": "MIL", "n1": 100},
+            {"label": "Carrier-ish • 61k • MAN • 96%", "gw": 61000, "flaps": "MANEUVER", "thrust": "Manual Derate", "n1": 96},
+        ]
+        cols = [colp1, colp2, colp3]
+        for i, p in enumerate(preset_defs):
+            with cols[i]:
+                st.caption(p["label"])
+                try:
+                    r = compute_takeoff(
+                        perfdb,
+                        float(hdg), float(base_tora), float(base_toda), float(base_asda),
+                        float(elev_ft), float(slope_pct), 0.0,
+                        float(oat_c), float(qnh_inhg),
+                        float(wind_spd), float(wind_dir), "kts" if wind_units=="kts" else "m/s", str(wind_policy),
+                        float(p["gw"]), p["flaps"],
+                        str("DERATE" if p["thrust"]=="Manual Derate" else p["thrust"]), float(p["n1"])
+                    )
+                    st.markdown(
+                        f"<div class='f14-card'>V1/Vr/V2: <b>{int(r.v1)}/{int(r.vr)}/{int(r.v2)}</b><br/>"
+                        f"Req ft (Reg): <b>{int(max(r.asd_ft, r.agd_reg_oei_ft)):,}</b></div>",
+                        unsafe_allow_html=True
+                    )
+                except Exception:
+                    st.info("Preset preview not available here.")
+
+        st.markdown("---")
         st.subheader("All-engines takeoff estimates (for DCS comparison)")
         e1, e2 = st.columns(2)
         vr_frac = AEO_VR_FRAC_FULL if res.flap_text.upper().startswith("FULL") else AEO_VR_FRAC
@@ -441,7 +485,7 @@ if should_compute:
             with open(path, "rb") as f:
                 st.download_button("Save kneeboard.pdf", f, file_name="f14_kneeboard.pdf", mime="application/pdf")
 
-    # Trends tab
+    # ------------------------------ Trends tab ------------------------------
     with tab_trends:
         st.subheader("Trends")
         try:
@@ -481,7 +525,7 @@ if should_compute:
         except Exception:
             st.info("Charts unavailable (Altair not installed). Add `altair` to requirements to enable.")
 
-    # Matrix tab
+    # ------------------------------ Matrix tab ------------------------------
     with tab_matrix:
         st.subheader("Optimizer & What-ifs")
         st.caption("Find min N1 that passes Regulatory (§121.189). FULL cannot derate.")
@@ -568,7 +612,7 @@ if should_compute:
             }), use_container_width=True
         )
 
-        # Exports & Scenarios
+        # ===== Exports, Permalink & Scenarios =====
         st.markdown("---")
         st.subheader("Exports, Permalink & Scenarios")
         current_payload = {
@@ -608,7 +652,7 @@ table{{border-collapse:collapse;width:100%;font-size:14px}}th,td{{padding:8px 10
 <div class="card"><h3>Weight & Config</h3>
 <div>GW: <b>{int(gw):,}</b> lb</div><div>Flaps: <b>{res.flap_text}</b></div>
 <div>Thrust: <b>{res.thrust_text}</b> ({res.n1_pct:.0f}% N1)</div>
-<div>Trim: <b>{trim_anu(float(gw), (0 if res.flap_text.upper().startswith("UP") else (40 if res.flap_text.upper().startswith("FULL") else 20))):.1f} ANU</b></div></div>
+<div>Trim: <b>{trim_anu(float(gw), (0 if res.flap_text.upper().startswith('UP') else (40 if res.flap_text.upper().startswith('FULL') else 20))):.1f} ANU</b></div></div>
 <div class="card"><h3>V-Speeds</h3>
 <div>V1/Vr/V2: <b>{res.v1:.0f}</b>/<b>{res.vr:.0f}</b>/<b>{res.v2:.0f}</b> kt</div>
 <div>Vs: <b>{res.vs:.0f}</b> kt</div></div>
@@ -653,6 +697,62 @@ table{{border-collapse:collapse;width:100%;font-size:14px}}th,td{{padding:8px 10
                 st.success("Scenario loaded from file."); st.rerun()
             except Exception as e:
                 st.error(f"Could not load scenario: {e}")
+
+    # ------------------------------ Data Checker tab ------------------------------
+    with tab_checker:
+        st.subheader("Data Checker (CSV sanity scan)")
+        st.caption("Quick sanity checks for f14_perf.csv, dcs_airports_expanded.csv, and intersections.csv.")
+        issues = []
+
+        # PERF duplicates by key
+        key_cols = ["model","flap_deg","thrust","gw_lbs","press_alt_ft","oat_c"]
+        if all(k in perfdb.columns for k in key_cols):
+            dups = (perfdb.assign(_cnt=1).groupby(key_cols, dropna=False)["_cnt"].sum().reset_index().query("_cnt > 1"))
+            if not dups.empty:
+                issues.append(f"Performance table: {len(dups)} duplicate key rows.")
+                st.dataframe(dups, use_container_width=True)
+            else:
+                st.success("Performance table: no duplicate key rows.")
+        else:
+            issues.append("Performance table: missing expected columns for duplicate check.")
+
+        # MAN(20) heads-up
+        if "flap_deg" in perfdb.columns and not (perfdb["flap_deg"] == 20).any():
+            st.info("Performance: MAN(20) rows not present; app will synthesize from UP/FULL where possible.")
+
+        # Airports: both ends present?
+        if all(c in rwy_db.columns for c in ["map","airport_name","runway_pair","runway_end"]):
+            rw_counts = (rwy_db.groupby(["map","airport_name","runway_pair"])["runway_end"].nunique()
+                         .reset_index(name="ends"))
+            missing_ends = rw_counts[rw_counts["ends"] < 2]
+            if not missing_ends.empty:
+                issues.append(f"Airports: {len(missing_ends)} runway pairs have only one end.")
+                st.dataframe(missing_ends, use_container_width=True)
+            else:
+                st.success("Airports: all runway pairs have both ends.")
+
+        # Intersections: orphan references?
+        if not ix_db.empty and all(c in rwy_db.columns for c in ["map","airport_name","runway_pair","runway_end"]):
+            merged = ix_db.merge(
+                rwy_db[["map","airport_name","runway_pair","runway_end"]],
+                on=["map","airport_name","runway_pair","runway_end"],
+                how="left",
+                indicator=True
+            )
+            orphans = merged[merged["_merge"] == "left_only"]
+            if not orphans.empty:
+                issues.append(f"Intersections: {len(orphans)} rows reference missing airports/runways.")
+                st.dataframe(orphans.drop(columns=["_merge"]), use_container_width=True)
+            else:
+                st.success("Intersections: all rows reference known airports/runways.")
+        elif ix_db.empty:
+            st.info("Intersections: file empty or not provided — nothing to check.")
+
+        if issues:
+            st.warning("Summary: " + "  •  ".join(issues))
+        else:
+            st.success("CSV sanity scan: clean ✅")
+
 else:
     st.info("Select fuel/stores (or enter a valid gross weight) to compute performance.")
 
