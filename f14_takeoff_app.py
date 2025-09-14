@@ -14,6 +14,7 @@
 # - Debounce with Auto-recompute toggle
 # - Color-cued summary card
 # - LRU micro-cache for snappier what-ifs
+# - Flaps moved into "Config & Thrust" (alongside thrust)
 
 from __future__ import annotations
 import math
@@ -224,8 +225,8 @@ with st.sidebar:
         wind_policy = st.selectbox("Wind Policy", ["None", "50/150"], index=0,
             help="‘50/150’ = 50% headwind credit, 150% tailwind penalty (typical airline rule).")
 
-    # ------------------------------ WEIGHT & CONFIG ------------------------------
-    with st.expander("Weight & Config", expanded=True):
+    # ------------------------------ WEIGHT ------------------------------
+    with st.expander("Weight", expanded=True):
         mode = st.radio("Weight entry", ["Direct GW", "Fuel + Stores"], index=0)
         if mode == "Direct GW":
             gw = float(st.number_input("Gross Weight (lb)", min_value=40000.0, max_value=80000.0, value=70000.0, step=500.0))
@@ -240,21 +241,26 @@ with st.sidebar:
             wcalc = empty_w + fuel_lb + ext_tanks * 1900.0 + aim9 * 190.0 + aim7 * 510.0 + aim54 * 1000.0 + (440.0 if lantirn else 0.0)
             gw = float(st.number_input("Computed GW (editable)", min_value=40000.0, max_value=80000.0, value=float(wcalc), step=10.0))
 
+    # ------------------------------ CONFIG & THRUST ------------------------------
+    with st.expander("Config & Thrust", expanded=False):
+        # Flaps live here now (next to thrust)
         flap_mode = st.selectbox("Flaps", ["Auto-Select", "UP", "MANEUVER", "FULL"], index=0)
 
-    # ------------------------------ THRUST ------------------------------
-    with st.expander("Thrust", expanded=False):
-        thrust_mode = st.radio("Mode", ["Auto-Select", "Manual Derate", "MIL", "AB"], index=0)
+        thrust_mode = st.radio("Thrust Mode", ["Auto-Select", "Manual Derate", "MIL", "AB"], index=0)
+
+        # Derate floor depends on flap setting (FULL cannot derate)
         derate_n1 = 98.0
         if thrust_mode == "Manual Derate":
-            if flap_mode == "UP":
-                floor = 90.0
-            elif flap_mode == "FULL":
-                floor = 100.0
-            else:
-                floor = 90.0
-            st.caption(f"Derate floor by flap: {floor:.0f}% N1 (MIL)")
-            derate_n1 = float(st.slider("Target N1 % (MIL)", min_value=float(int(floor)), max_value=100.0, value=max(95.0, float(int(floor))), step=1.0))
+            if flap_mode == "FULL":
+                st.warning("FULL flaps cannot be derated — using MIL (100%).")
+                derate_floor = 100.0
+            elif flap_mode == "UP":
+                derate_floor = 90.0
+            else:  # MANEUVER or Auto-Select
+                derate_floor = 90.0
+            st.caption(f"Derate floor: {derate_floor:.0f}% N1 (MIL basis)")
+            derate_n1 = float(st.slider("Target N1 % (MIL)", min_value=float(int(derate_floor)),
+                                        max_value=100.0, value=max(95.0, float(int(derate_floor))), step=1.0))
 
     # ------------------------------ ADVANCED / COMPLIANCE ------------------------------
     with st.expander("Advanced / Calibration", expanded=False):
