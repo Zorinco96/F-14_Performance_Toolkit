@@ -423,6 +423,89 @@ if ready:
         st.download_button("Download current result (JSON)", data=pd.Series(current_payload).to_json(indent=2),
                            file_name="f14_takeoff_result.json", mime="application/json")
 
+                # ===== Print-friendly Report (HTML) =====
+        st.markdown("---")
+        st.caption("Print-friendly report (HTML) — includes your current result and the what-if matrix.")
+        try:
+            matrix_html = df_matrix.to_html(index=False, border=0)
+        except Exception:
+            matrix_html = "<p>(Matrix unavailable)</p>"
+
+        # simple, clean HTML (inline styles so it prints nicely)
+        report_html = f"""
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>F-14B Takeoff Report</title>
+<style>
+  body {{ font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; color: #111; }}
+  h1, h2, h3 {{ margin: 0 0 12px; }}
+  .grid {{ display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 12px 24px; }}
+  .card {{ padding: 12px 16px; border: 1px solid #e5e7eb; border-radius: 8px; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: 14px; }}
+  th, td {{ padding: 8px 10px; border-bottom: 1px solid #e5e7eb; text-align: left; }}
+  th {{ background: #f9fafb; }}
+  .mono {{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }}
+</style>
+</head>
+<body>
+  <h1>F-14B Takeoff Report</h1>
+  <p class="mono">{theatre} — {airport} — RWY {str(rwy["runway_end"])} {sel if (not df_ix.empty and sel != "— Full length —") else "(Full length)"} </p>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Declared / Field</h3>
+      <div>TORA: <b>{int(base_tora):,}</b> ft</div>
+      <div>TODA: <b>{int(base_toda):,}</b> ft</div>
+      <div>ASDA: <b>{int(base_asda):,}</b> ft</div>
+      <div>Elevation: <b>{int(elev_ft):,}</b> ft</div>
+      <div>Slope: <b>{slope_pct:.2f}%</b></div>
+      <div>Shorten: <b>{int(shorten_total):,}</b> ft</div>
+    </div>
+    <div class="card">
+      <h3>Weather</h3>
+      <div>OAT: <b>{oat_c:.1f} °C</b> | QNH: <b>{qnh_inhg:.2f} inHg</b></div>
+      <div>Wind: <b>{int(wind_dir):03d}@{int(wind_spd)}</b> {wind_units}, policy: <b>{wind_policy}</b></div>
+    </div>
+    <div class="card">
+      <h3>Weight & Config</h3>
+      <div>GW: <b>{int(gw):,}</b> lb</div>
+      <div>Flaps: <b>{res.flap_text}</b></div>
+      <div>Thrust: <b>{res.thrust_text}</b> ({res.n1_pct:.0f}% N1)</div>
+      <div>Trim: <b>{trim_anu(float(gw), flap_deg_out):.1f} ANU</b></div>
+    </div>
+    <div class="card">
+      <h3>V-Speeds</h3>
+      <div>V1/Vr/V2: <b>{res.v1:.0f}</b> / <b>{res.vr:.0f}</b> / <b>{res.v2:.0f}</b> kt</div>
+      <div>Vs: <b>{res.vs:.0f}</b> kt</div>
+    </div>
+    <div class="card">
+      <h3>Distances</h3>
+      <div>Stop (ASD): <b>{int(res.asd_ft):,}</b> ft</div>
+      <div>Cont (OEI reg): <b>{int(res.agd_reg_oei_ft):,}</b> ft</div>
+      <div>Cont (AEO): <b>{int(res.agd_aeo_liftoff_ft):,}</b> ft</div>
+    </div>
+    <div class="card">
+      <h3>All-engines (for DCS)</h3>
+      <div>Vr ground roll: <b>{int(res.agd_aeo_liftoff_ft * vr_frac):,}</b> ft</div>
+      <div>Liftoff to 35 ft: <b>{int(res.agd_aeo_liftoff_ft):,}</b> ft</div>
+    </div>
+  </div>
+
+  <h2 style="margin-top: 18px;">What-if Matrix</h2>
+  {matrix_html}
+</body>
+</html>
+        """.strip()
+
+        st.download_button(
+            "Download print report (HTML)",
+            data=report_html,
+            file_name="f14_takeoff_report.html",
+            mime="text/html"
+        )
+
                 # ===== Permalink / Share =====
         st.markdown("---")
         st.caption("Permalink: update the URL with your current inputs so you can share or bookmark.")
