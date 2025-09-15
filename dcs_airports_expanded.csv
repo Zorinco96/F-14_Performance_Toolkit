@@ -1,373 +1,497 @@
-map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,opp_threshold_elev_ft,slope_percent,notes
-Afghanistan,Bagram AB,03/21,03,32.0,11000,11000,11000,11000,4895.0,4920.0,,Approx real-world length; verify in DCS
-Afghanistan,Bagram AB,03/21,21,212.0,11000,11000,11000,11000,4920.0,4895.0,,Approx real-world length; verify in DCS
-Afghanistan,Kabul Intl,11/29,11,113.0,11500,11500,11500,11500,5877.0,5877.0,,Approx real-world length; verify in DCS
-Afghanistan,Kabul Intl,11/29,29,293.0,11500,11500,11500,11500,5877.0,5877.0,,Approx real-world length; verify in DCS
-Afghanistan,Kandahar Intl,05/23,05,47.0,10500,10500,10500,10500,3337.0,3337.0,,Approx real-world length; verify in DCS
-Afghanistan,Kandahar Intl,05/23,23,227.0,10500,10500,10500,10500,3337.0,3337.0,,Approx real-world length; verify in DCS
-Caucasus,Anapa-Vityazevo,04/22,04,40.0,8858,8858,8858,8858,174.0,174.0,,Public real-world data; verify
-Caucasus,Anapa-Vityazevo,04/22,22,220.0,8858,8858,8858,8858,174.0,174.0,,Public real-world data; verify
-Caucasus,Batumi,13/31,13,126.0,8530,8530,8530,8530,33.0,39.0,,Public real-world data; verify TORA/TODA/ASDA in DCS
-Caucasus,Batumi,13/31,31,306.0,8530,8530,8530,8530,39.0,33.0,,Public real-world data; verify
-Caucasus,Beslan,09/27,09,90.0,9890,9890,9890,9890,,,,"DCS Ground Chart v3.5: 3,015 m (9,890 ft)."
-Caucasus,Beslan,09/27,27,270.0,9890,9890,9890,9890,,,,"DCS Ground Chart v3.5: 3,015 m (9,890 ft)."
-Caucasus,Beslan,10/28,10,96.0,8176,8176,8176,8176,1710.0,1710.0,,Public real-world data; verify
-Caucasus,Beslan,10/28,28,276.0,8176,8176,8176,8176,1710.0,1710.0,,Public real-world data; verify
-Caucasus,Gelendzhik,04/22,04,34.0,5905,5905,5905,5905,,,,"DCS Ground Chart v3.5: 1,800 m (5,905 ft); ~034/214 (mag)."
-Caucasus,Gelendzhik,04/22,22,214.0,5905,5905,5905,5905,,,,"DCS Ground Chart v3.5: 1,800 m (5,905 ft); ~034/214 (mag)."
-Caucasus,Gudauta,08/26,08,80.0,6562,6562,6562,6562,131.0,121.0,,Public real-world data; verify
-Caucasus,Gudauta,08/26,26,260.0,6562,6562,6562,6562,121.0,131.0,,Public real-world data; verify
-Caucasus,Gudauta,15/33,15,145.0,8200,8200,8200,8200,,,,"DCS Ground Chart v3.5: 2,500 m (8,200 ft); headings ~145/325 (mag)."
-Caucasus,Gudauta,15/33,33,325.0,8200,8200,8200,8200,,,,"DCS Ground Chart v3.5: 2,500 m (8,200 ft); headings ~145/325 (mag)."
-Caucasus,Kobuleti,07/25,07,73.0,8080,8080,8080,8080,59.0,58.0,,Public real-world data; verify
-Caucasus,Kobuleti,07/25,25,253.0,8080,8080,8080,8080,58.0,59.0,,Public real-world data; verify
-Caucasus,Krasnodar-Center,08/26,08,80.0,8200,8200,8200,8200,,,,"DCS Ground Chart v3.5: 2,500 m (8,200 ft)."
-Caucasus,Krasnodar-Center,08/26,26,260.0,8200,8200,8200,8200,,,,"DCS Ground Chart v3.5: 2,500 m (8,200 ft)."
-Caucasus,Krasnodar-Pashkovsky,04L/22R,04L,41.0,7430,7430,7430,7430,,,,"DCS Ground Chart v3.5: 2,265 m (7,430 ft) 04L/22R; ~041/221 (mag)."
-Caucasus,Krasnodar-Pashkovsky,04L/22R,22R,221.0,7430,7430,7430,7430,,,,"DCS Ground Chart v3.5: 2,265 m (7,430 ft) 04L/22R; ~041/221 (mag)."
-Caucasus,Krasnodar-Pashkovsky,04R/22L,04R,41.0,10170,10170,10170,10170,,,,"DCS Ground Chart v3.5: 3,100 m (10,170 ft) 04R/22L; ~041/221 (mag)."
-Caucasus,Krasnodar-Pashkovsky,04R/22L,22L,221.0,10170,10170,10170,10170,,,,"DCS Ground Chart v3.5: 3,100 m (10,170 ft) 04R/22L; ~041/221 (mag)."
-Caucasus,Krasnodar-Pashkovsky,09/27,09,90.0,10056,10056,10056,10056,112.0,115.0,,Public real-world data; verify
-Caucasus,Krasnodar-Pashkovsky,09/27,27,270.0,10056,10056,10056,10056,115.0,112.0,,Public real-world data; verify
-Caucasus,Krymsk,03/21,03,33.0,8530,8530,8530,8530,,,,"DCS Ground Chart v3.5: 2,600 m (8,530 ft); ~033/213 (mag)."
-Caucasus,Krymsk,03/21,21,213.0,8530,8530,8530,8530,,,,"DCS Ground Chart v3.5: 2,600 m (8,530 ft); ~033/213 (mag)."
-Caucasus,Kutaisi,07/25,07,74.0,8202,8202,8202,8202,,,,"SkyVector: 2,500 m (8,202 ft); true ~074/254."
-Caucasus,Kutaisi,07/25,25,254.0,8202,8202,8202,8202,,,,"SkyVector: 2,500 m (8,202 ft); true ~074/254."
-Caucasus,Kutaisi,08/26,08,84.0,8005,8005,8005,8005,223.0,223.0,,Added; verify in DCS
-Caucasus,Kutaisi,08/26,26,264.0,8005,8005,8005,8005,223.0,223.0,,Added; verify in DCS
-Caucasus,Maykop-Khanskaya,04/22,04,33.0,10495,10495,10495,10495,,,,"DCS Ground Chart v3.5: 3,200 m (10,495 ft); ~033/213 (mag)."
-Caucasus,Maykop-Khanskaya,04/22,22,213.0,10495,10495,10495,10495,,,,"DCS Ground Chart v3.5: 3,200 m (10,495 ft); ~033/213 (mag)."
-Caucasus,Mineralnye Vody,11/29,11,109.0,13350,13350,13350,13350,,,,"DCS Ground Chart v3.5: 4,070 m (13,350 ft); ~109/289 (mag)."
-Caucasus,Mineralnye Vody,11/29,29,289.0,13350,13350,13350,13350,,,,"DCS Ground Chart v3.5: 4,070 m (13,350 ft); ~109/289 (mag)."
-Caucasus,Mineralnye Vody,12/30,12,120.0,12960,12960,12960,12960,1053.0,1053.0,,Public real-world data; verify
-Caucasus,Mineralnye Vody,12/30,30,300.0,12960,12960,12960,12960,1053.0,1053.0,,Public real-world data; verify
-Caucasus,Mozdok,08/26,08,80.0,12008,12008,12008,12008,512.0,512.0,,Public real-world data; verify
-Caucasus,Mozdok,08/26,26,260.0,12008,12008,12008,12008,512.0,512.0,,Public real-world data; verify
-Caucasus,Nalchik,05/23,05,50.0,7545,7545,7545,7545,,,,"DCS Ground Chart v3.5: 2,300 m (7,545 ft)."
-Caucasus,Nalchik,05/23,23,230.0,7545,7545,7545,7545,,,,"DCS Ground Chart v3.5: 2,300 m (7,545 ft)."
-Caucasus,Nalchik,06/24,06,60.0,7202,7202,7202,7202,1479.0,1479.0,,Public real-world data; verify
-Caucasus,Nalchik,06/24,24,240.0,7202,7202,7202,7202,1479.0,1479.0,,Public real-world data; verify
-Caucasus,Novorossiysk,04/22,04,36.0,5905,5905,5905,5905,,,,"DCS Ground Chart v3.5: 1,800 m (5,905 ft); ~036/216 (mag)."
-Caucasus,Novorossiysk,04/22,22,216.0,5905,5905,5905,5905,,,,"DCS Ground Chart v3.5: 1,800 m (5,905 ft); ~036/216 (mag)."
-Caucasus,Senaki-Kolkhi,09/27,09,94.0,7870,7870,7870,7870,98.0,98.0,,Public real-world data; verify
-Caucasus,Senaki-Kolkhi,09/27,27,274.0,7870,7870,7870,7870,98.0,98.0,,Public real-world data; verify
-Caucasus,Sochi-Adler,02/20,02,20.0,7220,7220,7220,7220,,,,"DCS Ground Chart v3.5: 2,200 m (7,220 ft); ~020/200 (mag)."
-Caucasus,Sochi-Adler,02/20,20,200.0,7220,7220,7220,7220,,,,"DCS Ground Chart v3.5: 2,200 m (7,220 ft); ~020/200 (mag)."
-Caucasus,Sochi-Adler,06/24,06,62.0,7218,7218,7218,7218,89.0,89.0,,Public real-world data; verify
-Caucasus,Sochi-Adler,06/24,24,242.0,7218,7218,7218,7218,89.0,89.0,,Public real-world data; verify
-Caucasus,Sukhumi-Babushara,07/25,07,74.0,8202,8202,8202,8202,39.0,33.0,,Public real-world data; verify
-Caucasus,Sukhumi-Babushara,07/25,25,254.0,8202,8202,8202,8202,33.0,39.0,,Public real-world data; verify
-Caucasus,Sukhumi-Babushara,11/29,11,110.0,11610,11610,11610,11610,,,,"DCS Ground Chart v3.5: 3,540 m (11,610 ft); headings ~110/290 (mag)."
-Caucasus,Sukhumi-Babushara,11/29,29,290.0,11610,11610,11610,11610,,,,"DCS Ground Chart v3.5: 3,540 m (11,610 ft); headings ~110/290 (mag)."
-Caucasus,Tbilisi-Lochini,13/31,13,134.0,9800,9800,9800,9800,1624.0,1624.0,,Public real-world data; verify
-Caucasus,Tbilisi-Lochini,13/31,31,314.0,9800,9800,9800,9800,1624.0,1624.0,,Public real-world data; verify
-Caucasus,Tbilisi-Soganlug,13/31,13,126.0,8120,8120,8120,8120,,,,"DCS Ground Chart v3.5: 2,475 m (8,120 ft); headings ~126/306 (mag)."
-Caucasus,Tbilisi-Soganlug,13/31,31,306.0,8120,8120,8120,8120,,,,"DCS Ground Chart v3.5: 2,475 m (8,120 ft); headings ~126/306 (mag)."
-Caucasus,Vaziani,13/31,13,134.0,8071,8071,8071,8071,1545.0,1545.0,,Public real-world data; verify
-Caucasus,Vaziani,13/31,31,314.0,8071,8071,8071,8071,1545.0,1545.0,,Public real-world data; verify
-Cold War Germany,Allstedt (EDCU),10/28,10,100.0,3937,3937,3937,3937,794.0,794.0,,"EDCU: 10/28 ~1,200 m (3,937 ft); elev ~794 ft."
-Cold War Germany,Allstedt (EDCU),10/28,28,280.0,3937,3937,3937,3937,794.0,794.0,,"EDCU: 10/28 ~1,200 m (3,937 ft); elev ~794 ft."
-Cold War Germany,Alt Daber – Wittstock (reserve),08/26,08,80.0,7776,7776,7776,7776,,,,"Alt Daber: 08/26 ~2,370 m concrete (late DDR). Source: German Wikipedia/mil-airfields."
-Cold War Germany,Alt Daber – Wittstock (reserve),08/26,26,260.0,7776,7776,7776,7776,,,,"Alt Daber: 08/26 ~2,370 m concrete (late DDR). Source: German Wikipedia/mil-airfields."
-Cold War Germany,Altenburg–Nobitz (EDAC),04/22,04,36.0,7989,7989,7989,7989,639.0,605.0,,"EDAC: 04/22 2,435 m (7,989 ft); true 036/216; thr elev 639/605 ft (SkyVector/Wikipedia)."
-Cold War Germany,Altenburg–Nobitz (EDAC),04/22,22,216.0,7989,7989,7989,7989,605.0,639.0,,"EDAC: 04/22 2,435 m (7,989 ft); true 036/216; thr elev 639/605 ft (SkyVector/Wikipedia)."
-Cold War Germany,Berlin – Schönefeld (EDDB / SXF),07L/25R,07L,70.0,11811,11811,11811,11811,,,,Historical/legacy runway: 3600 m (11811 ft) per Wikipedia.
-Cold War Germany,Berlin – Schönefeld (EDDB / SXF),07L/25R,25R,250.0,11811,11811,11811,11811,,,,Historical/legacy runway: 3600 m (11811 ft) per Wikipedia.
-Cold War Germany,Berlin – Schönefeld (EDDB / SXF),07R/25L,07R,70.0,9843,9843,9843,9843,,,,Historical older runway: ~3000 m (9843 ft) per mil-airfields article.
-Cold War Germany,Berlin – Schönefeld (EDDB / SXF),07R/25L,25L,250.0,9843,9843,9843,9843,,,,Historical older runway: ~3000 m (9843 ft) per mil-airfields article.
-Cold War Germany,Bitburg (EDRB) – GA,05/23,05,50.0,4035,4035,4035,4035,,,,Post-closure GA runway 05/23 1230 m (4035 ft) per Wikipedia/ACUKWIK.
-Cold War Germany,Bitburg (EDRB) – GA,05/23,23,230.0,4035,4035,4035,4035,,,,Post-closure GA runway 05/23 1230 m (4035 ft) per Wikipedia/ACUKWIK.
-Cold War Germany,Bitburg Air Base (EDRB) – Cold War,06/24,06,60.0,10026,10026,10026,10026,,,,Cold War runway 06/24 ~10026 ft (PilotNav / historical sources).
-Cold War Germany,Bitburg Air Base (EDRB) – Cold War,06/24,24,240.0,10026,10026,10026,10026,,,,Cold War runway 06/24 ~10026 ft (PilotNav / historical sources).
-Cold War Germany,Brandenburg–Briest (EDUB),07/25,07,73.0,8012,8012,8012,8012,102.0,102.0,,"EDUB: 07/25 2,442 m (8,018 ft) concrete (historic full length; later 1,499 m usable). Elev ~102 ft. Sources: forgottenairfields.com; NVA-Flieger; Wikipedia."
-Cold War Germany,Brandenburg–Briest (EDUB),07/25,25,253.0,8012,8012,8012,8012,102.0,102.0,,"EDUB: 07/25 2,442 m (8,018 ft) concrete (historic full length; later 1,499 m usable). Elev ~102 ft. Sources: forgottenairfields.com; NVA-Flieger; Wikipedia."
-Cold War Germany,Braunschweig–Wolfsburg (EDVE),08/26,08,76.0,7546,7546,7546,7546,295.0,295.0,,"EDVE: 08/26 ~2,300 m (7,546 ft); true ~076/256; elev ~295 ft."
-Cold War Germany,Braunschweig–Wolfsburg (EDVE),08/26,26,256.0,7546,7546,7546,7546,295.0,295.0,,"EDVE: 08/26 ~2,300 m (7,546 ft); true ~076/256; elev ~295 ft."
-Cold War Germany,Bremen (EDDW),05/23,05,50.0,2297,2297,2297,2297,,,,"EDDW: 05/23 700 m (2,297 ft) (SkyVector/Wikipedia)."
-Cold War Germany,Bremen (EDDW),05/23,23,230.0,2297,2297,2297,2297,,,,"EDDW: 05/23 700 m (2,297 ft) (SkyVector/Wikipedia)."
-Cold War Germany,Bremen (EDDW),09/27,09,86.0,6693,6693,6693,6693,13.0,14.0,,"EDDW: 09/27 2,040 m (6,693 ft); true 086/266; thr elev 13/14 ft (SkyVector/Wikipedia)."
-Cold War Germany,Bremen (EDDW),09/27,27,266.0,6693,6693,6693,6693,14.0,13.0,,"EDDW: 09/27 2,040 m (6,693 ft); true 086/266; thr elev 13/14 ft (SkyVector/Wikipedia)."
-Cold War Germany,Büchel Air Base (ETSB),03/21,03,30.0,8225,8225,8225,8225,,,,Verified via Wikipedia/PilotNav/ACUKWIK: 03/21 2507 m (8225 ft).
-Cold War Germany,Büchel Air Base (ETSB),03/21,21,210.0,8225,8225,8225,8225,,,,Verified via Wikipedia/PilotNav/ACUKWIK: 03/21 2507 m (8225 ft).
-Cold War Germany,Celle Air Base (ETHC),08/26,08,80.0,6007,6007,6007,6007,,,,Verified via Wikipedia/SkyVector/ACUKWIK: 08/26 1831 m (6007 ft).
-Cold War Germany,Celle Air Base (ETHC),08/26,26,260.0,6007,6007,6007,6007,,,,Verified via Wikipedia/SkyVector/ACUKWIK: 08/26 1831 m (6007 ft).
-Cold War Germany,Cottbus–Drewitz (EDCD),10/28,10,100.0,8530,8530,8530,8530,269.0,269.0,,"EDCD: 10/28 2,600 m (8,530 ft); elev ~269 ft; headings by designator."
-Cold War Germany,Cottbus–Drewitz (EDCD),10/28,28,280.0,8530,8530,8530,8530,269.0,269.0,,"EDCD: 10/28 2,600 m (8,530 ft); elev ~269 ft; headings by designator."
-Cold War Germany,Damgarten (Ribnitz-Damgarten),07/25,07,70.0,8202,8202,8202,8202,,,,Historical runway 2500 m. Source: mil-airfields / weathergraphics.
-Cold War Germany,Damgarten (Ribnitz-Damgarten),07/25,25,250.0,8202,8202,8202,8202,,,,Historical runway 2500 m. Source: mil-airfields / weathergraphics.
-Cold War Germany,Dessau (EDAD),09/27,09,90.0,3278,3278,3278,3278,,,,Verified via MyVirtualAirline/SkyVector: 09/27 ~1000 m (3278 ft).
-Cold War Germany,Dessau (EDAD),09/27,27,270.0,3278,3278,3278,3278,,,,Verified via MyVirtualAirline/SkyVector: 09/27 ~1000 m (3278 ft).
-Cold War Germany,Diepholz (ETND),08/26,08,80.0,8255,8255,8255,8255,,,,"ETND: 08/26 ~2,516 m (8,255 ft). Headings by designator; verify thresholds in-sim."
-Cold War Germany,Diepholz (ETND),08/26,26,260.0,8255,8255,8255,8255,,,,"ETND: 08/26 ~2,516 m (8,255 ft). Headings by designator; verify thresholds in-sim."
-Cold War Germany,Dresden (EDDC),04/22,04,42.0,9350,9350,9350,9350,755.0,755.0,,"EDDC: 04/22 2,850 m (9,350 ft); headings ~042/222; field elev ~755 ft."
-Cold War Germany,Dresden (EDDC),04/22,22,222.0,9350,9350,9350,9350,755.0,755.0,,"EDDC: 04/22 2,850 m (9,350 ft); headings ~042/222; field elev ~755 ft."
-Cold War Germany,Eberswalde–Finow (EDAV),10/28,10,100.0,8268,8268,8268,8268,,,,Verified via UniversalWeather/AirportDatabase: 10/28 2520 m (8268 ft).
-Cold War Germany,Eberswalde–Finow (EDAV),10/28,28,280.0,8268,8268,8268,8268,,,,Verified via UniversalWeather/AirportDatabase: 10/28 2520 m (8268 ft).
-Cold War Germany,Erfurt–Weimar (EDDE),09/27,09,94.0,8530,8530,8530,8530,1023.0,1014.0,,"EDDE: 09/27 2,600 m (8,530 ft); true 094/274; thr elev 1023/1014 ft (SkyVector/Wikipedia)."
-Cold War Germany,Erfurt–Weimar (EDDE),09/27,27,274.0,8530,8530,8530,8530,1014.0,1023.0,,"EDDE: 09/27 2,600 m (8,530 ft); true 094/274; thr elev 1023/1014 ft (SkyVector/Wikipedia)."
-Cold War Germany,Fritzlar (ETHF),12/30,12,119.0,3422,3422,3422,3422,566.0,559.0,,"ETHF: 12/30 1,043 m (3,422 ft); true 119/299; elev 565–566 ft. Sources: Wikipedia/SkyVector/Airports-Worldwide."
-Cold War Germany,Fritzlar (ETHF),12/30,30,299.0,3422,3422,3422,3422,559.0,566.0,,"ETHF: 12/30 1,043 m (3,422 ft); true 119/299; elev 565–566 ft. Sources: Wikipedia/SkyVector/Airports-Worldwide."
-Cold War Germany,Geilenkirchen (ETNG),10/28,10,100.0,9843,9843,9843,9843,,,,"ETNG: 10/28 ~3,000 m (9,843 ft). Headings by designator; verify thresholds in-sim."
-Cold War Germany,Geilenkirchen (ETNG),10/28,28,280.0,9843,9843,9843,9843,,,,"ETNG: 10/28 ~3,000 m (9,843 ft). Headings by designator; verify thresholds in-sim."
-Cold War Germany,Gera–Leumnitz (EDAJ),11/29,11,110.0,3937,3937,3937,3937,1021.0,1021.0,,"EDAJ: 11/29 ~1,200 m (3,937 ft); elev ~1,021 ft; headings by designator."
-Cold War Germany,Gera–Leumnitz (EDAJ),11/29,29,290.0,3937,3937,3937,3937,1021.0,1021.0,,"EDAJ: 11/29 ~1,200 m (3,937 ft); elev ~1,021 ft; headings by designator."
-Cold War Germany,Giebelstadt (EDQG),08/26,08,80.0,7005,7005,7005,7005,,,,"EDQG: 08/26 2,135 m (~7,005 ft) (Wikipedia/Universal)."
-Cold War Germany,Giebelstadt (EDQG),08/26,26,260.0,7005,7005,7005,7005,,,,"EDQG: 08/26 2,135 m (~7,005 ft) (Wikipedia/Universal)."
-Cold War Germany,Groß Mohrdorf (reserve),13/31,13,130.0,7546,7546,7546,7546,,,,"Groß Mohrdorf: 13/31 ~2,300–2,350 m concrete (reserve field). Sources: mil-airfields.de; Wikipedia."
-Cold War Germany,Groß Mohrdorf (reserve),13/31,31,310.0,7546,7546,7546,7546,,,,"Groß Mohrdorf: 13/31 ~2,300–2,350 m concrete (reserve field). Sources: mil-airfields.de; Wikipedia."
-Cold War Germany,Großenhain (EDAK),11/29,11,112.0,4642,4642,4642,4642,417.0,417.0,,"EDAK: 11/29 1,415 m (4,642 ft); true 112/292; elev 417 ft (SkyVector/ACUKWIK)."
-Cold War Germany,Großenhain (EDAK),11/29,29,292.0,4642,4642,4642,4642,417.0,417.0,,"EDAK: 11/29 1,415 m (4,642 ft); true 112/292; elev 417 ft (SkyVector/ACUKWIK)."
-Cold War Germany,Hamburg – Finkenwerder (EDHI),05/23,05,50.0,10443,10443,10443,10443,,,,Verified via Wikipedia/ACUKWIK: 05/23 3183 m (10443 ft).
-Cold War Germany,Hamburg – Finkenwerder (EDHI),05/23,23,230.0,10443,10443,10443,10443,,,,Verified via Wikipedia/ACUKWIK: 05/23 3183 m (10443 ft).
-Cold War Germany,Heringsdorf (EDAH),10/28,10,102.0,7562,7562,7562,7562,77.0,89.0,,"EDAH: 10/28 2,305 m (7,562 ft) asphalt; true 102/282; thr elev ~77/89 ft. Sources: Wikipedia/SkyVector/Airports-Worldwide."
-Cold War Germany,Heringsdorf (EDAH),10/28,28,282.0,7562,7562,7562,7562,89.0,77.0,,"EDAH: 10/28 2,305 m (7,562 ft) asphalt; true 102/282; thr elev ~77/89 ft. Sources: Wikipedia/SkyVector/Airports-Worldwide."
-Cold War Germany,Hildesheim (EDVM),08/26,08,81.0,4101,4101,4101,4101,292.0,292.0,,"EDVM: 08/26 ~1,250 m (4,101 ft); headings ~081/261; elev ~292 ft."
-Cold War Germany,Hildesheim (EDVM),08/26,26,261.0,4101,4101,4101,4101,292.0,292.0,,"EDVM: 08/26 ~1,250 m (4,101 ft); headings ~081/261; elev ~292 ft."
-Cold War Germany,Hohn (ETNH),08/26,08,80.0,8005,8005,8005,8005,,,,"ETNH: 08/26 2,440 m (8,005 ft) (Wikipedia/Spotterguide)."
-Cold War Germany,Hohn (ETNH),08/26,26,260.0,8005,8005,8005,8005,,,,"ETNH: 08/26 2,440 m (8,005 ft) (Wikipedia/Spotterguide)."
-Cold War Germany,Holzdorf Air Base (ETSH),09/27,09,90.0,7936,7936,7936,7936,,,,Verified via Wikipedia/ACUKWIK/PilotNav: 09/27 2419 m (7936 ft).
-Cold War Germany,Holzdorf Air Base (ETSH),09/27,27,270.0,7936,7936,7936,7936,,,,Verified via Wikipedia/ACUKWIK/PilotNav: 09/27 2419 m (7936 ft).
-Cold War Germany,Jena–Schöngleina (EDBJ),08/26,08,80.0,3839,3839,3839,3839,1230.0,1230.0,,"EDBJ: 08/26 ~1,170 m (3,839 ft); elev ~1,230 ft."
-Cold War Germany,Jena–Schöngleina (EDBJ),08/26,26,260.0,3839,3839,3839,3839,1230.0,1230.0,,"EDBJ: 08/26 ~1,170 m (3,839 ft); elev ~1,230 ft."
-Cold War Germany,Jever (ETNJ),11/29,11,110.0,8005,8005,8005,8005,,,,"ETNJ: 11/29 ~8,005 ft. Headings by designator; verify thresholds in-sim."
-Cold War Germany,Jever (ETNJ),11/29,29,290.0,8005,8005,8005,8005,,,,"ETNJ: 11/29 ~8,005 ft. Headings by designator; verify thresholds in-sim."
-Cold War Germany,Jüterbog – Altes Lager,10/28,10,100.0,8530,8530,8530,8530,,,,Historical Soviet era length ~2600 m per sources; current remnants ~1050 m.
-Cold War Germany,Jüterbog – Altes Lager,10/28,28,280.0,8530,8530,8530,8530,,,,Historical Soviet era length ~2600 m per sources; current remnants ~1050 m.
-Cold War Germany,Kyritz (EDBK),14/32,14,138.0,3281,3281,3281,3281,130.0,130.0,,"EDBK: 14/32 1,000 m (3,281 ft) asphalt; elev 130 ft. Sources: SkyVector/Wikipedia."
-Cold War Germany,Kyritz (EDBK),14/32,32,318.0,3281,3281,3281,3281,130.0,130.0,,"EDBK: 14/32 1,000 m (3,281 ft) asphalt; elev 130 ft. Sources: SkyVector/Wikipedia."
-Cold War Germany,Köthen (EDCK),07/25,07,70.0,2640,2640,2640,2640,,,,Verified via AirportNavFinder/ACUKWIK: 07/25 ~805 m (2640 ft).
-Cold War Germany,Köthen (EDCK),07/25,25,250.0,2640,2640,2640,2640,,,,Verified via AirportNavFinder/ACUKWIK: 07/25 ~805 m (2640 ft).
-Cold War Germany,Leipzig/Halle (EDDP),08L/26R,08L,80.0,11811,11811,11811,11811,,,,Verified via Wikipedia/MD-AG: 08L/26R 3600 m (11811 ft).
-Cold War Germany,Leipzig/Halle (EDDP),08L/26R,26R,260.0,11811,11811,11811,11811,,,,Verified via Wikipedia/MD-AG: 08L/26R 3600 m (11811 ft).
-Cold War Germany,Leipzig/Halle (EDDP),08R/26L,08R,80.0,11811,11811,11811,11811,,,,Verified via Wikipedia/MD-AG: 08R/26L 3600 m (11811 ft).
-Cold War Germany,Leipzig/Halle (EDDP),08R/26L,26L,260.0,11811,11811,11811,11811,,,,Verified via Wikipedia/MD-AG: 08R/26L 3600 m (11811 ft).
-Cold War Germany,Leipzig–Altenburg (EDAC),04/22,04,36.0,7989,7989,7989,7989,639.0,605.0,,"EDAC (dupe guard): ensure latest values; 2,435 m (7,989 ft)."
-Cold War Germany,Leipzig–Altenburg (EDAC),04/22,22,216.0,7989,7989,7989,7989,605.0,639.0,,"EDAC (dupe guard): ensure latest values; 2,435 m (7,989 ft)."
-Cold War Germany,Leipzig–Mockau (historic),10/28,10,100.0,3281,3281,3281,3281,476.0,476.0,,"Leipzig–Mockau (closed): 10/28 ~1,000 m (3,281 ft); included for Cold War context."
-Cold War Germany,Leipzig–Mockau (historic),10/28,28,280.0,3281,3281,3281,3281,476.0,476.0,,"Leipzig–Mockau (closed): 10/28 ~1,000 m (3,281 ft); included for Cold War context."
-Cold War Germany,Lübeck (EDHL),07/25,07,71.0,6896,6896,6896,6896,53.0,53.0,,"EDHL: 07/25 2,102 m (6,896 ft); true ~071/251; elev ~53 ft."
-Cold War Germany,Lübeck (EDHL),07/25,25,251.0,6896,6896,6896,6896,53.0,53.0,,"EDHL: 07/25 2,102 m (6,896 ft); true ~071/251; elev ~53 ft."
-Cold War Germany,Magdeburg City (EDBM),09/27,09,90.0,3281,3281,3281,3281,264.0,264.0,,"EDBM: 09/27 ~1,000 m (3,281 ft) asphalt; elev ~264 ft; headings by designator."
-Cold War Germany,Magdeburg City (EDBM),09/27,27,270.0,3281,3281,3281,3281,264.0,264.0,,"EDBM: 09/27 ~1,000 m (3,281 ft) asphalt; elev ~264 ft; headings by designator."
-Cold War Germany,Magdeburg–Cochstedt (EDBC),08/26,08,80.0,8202,8202,8202,8202,,,,Verified via Wikipedia + ACUKWIK: 08/26 2500 m (8202 ft).
-Cold War Germany,Magdeburg–Cochstedt (EDBC),08/26,26,260.0,8202,8202,8202,8202,,,,Verified via Wikipedia + ACUKWIK: 08/26 2500 m (8202 ft).
-Cold War Germany,Mendig (EDRE),07/25,07,75.0,5342,5342,5342,5342,597.0,597.0,,"EDRE: 07/25 1,615–1,628 m (~5,342 ft) asphalt; elev ~597 ft. Sources: Wikipedia/DULV/ACUKWIK."
-Cold War Germany,Mendig (EDRE),07/25,25,255.0,5342,5342,5342,5342,597.0,597.0,,"EDRE: 07/25 1,615–1,628 m (~5,342 ft) asphalt; elev ~597 ft. Sources: Wikipedia/DULV/ACUKWIK."
-Cold War Germany,Merseburg (EDAM),09/27,09,90.0,4593,4593,4593,4593,322.0,322.0,,"EDAM: 09/27 ~1,400 m (4,593 ft); elev ~322 ft."
-Cold War Germany,Merseburg (EDAM),09/27,27,270.0,4593,4593,4593,4593,322.0,322.0,,"EDAM: 09/27 ~1,400 m (4,593 ft); elev ~322 ft."
-Cold War Germany,Neubrandenburg–Trollenhagen (EDBN),09/27,09,90.0,7523,7523,7523,7523,,,,Verified via Wikipedia + ACUKWIK: 09/27 2293 m (7523 ft).
-Cold War Germany,Neubrandenburg–Trollenhagen (EDBN),09/27,27,270.0,7523,7523,7523,7523,,,,Verified via Wikipedia + ACUKWIK: 09/27 2293 m (7523 ft).
-Cold War Germany,Neuruppin Air Base (historical),10/28,10,100.0,7874,7874,7874,7874,140.0,140.0,,"Neuruppin: 10/28 2,400 m (7,874 ft) concrete (1990). Sources: mil-airfields.de; openAIP elevation."
-Cold War Germany,Neuruppin Air Base (historical),10/28,28,280.0,7874,7874,7874,7874,140.0,140.0,,"Neuruppin: 10/28 2,400 m (7,874 ft) concrete (1990). Sources: mil-airfields.de; openAIP elevation."
-Cold War Germany,Nordholz (ETMN),08/26,08,80.0,8005,8005,8005,8005,,,,"ETMN: 08/26 ~8,005 ft. Headings by designator; verify thresholds in-sim."
-Cold War Germany,Nordholz (ETMN),08/26,26,260.0,8005,8005,8005,8005,,,,"ETMN: 08/26 ~8,005 ft. Headings by designator; verify thresholds in-sim."
-Cold War Germany,Nörvenich (ETNN),07/25,07,70.0,8032,8032,8032,8032,,,,"ETNN: 07/25 ~2,448 m (8,032 ft). Headings by designator; verify thresholds in-sim."
-Cold War Germany,Nörvenich (ETNN),07/25,25,250.0,8032,8032,8032,8032,,,,"ETNN: 07/25 ~2,448 m (8,032 ft). Headings by designator; verify thresholds in-sim."
-Cold War Germany,Obermehler–Schlotheim (EDCO),11/29,11,107.0,4757,4757,4757,4757,909.0,909.0,,"EDCO: 11/29 1,450 m (4,757 ft) asphalt; elev 909 ft; true 107/287. Sources: SkyVector/ACUKWIK."
-Cold War Germany,Obermehler–Schlotheim (EDCO),11/29,29,287.0,4757,4757,4757,4757,909.0,909.0,,"EDCO: 11/29 1,450 m (4,757 ft) asphalt; elev 909 ft; true 107/287. Sources: SkyVector/ACUKWIK."
-Cold War Germany,Obermehler–Schlotheim (EDOH),10/28,10,100.0,4003,4003,4003,4003,1119.0,1119.0,,"EDOH: 10/28 ~1,220 m (4,003 ft); elev ~1,119 ft."
-Cold War Germany,Obermehler–Schlotheim (EDOH),10/28,28,280.0,4003,4003,4003,4003,1119.0,1119.0,,"EDOH: 10/28 ~1,220 m (4,003 ft); elev ~1,119 ft."
-Cold War Germany,Pferdsfeld (EDRG),09/27,09,90.0,7989,7989,7989,7989,,,,"EDRG: 09/27 2,435 m (~7,989 ft) (ForgottenAirfields)."
-Cold War Germany,Pferdsfeld (EDRG),09/27,27,270.0,7989,7989,7989,7989,,,,"EDRG: 09/27 2,435 m (~7,989 ft) (ForgottenAirfields)."
-Cold War Germany,Pinnow – Schwein/Pinnow (EDBP),01/19,01,10.0,2625,2625,2625,2625,,,,EDBP: 01/19 ~800 m grass (secondary 11/29 ~500 m). Source: Berlin airspace doc (Luftraumdateien) & MV gliding guides.
-Cold War Germany,Pinnow – Schwein/Pinnow (EDBP),01/19,19,190.0,2625,2625,2625,2625,,,,EDBP: 01/19 ~800 m grass (secondary 11/29 ~500 m). Source: Berlin airspace doc (Luftraumdateien) & MV gliding guides.
-Cold War Germany,RAF Gatow (EDBG),08R/26L,08R,80.0,6043,6043,6043,6043,,,,"RAF Gatow: 08R/26L 1,842 m (~6,043 ft) (Wikipedia)."
-Cold War Germany,RAF Gatow (EDBG),08R/26L,26L,260.0,6043,6043,6043,6043,,,,"RAF Gatow: 08R/26L 1,842 m (~6,043 ft) (Wikipedia)."
-Cold War Germany,Rechlin–Lärz / Müritz Airpark (EDAX),07/25,07,70.0,7808,7808,7808,7808,,,,Verified via Wikipedia + ACUKWIK: 07/25 2380 m (7808 ft).
-Cold War Germany,Rechlin–Lärz / Müritz Airpark (EDAX),07/25,25,250.0,7808,7808,7808,7808,,,,Verified via Wikipedia + ACUKWIK: 07/25 2380 m (7808 ft).
-Cold War Germany,Rothenburg/Görlitz (EDBR),08/26,08,80.0,8202,8202,8202,8202,512.0,512.0,,"EDBR: 08/26 2,500 m (8,202 ft); elev ~512 ft; headings by designator."
-Cold War Germany,Rothenburg/Görlitz (EDBR),08/26,26,260.0,8202,8202,8202,8202,512.0,512.0,,"EDBR: 08/26 2,500 m (8,202 ft); elev ~512 ft; headings by designator."
-Cold War Germany,Rügen – Güttin (EDCG),09/27,09,82.0,2953,2953,2953,2953,69.0,69.0,,"EDCG: 09/27 900 m (2,953 ft) asphalt; elev 69 ft. Sources: ACUKWIK/AirportMap/Wikipedia."
-Cold War Germany,Rügen – Güttin (EDCG),09/27,27,262.0,2953,2953,2953,2953,69.0,69.0,,"EDCG: 09/27 900 m (2,953 ft) asphalt; elev 69 ft. Sources: ACUKWIK/AirportMap/Wikipedia."
-Cold War Germany,Schleswig-Jagel (ETNS),05/23,05,50.0,8003,8003,8003,8003,,,,"ETNS: 05/23 2,439 m (8,003 ft) (Spotterguide/Wikipedia)."
-Cold War Germany,Schleswig-Jagel (ETNS),05/23,23,230.0,8003,8003,8003,8003,,,,"ETNS: 05/23 2,439 m (8,003 ft) (Spotterguide/Wikipedia)."
-Cold War Germany,Schleswig-Jagel (ETNS),07/25,07,70.0,8081,8081,8081,8081,,,,"ETNS: 07/25 2,463 m (8,081 ft) (Wikipedia)."
-Cold War Germany,Schleswig-Jagel (ETNS),07/25,25,250.0,8081,8081,8081,8081,,,,"ETNS: 07/25 2,463 m (8,081 ft) (Wikipedia)."
-Cold War Germany,Schwerin–Parchim (EDOP),06/24,06,62.0,9843,9843,9843,9843,147.0,166.0,,"Verified via SkyVector: 06/24 3000 m (9843 ft), hdgs 062/242, THR 147/166 ft."
-Cold War Germany,Schwerin–Parchim (EDOP),06/24,24,242.0,9843,9843,9843,9843,166.0,147.0,,"Verified via SkyVector: 06/24 3000 m (9843 ft), hdgs 062/242, THR 147/166 ft."
-Cold War Germany,Schönhagen (EDAZ),07/25,07,70.0,4987,4987,4987,4987,157.0,157.0,,"EDAZ: 07/25 1,520 m (4,987 ft); elev ~157 ft; headings by designator."
-Cold War Germany,Schönhagen (EDAZ),07/25,25,250.0,4987,4987,4987,4987,157.0,157.0,,"EDAZ: 07/25 1,520 m (4,987 ft); elev ~157 ft; headings by designator."
-Cold War Germany,Sembach AB (ETAS),07/25,07,70.0,7881,7881,7881,7881,,,,"ETAS: 07/25 2,402 m (~7,880 ft) (mil-airfields.de)."
-Cold War Germany,Sembach AB (ETAS),07/25,25,250.0,7881,7881,7881,7881,,,,"ETAS: 07/25 2,402 m (~7,880 ft) (mil-airfields.de)."
-Cold War Germany,Sperenberg Airfield,09/27,09,90.0,8202,8202,8202,8202,,,,Historical Soviet era runway 2500 m (8202 ft). Source: Wikipedia/ForgottenAirfields.
-Cold War Germany,Sperenberg Airfield,09/27,27,270.0,8202,8202,8202,8202,,,,Historical Soviet era runway 2500 m (8202 ft). Source: Wikipedia/ForgottenAirfields.
-Cold War Germany,Stendal–Borstel (EDOV),08/26,08,80.0,6552,6552,6552,6552,,,,Verified via SkyVector/ACUKWIK: 08/26 1997 m (6552 ft).
-Cold War Germany,Stendal–Borstel (EDOV),08/26,26,260.0,6552,6552,6552,6552,,,,Verified via SkyVector/ACUKWIK: 08/26 1997 m (6552 ft).
-Cold War Germany,Stralsund–Barth (EDBH),09/27,09,87.0,5528,5528,5528,5528,,,,"EDBH: 09/27 1,685 m (5,528 ft); true 087/267 (SkyVector/Wikipedia)."
-Cold War Germany,Stralsund–Barth (EDBH),09/27,27,267.0,5528,5528,5528,5528,,,,"EDBH: 09/27 1,685 m (5,528 ft); true 087/267 (SkyVector/Wikipedia)."
-Cold War Germany,Strausberg (EDAY),10/28,10,100.0,3937,3937,3937,3937,157.0,157.0,,"EDAY: 10/28 ~1,200 m (3,937 ft); elev ~157 ft; headings by designator."
-Cold War Germany,Strausberg (EDAY),10/28,28,280.0,3937,3937,3937,3937,157.0,157.0,,"EDAY: 10/28 ~1,200 m (3,937 ft); elev ~157 ft; headings by designator."
-Cold War Germany,Templin – Groß Dölln (EDUT),09/27,09,90.0,11483,11483,11483,11483,,,,Historical Soviet era runway ~3500 m (closed now). Source: ForgottenAirfields/mil-airfields.
-Cold War Germany,Templin – Groß Dölln (EDUT),09/27,27,270.0,11483,11483,11483,11483,,,,Historical Soviet era runway ~3500 m (closed now). Source: ForgottenAirfields/mil-airfields.
-Cold War Germany,Tutow (EDUW),17/35,17,170.0,7181,7181,7181,7181,,,,"EDUW: 17/35 2,189 m (~7,181 ft) (AirportNavFinder)."
-Cold War Germany,Tutow (EDUW),17/35,35,350.0,7181,7181,7181,7181,,,,"EDUW: 17/35 2,189 m (~7,181 ft) (AirportNavFinder)."
-Cold War Germany,Werneuchen (EDBW),08/26,08,80.0,4918,4918,4918,4918,,,,Verified via SkyVector/ACUKWIK: 08/26 ~1499 m (4918 ft).
-Cold War Germany,Werneuchen (EDBW),08/26,26,260.0,4918,4918,4918,4918,,,,Verified via SkyVector/ACUKWIK: 08/26 ~1499 m (4918 ft).
-Cold War Germany,Wiesbaden AAF (ETOU),07/25,07,70.0,7069,7069,7069,7069,,,,Verified via Wikipedia/ACUKWIK/Spotterguide: 07/25 ~7065-7069 ft.
-Cold War Germany,Wiesbaden AAF (ETOU),07/25,25,250.0,7069,7069,7069,7069,,,,Verified via Wikipedia/ACUKWIK/Spotterguide: 07/25 ~7065-7069 ft.
-Cold War Germany,Wittmundhafen (ETNT),08/26,08,75.0,8005,8005,8005,8005,23.0,19.0,,"ETNT: 08/26 8,005 ft; true 075/255; thr elev 23/19 ft (SkyVector/PilotNav)."
-Cold War Germany,Wittmundhafen (ETNT),08/26,26,255.0,8005,8005,8005,8005,19.0,23.0,,"ETNT: 08/26 8,005 ft; true 075/255; thr elev 23/19 ft (SkyVector/PilotNav)."
-Cold War Germany,Zerbst (EDUZ),07/25,07,70.0,2461,2461,2461,2461,,,,"EDUZ: 07/25 ~750 m (2,461 ft) current GA (ACUKWIK/Airfield.directory)."
-Cold War Germany,Zerbst (EDUZ),07/25,25,250.0,2461,2461,2461,2461,,,,"EDUZ: 07/25 ~750 m (2,461 ft) current GA (ACUKWIK/Airfield.directory)."
-Cold War Germany,Zweibrücken (EDRZ),03/21,03,30.0,8776,8776,8776,8776,,,,Verified via Wikipedia/Universal/ACUKWIK: 03/21 2675 m (8776 ft).
-Cold War Germany,Zweibrücken (EDRZ),03/21,21,210.0,8776,8776,8776,8776,,,,Verified via Wikipedia/Universal/ACUKWIK: 03/21 2675 m (8776 ft).
-Kola,Banak (Lakselv),11/29,11,110.0,8858,8858,8858,8858,82.0,82.0,,Approx real-world length; verify in DCS
-Kola,Banak (Lakselv),11/29,29,290.0,8858,8858,8858,8858,82.0,82.0,,Approx real-world length; verify in DCS
-Kola,Bodø Main,07/25,07,72.0,9200,9200,9200,9200,42.0,42.0,,Approx real-world length; verify in DCS
-Kola,Bodø Main,07/25,25,252.0,9200,9200,9200,9200,42.0,42.0,,Approx real-world length; verify in DCS
-Kola,Rovaniemi,03/21,03,28.0,9843,9843,9843,9843,642.0,642.0,,Approx real-world length; verify in DCS
-Kola,Rovaniemi,03/21,21,208.0,9843,9843,9843,9843,642.0,642.0,,Approx real-world length; verify in DCS
-Marianas,Andersen AFB,06L/24R,06L,62.0,11000,11000,11000,11000,610.0,631.0,,Public real-world data; verify
-Marianas,Andersen AFB,06L/24R,24R,242.0,11000,11000,11000,11000,631.0,610.0,,Public real-world data; verify
-Marianas,Andersen AFB (PGUA) 06L/24R,06L/24R,06L,60.0,10528,10528,10528,10528,,,,"PGUA: 06L/24R 10,528 ft (ASPH/CONC). Chart Supplement/FAA/SkyVector."
-Marianas,Andersen AFB (PGUA) 06L/24R,06L/24R,24R,240.0,10528,10528,10528,10528,,,,"PGUA: 06L/24R 10,528 ft (ASPH/CONC). Chart Supplement/FAA/SkyVector."
-Marianas,Andersen AFB (PGUA) 06R/24L,06R/24L,06R,60.0,11200,11200,11200,11200,,,,"PGUA: 06R/24L 11,200 ft (ASPH/CONC). Chart Supplement/FAA/SkyVector."
-Marianas,Andersen AFB (PGUA) 06R/24L,06R/24L,24L,240.0,11200,11200,11200,11200,,,,"PGUA: 06R/24L 11,200 ft (ASPH/CONC). Chart Supplement/FAA/SkyVector."
-Marianas,Antonio B. Won Pat Intl,06L/24R,06L,62.0,10018,10018,10018,10018,298.0,298.0,,Public real-world data; verify
-Marianas,Antonio B. Won Pat Intl,06L/24R,24R,242.0,10018,10018,10018,10018,298.0,298.0,,Public real-world data; verify
-Marianas,Guam Intl (PGUM) 06L/24R,06L/24R,06L,65.0,12017,12017,12017,12017,,,,"PGUM: 06L/24R 12,017 ft. Declared distances per FAA CS: RWY 06L TORA/TODA/ASDA 12,014; LDA 11,014 (not stored)."
-Marianas,Guam Intl (PGUM) 06L/24R,06L/24R,24R,245.0,12017,12017,12017,12017,,,,"PGUM: 06L/24R 12,017 ft. Declared distances per FAA CS: RWY 06L TORA/TODA/ASDA 12,014; LDA 11,014 (not stored)."
-Marianas,Guam Intl (PGUM) 06R/24L,06R/24L,06R,65.0,10014,10014,10014,10014,,,,"PGUM: 06R/24L 10,014 ft. Declared distances per FAA CS: RWY 06R TORA/TODA/ASDA 10,014."
-Marianas,Guam Intl (PGUM) 06R/24L,06R/24L,24L,245.0,10014,10014,10014,10014,,,,"PGUM: 06R/24L 10,014 ft. Declared distances per FAA CS: RWY 06R TORA/TODA/ASDA 10,014."
-Marianas,Rota Intl (PGRO),09/27,09,92.0,7000,7000,7000,7000,,,,"PGRO: 09/27 7,000 ft; SkyVector shows TORA/TODA/ASDA 7,000 each end."
-Marianas,Rota Intl (PGRO),09/27,27,272.0,7000,7000,7000,7000,,,,"PGRO: 09/27 7,000 ft; SkyVector shows TORA/TODA/ASDA 7,000 each end."
-Marianas,Saipan Intl,07/25,07,72.0,8700,8700,8700,8700,215.0,215.0,,Public real-world data; verify
-Marianas,Saipan Intl,07/25,25,252.0,8700,8700,8700,8700,215.0,215.0,,Public real-world data; verify
-Marianas,Saipan Intl (PGSN),07/25,07,70.0,8699,8699,8699,8699,,,,"PGSN: 07/25 8,699 ft (SkyVector)."
-Marianas,Saipan Intl (PGSN),07/25,25,250.0,8699,8699,8699,8699,,,,"PGSN: 07/25 8,699 ft (SkyVector)."
-Marianas,Tinian Intl (PGWT),08/26,08,80.0,8600,8600,8600,8600,,,,"PGWT: 08/26 8,600 ft (SkyVector/AirNav)."
-Marianas,Tinian Intl (PGWT),08/26,26,260.0,8600,8600,8600,8600,,,,"PGWT: 08/26 8,600 ft (SkyVector/AirNav)."
-Marianas,Tinian North Field — Able (historical),08/26,08,80.0,8500,8500,8500,8500,,,,"Tinian North Field: WWII-era runway (~8,500 ft), historically present; include as reserve/historical for DCS Marianas. Verify in-sim usage."
-Marianas,Tinian North Field — Able (historical),08/26,26,260.0,8500,8500,8500,8500,,,,"Tinian North Field: WWII-era runway (~8,500 ft), historically present; include as reserve/historical for DCS Marianas. Verify in-sim usage."
-Marianas,Tinian North Field — Baker (historical),08/26,08,80.0,8500,8500,8500,8500,,,,"Tinian North Field: WWII-era runway (~8,500 ft), historically present; include as reserve/historical for DCS Marianas. Verify in-sim usage."
-Marianas,Tinian North Field — Baker (historical),08/26,26,260.0,8500,8500,8500,8500,,,,"Tinian North Field: WWII-era runway (~8,500 ft), historically present; include as reserve/historical for DCS Marianas. Verify in-sim usage."
-Marianas,Tinian North Field — Charlie (historical),08/26,08,80.0,8500,8500,8500,8500,,,,"Tinian North Field: WWII-era runway (~8,500 ft), historically present; include as reserve/historical for DCS Marianas. Verify in-sim usage."
-Marianas,Tinian North Field — Charlie (historical),08/26,26,260.0,8500,8500,8500,8500,,,,"Tinian North Field: WWII-era runway (~8,500 ft), historically present; include as reserve/historical for DCS Marianas. Verify in-sim usage."
-Marianas,Tinian North Field — Dog (historical),08/26,08,80.0,8500,8500,8500,8500,,,,"Tinian North Field: WWII-era runway (~8,500 ft), historically present; include as reserve/historical for DCS Marianas. Verify in-sim usage."
-Marianas,Tinian North Field — Dog (historical),08/26,26,260.0,8500,8500,8500,8500,,,,"Tinian North Field: WWII-era runway (~8,500 ft), historically present; include as reserve/historical for DCS Marianas. Verify in-sim usage."
-Nevada,Creech AFB,08/26,08,76.0,7999,7999,7999,7999,3135.0,3135.0,,Public real-world data; verify
-Nevada,Creech AFB,08/26,26,256.0,7999,7999,7999,7999,3135.0,3135.0,,Public real-world data; verify
-Nevada,Harry Reid Intl,08L/26R,08L,85.0,14712,14712,14712,14712,2181.0,2181.0,,Public real-world data; verify
-Nevada,Harry Reid Intl,08L/26R,26R,265.0,14712,14712,14712,14712,2181.0,2181.0,,Public real-world data; verify
-Nevada,Henderson Executive,17R/35L,17R,173.0,6501,6501,6501,6501,2492.0,2492.0,,Public real-world data; verify
-Nevada,Henderson Executive,17R/35L,35L,353.0,6501,6501,6501,6501,2492.0,2492.0,,Public real-world data; verify
-Nevada,Nellis AFB,03L/21R,03L,34.0,10050,10050,10050,10050,1870.0,1873.0,,Public real-world data; verify
-Nevada,Nellis AFB,03L/21R,21R,214.0,10050,10050,10050,10050,1873.0,1870.0,,Public real-world data; verify
-Nevada,North Las Vegas,12R/30L,12R,120.0,5004,5004,5004,5004,2205.0,2205.0,,Public real-world data; verify
-Nevada,North Las Vegas,12R/30L,30L,300.0,5004,5004,5004,5004,2205.0,2205.0,,Public real-world data; verify
-Normandy 2.0,Carpiquet,13/31,13,130.0,6234,6234,6234,6234,256.0,272.0,,Public real-world data; verify
-Normandy 2.0,Carpiquet,13/31,31,310.0,6234,6234,6234,6234,272.0,256.0,,Public real-world data; verify
-Normandy 2.0,Deauville-Normandie,12/30,12,117.0,8199,8199,8199,8199,479.0,479.0,,Added; verify in DCS
-Normandy 2.0,Deauville-Normandie,12/30,30,297.0,8199,8199,8199,8199,479.0,479.0,,Added; verify in DCS
-Normandy 2.0,Evreux-Fauville,10/28,10,102.0,7874,7874,7874,7874,464.0,464.0,,Added; verify in DCS
-Normandy 2.0,Evreux-Fauville,10/28,28,282.0,7874,7874,7874,7874,464.0,464.0,,Added; verify in DCS
-Persian Gulf,Abu Dhabi Intl (OMAA) 13L/31R,13L/31R,13L,126.0,13451,13451,13451,13451,62.0,72.0,,"OMAA SkyVector: 13L/31R 4,100 m (13,451 ft); true 126/306; thr elev 62/72 ft."
-Persian Gulf,Abu Dhabi Intl (OMAA) 13L/31R,13L/31R,31R,306.0,13451,13451,13451,13451,72.0,62.0,,"OMAA SkyVector: 13L/31R 4,100 m (13,451 ft); true 126/306; thr elev 62/72 ft."
-Persian Gulf,Abu Dhabi Intl (OMAA) 13R/31L,13R/31L,13R,126.0,13471,13471,13471,13471,78.0,83.0,,"OMAA SkyVector: 13R/31L 4,106 m (13,471 ft); true 126/306; thr elev 78/83 ft."
-Persian Gulf,Abu Dhabi Intl (OMAA) 13R/31L,13R/31L,31L,306.0,13471,13471,13471,13471,83.0,78.0,,"OMAA SkyVector: 13R/31L 4,106 m (13,471 ft); true 126/306; thr elev 78/83 ft."
-Persian Gulf,Abu Musa Island (OIBA),08/26,08,81.0,9793,9793,9793,9793,11.0,18.0,,"OIBA SkyVector: 08/26 2,985 m (9,793 ft); true 081/261; thr elev 11/18 ft."
-Persian Gulf,Abu Musa Island (OIBA),08/26,26,261.0,9793,9793,9793,9793,18.0,11.0,,"OIBA SkyVector: 08/26 2,985 m (9,793 ft); true 081/261; thr elev 11/18 ft."
-Persian Gulf,Al Ain Intl (OMAL),01/19,01,6.0,13140,13140,13140,13140,865.0,838.0,,"OMAL SkyVector: 01/19 4,005 m (13,140 ft); true 006/186; thr elev 865/838 ft."
-Persian Gulf,Al Ain Intl (OMAL),01/19,19,186.0,13140,13140,13140,13140,838.0,865.0,,"OMAL SkyVector: 01/19 4,005 m (13,140 ft); true 006/186; thr elev 865/838 ft."
-Persian Gulf,Al Bateen Executive (OMAD),13/31,13,126.0,10505,10505,10505,10505,15.0,13.0,,"OMAD SkyVector: 13/31 3,202 m (10,505 ft); true 126/306; thr elev 15/13 ft."
-Persian Gulf,Al Bateen Executive (OMAD),13/31,31,306.0,10505,10505,10505,10505,13.0,15.0,,"OMAD SkyVector: 13/31 3,202 m (10,505 ft); true 126/306; thr elev 15/13 ft."
-Persian Gulf,Al Dhafra AB,13L/31R,13L,128.0,12400,12400,12400,12400,77.0,79.0,,Public real-world data; verify
-Persian Gulf,Al Dhafra AB,13L/31R,31R,308.0,12400,12400,12400,12400,79.0,77.0,,Public real-world data; verify
-Persian Gulf,Al Maktoum Intl,12/30,12,116.0,14435,14435,14435,14435,114.0,114.0,,Added; verify in DCS
-Persian Gulf,Al Maktoum Intl,12/30,30,296.0,14435,14435,14435,14435,114.0,114.0,,Added; verify in DCS
-Persian Gulf,Al Minhad AB (OMDM),09/27,09,88.0,12901,12901,12901,12901,130.0,163.0,,"OMDM SkyVector: 09/27 3,932 m (12,901 ft); true 088/268; thr elev 130/163 ft."
-Persian Gulf,Al Minhad AB (OMDM),09/27,27,268.0,12901,12901,12901,12901,163.0,130.0,,"OMDM SkyVector: 09/27 3,932 m (12,901 ft); true 088/268; thr elev 130/163 ft."
-Persian Gulf,Bandar Abbas Intl,09/27,09,91.0,12004,12004,12004,12004,22.0,22.0,,Public real-world data; verify
-Persian Gulf,Bandar Abbas Intl,09/27,27,271.0,12004,12004,12004,12004,22.0,22.0,,Public real-world data; verify
-Persian Gulf,Bandar Lengeh (OIBL),08/26,08,78.0,8202,8202,8202,8202,66.0,75.0,,"OIBL SkyVector: 08/26 2,500 m (8,202 ft); true 078/258; thr elev 66/75 ft."
-Persian Gulf,Bandar Lengeh (OIBL),08/26,26,258.0,8202,8202,8202,8202,75.0,66.0,,"OIBL SkyVector: 08/26 2,500 m (8,202 ft); true 078/258; thr elev 66/75 ft."
-Persian Gulf,Dubai Intl,12L/30R,12L,115.0,13123,13123,13123,13123,62.0,62.0,,Added; verify in DCS
-Persian Gulf,Dubai Intl,12L/30R,30R,295.0,13123,13123,13123,13123,62.0,62.0,,Added; verify in DCS
-Persian Gulf,Fujairah Intl,11/29,11,113.0,12467,12467,12467,12467,152.0,152.0,,Public real-world data; verify
-Persian Gulf,Fujairah Intl,11/29,29,293.0,12467,12467,12467,12467,152.0,152.0,,Public real-world data; verify
-Persian Gulf,Havadarya (OIKP),08/26,08,77.0,8530,8530,8530,8530,16.0,19.0,,"OIKP SkyVector: 08/26 2,600 m (8,530 ft); true 077/257; thr elev 16/19 ft."
-Persian Gulf,Havadarya (OIKP),08/26,26,257.0,8530,8530,8530,8530,19.0,16.0,,"OIKP SkyVector: 08/26 2,600 m (8,530 ft); true 077/257; thr elev 16/19 ft."
-Persian Gulf,Jask (OIZJ),06/24,06,60.0,7677,7677,7677,7677,32.0,32.0,,"OIZJ Wikipedia (DoD FLIP): 06/24 2,340 m (7,677 ft); approx true 060/240; elev 32 ft."
-Persian Gulf,Jask (OIZJ),06/24,24,240.0,7677,7677,7677,7677,32.0,32.0,,"OIZJ Wikipedia (DoD FLIP): 06/24 2,340 m (7,677 ft); approx true 060/240; elev 32 ft."
-Persian Gulf,Khasab,01/19,01,14.0,8074,8074,8074,8074,100.0,100.0,,Public real-world data; verify
-Persian Gulf,Khasab,01/19,19,194.0,8074,8074,8074,8074,100.0,100.0,,Public real-world data; verify
-Persian Gulf,Kish Intl (OIBK),09L/27R,09L,93.0,11972,11972,11972,11972,94.0,99.0,,"OIBK SkyVector: 09L/27R 3,649 m (11,972 ft); true 093/273; thr elev 94/99 ft."
-Persian Gulf,Kish Intl (OIBK),09L/27R,27R,273.0,11972,11972,11972,11972,99.0,94.0,,"OIBK SkyVector: 09L/27R 3,649 m (11,972 ft); true 093/273; thr elev 94/99 ft."
-Persian Gulf,Lavan Island (OIBV),11/29,11,109.0,8835,8835,8835,8835,44.0,45.0,,"OIBV SkyVector: 11/29 2,693 m (8,835 ft); true 109/289; thr elev 44/45 ft."
-Persian Gulf,Lavan Island (OIBV),11/29,29,289.0,8835,8835,8835,8835,45.0,44.0,,"OIBV SkyVector: 11/29 2,693 m (8,835 ft); true 109/289; thr elev 44/45 ft."
-Persian Gulf,Qeshm/Dayrestan Intl (OIKQ),05/23,05,49.0,13861,13861,13861,13861,14.0,45.0,,"OIKQ SkyVector: 05/23 4,225 m (13,861 ft); true 049/229; thr elev 14/45 ft."
-Persian Gulf,Qeshm/Dayrestan Intl (OIKQ),05/23,23,229.0,13861,13861,13861,13861,45.0,14.0,,"OIKQ SkyVector: 05/23 4,225 m (13,861 ft); true 049/229; thr elev 14/45 ft."
-Persian Gulf,Ras Al Khaimah Intl (OMRK),16/34,16,163.0,12336,12336,12336,12336,64.0,94.0,,"OMRK SkyVector: 16/34 3,760 m (12,336 ft); true 163/343; thr elev 64/94 ft."
-Persian Gulf,Ras Al Khaimah Intl (OMRK),16/34,34,343.0,12336,12336,12336,12336,94.0,64.0,,"OMRK SkyVector: 16/34 3,760 m (12,336 ft); true 163/343; thr elev 64/94 ft."
-Persian Gulf,Sharjah International (OMSJ),12/30,12,121.0,13320,13320,13320,13320,89.0,112.0,,"OMSJ SkyVector: 12/30 4,060 m (13,320 ft); true 121/301; thr elev 89/112 ft."
-Persian Gulf,Sharjah International (OMSJ),12/30,30,301.0,13320,13320,13320,13320,112.0,89.0,,"OMSJ SkyVector: 12/30 4,060 m (13,320 ft); true 121/301; thr elev 89/112 ft."
-Persian Gulf,Sirri Island (OIBS),12/30,12,125.0,8375,8375,8375,8375,26.0,1.0,,"OIBS SkyVector: 12/30 2,553 m (8,375 ft); true 125/305; thr elev 26/1 ft."
-Persian Gulf,Sirri Island (OIBS),12/30,30,305.0,8375,8375,8375,8375,1.0,26.0,,"OIBS SkyVector: 12/30 2,553 m (8,375 ft); true 125/305; thr elev 26/1 ft."
-Sinai,Cairo Intl,05R/23L,05R,52.0,13100,13100,13100,13100,382.0,455.0,,Public real-world data; verify
-Sinai,Cairo Intl,05R/23L,23L,232.0,13100,13100,13100,13100,455.0,382.0,,Public real-world data; verify
-Sinai,El Arish Intl,10/28,10,99.0,9840,9840,9840,9840,121.0,121.0,,Public real-world data; verify
-Sinai,El Arish Intl,10/28,28,279.0,9840,9840,9840,9840,121.0,121.0,,Public real-world data; verify
-South Atlantic,El Calafate (SAWC),07/25,07,72.0,8366,8366,8366,8366,647.0,632.0,,"SkyVector: 07/25 2,550 m (8,366 ft); true 072/252; thr elev 647/632 ft."
-South Atlantic,El Calafate (SAWC),07/25,25,252.0,8366,8366,8366,8366,632.0,647.0,,"SkyVector: 07/25 2,550 m (8,366 ft); true 072/252; thr elev 647/632 ft."
-South Atlantic,Mount Pleasant,10/28,10,97.0,10000,10000,10000,10000,246.0,247.0,,Public real-world data; verify
-South Atlantic,Mount Pleasant,10/28,28,277.0,10000,10000,10000,10000,247.0,246.0,,Public real-world data; verify
-South Atlantic,Port Stanley (SFAL),09/27,09,85.0,3013,3013,3013,3013,75.0,75.0,,"SkyVector/Wikipedia: 09/27 918 m (3,013 ft); true 085/265; elev 75 ft; displaced thr 206 ft."
-South Atlantic,Port Stanley (SFAL),09/27,27,265.0,3013,3013,3013,3013,75.0,75.0,,"SkyVector/Wikipedia: 09/27 918 m (3,013 ft); true 085/265; elev 75 ft; displaced thr 206 ft."
-South Atlantic,Porvenir (SCFM) 03/21,03/21,03,33.0,3150,3150,3150,3150,104.0,104.0,,"SkyVector: 03/21 960 m (3,150 ft); true 033/213; thr elev 104/104 ft."
-South Atlantic,Porvenir (SCFM) 03/21,03/21,21,213.0,3150,3150,3150,3150,104.0,104.0,,"SkyVector: 03/21 960 m (3,150 ft); true 033/213; thr elev 104/104 ft."
-South Atlantic,Porvenir (SCFM) 09/27,09/27,09,97.0,8202,8202,8202,8202,61.0,104.0,,"SkyVector: 09/27 2,500 m (8,202 ft); true 097/277; thr elev 61/104 ft."
-South Atlantic,Porvenir (SCFM) 09/27,09/27,27,277.0,8202,8202,8202,8202,104.0,61.0,,"SkyVector: 09/27 2,500 m (8,202 ft); true 097/277; thr elev 61/104 ft."
-South Atlantic,Puerto Natales / Teniente Julio Gallardo (SCNT),10/28,10,106.0,6562,6562,6562,6562,209.0,218.0,,AIP Chile ADC (2024-11-28): RWY28 declared distances TORA/TODA/ASDA 2000m (6562 ft); LDA 1800m (not stored). RWY10 TORA/TODA 1800m; ASDA 2000m.
-South Atlantic,Puerto Natales / Teniente Julio Gallardo (SCNT),10/28,28,286.0,6562,6562,6562,6562,218.0,209.0,,AIP Chile ADC (2024-11-28): RWY28 declared distances TORA/TODA/ASDA 2000m (6562 ft); LDA 1800m (not stored). RWY10 TORA/TODA 1800m; ASDA 2000m.
-South Atlantic,Puerto Williams (SCGZ),08/26,08,78.0,4724,4724,4724,4724,88.0,42.0,,"SkyVector/Wikipedia: 08/26 1,440 m (4,724 ft); true 078/258; thr elev 88/42 ft."
-South Atlantic,Puerto Williams (SCGZ),08/26,26,258.0,4724,4724,4724,4724,42.0,88.0,,"SkyVector/Wikipedia: 08/26 1,440 m (4,724 ft); true 078/258; thr elev 88/42 ft."
-South Atlantic,Punta Arenas (SCCI) 01/19,01/19,01,16.0,5502,5502,5502,5502,122.0,110.0,,"SkyVector/Wikipedia: 01/19 1,677 m (5,502 ft); true 016/196; thr elev 122/110 ft."
-South Atlantic,Punta Arenas (SCCI) 01/19,01/19,19,196.0,5502,5502,5502,5502,110.0,122.0,,"SkyVector/Wikipedia: 01/19 1,677 m (5,502 ft); true 016/196; thr elev 122/110 ft."
-South Atlantic,Punta Arenas (SCCI) 07/25,07/25,07,76.0,9154,9154,9154,9154,139.0,112.0,,"SkyVector/Wikipedia: 07/25 2,790 m (9,154 ft); true 076/256; thr elev 139/112 ft."
-South Atlantic,Punta Arenas (SCCI) 07/25,07/25,25,256.0,9154,9154,9154,9154,112.0,139.0,,"SkyVector/Wikipedia: 07/25 2,790 m (9,154 ft); true 076/256; thr elev 139/112 ft."
-South Atlantic,Punta Arenas (SCCI) 12/30,12/30,12,126.0,7874,7874,7874,7874,138.0,112.0,,"SkyVector/Wikipedia: 12/30 2,400 m (7,874 ft); true 126/306; thr elev 138/112 ft."
-South Atlantic,Punta Arenas (SCCI) 12/30,12/30,30,306.0,7874,7874,7874,7874,112.0,138.0,,"SkyVector/Wikipedia: 12/30 2,400 m (7,874 ft); true 126/306; thr elev 138/112 ft."
-South Atlantic,RAF Mount Pleasant (EGYP) 05/23,05/23,05,52.0,5003,5003,5003,5003,203.0,191.0,,"SkyVector & UK Mil AIP: 05/23 1,525 m (5,003 ft); true 052/232; thr elev 203/191 ft."
-South Atlantic,RAF Mount Pleasant (EGYP) 05/23,05/23,23,232.0,5003,5003,5003,5003,191.0,203.0,,"SkyVector & UK Mil AIP: 05/23 1,525 m (5,003 ft); true 052/232; thr elev 203/191 ft."
-South Atlantic,RAF Mount Pleasant (EGYP) 10/28,10/28,10,102.0,8494,8494,8494,8494,233.0,197.0,,"SkyVector & UK Mil AIP: 10/28 2,589 m (8,494 ft); true 102/282; thr elev 233/197 ft."
-South Atlantic,RAF Mount Pleasant (EGYP) 10/28,10/28,28,282.0,8494,8494,8494,8494,197.0,233.0,,"SkyVector & UK Mil AIP: 10/28 2,589 m (8,494 ft); true 102/282; thr elev 233/197 ft."
-South Atlantic,Río Gallegos (SAWG),07/25,07,74.0,11644,11644,11644,11644,62.0,52.0,,"SkyVector/Wikipedia: 07/25 3,549 m (11,644 ft); true 074/254; thr elev 62/52 ft; displaced thr 243 ft."
-South Atlantic,Río Gallegos (SAWG),07/25,25,254.0,11644,11644,11644,11644,52.0,62.0,,"SkyVector/Wikipedia: 07/25 3,549 m (11,644 ft); true 074/254; thr elev 62/52 ft; displaced thr 243 ft."
-South Atlantic,Río Grande (SAWE),08/26,08,76.0,6562,6562,6562,6562,63.0,43.0,,"SkyVector/Wikipedia: 08/26 2,000 m (6,562 ft); true 076/256; thr elev 63/43 ft."
-South Atlantic,Río Grande (SAWE),08/26,26,256.0,6562,6562,6562,6562,43.0,63.0,,"SkyVector/Wikipedia: 08/26 2,000 m (6,562 ft); true 076/256; thr elev 63/43 ft."
-South Atlantic,Stanley,09/27,09,89.0,4100,4100,4100,4100,75.0,75.0,,Public real-world data; verify
-South Atlantic,Stanley,09/27,27,269.0,4100,4100,4100,4100,75.0,75.0,,Public real-world data; verify
-South Atlantic,Ushuaia (SAWH),07/25,07,74.0,9199,9199,9199,9199,82.0,69.0,,"SkyVector/AIP: 07/25 2,804 m (9,199 ft); true 074/254; thr elev 82/69 ft; displaced thr 591/531 ft."
-South Atlantic,Ushuaia (SAWH),07/25,25,254.0,9199,9199,9199,9199,69.0,82.0,,"SkyVector/AIP: 07/25 2,804 m (9,199 ft); true 074/254; thr elev 82/69 ft; displaced thr 591/531 ft."
-Syria,Aleppo Intl,09/27,09,85.0,9514,9514,9514,9514,1276.0,1276.0,,Public real-world data; verify
-Syria,Aleppo Intl,09/27,27,265.0,9514,9514,9514,9514,1276.0,1276.0,,Public real-world data; verify
-Syria,Beirut-Rafic Hariri,16/34,16,157.0,10660,10660,11800,10660,87.0,64.0,,Public real-world data; verify
-Syria,Beirut-Rafic Hariri,16/34,34,337.0,10660,10660,11800,10660,64.0,87.0,,Public real-world data; verify
-Syria,Damascus Intl,05/23,05,47.0,11500,11500,11500,11500,2025.0,2025.0,,Public real-world data; verify
-Syria,Damascus Intl,05/23,23,227.0,11500,11500,11500,11500,2025.0,2025.0,,Public real-world data; verify
-Syria,Deir ez-Zor,13/31,13,129.0,9970,9970,9970,9970,702.0,702.0,,Public real-world data; verify
-Syria,Deir ez-Zor,13/31,31,309.0,9970,9970,9970,9970,702.0,702.0,,Public real-world data; verify
-Syria,Hama,09/27,09,90.0,10500,10500,10500,10500,1023.0,1023.0,,Public real-world data; verify
-Syria,Hama,09/27,27,270.0,10500,10500,10500,10500,1023.0,1023.0,,Public real-world data; verify
-Syria,Khmeimim,17/35,17,168.0,9730,9730,9730,9730,43.0,47.0,,Public real-world data; verify
-Syria,Khmeimim,17/35,35,348.0,9730,9730,9730,9730,47.0,43.0,,Public real-world data; verify
-Syria,Larnaca Intl,04/22,04,44.0,8883,8883,8883,8883,7.0,7.0,,Public real-world data; verify
-Syria,Larnaca Intl,04/22,22,224.0,8883,8883,8883,8883,7.0,7.0,,Public real-world data; verify
-Syria,Marj Ruhayyil (Mezzeh),10/28,10,102.0,9100,9100,9100,9100,2234.0,2234.0,,Public real-world data; verify
-Syria,Marj Ruhayyil (Mezzeh),10/28,28,282.0,9100,9100,9100,9100,2234.0,2234.0,,Public real-world data; verify
-Syria,Palmyra (Tadmur),03/21,03,30.0,9800,9800,9800,9800,1326.0,1326.0,,Public real-world data; verify
-Syria,Palmyra (Tadmur),03/21,21,210.0,9800,9800,9800,9800,1326.0,1326.0,,Public real-world data; verify
-Syria,Paphos Intl,11/29,11,114.0,8858,8858,8858,8858,41.0,41.0,,Public real-world data; verify
-Syria,Paphos Intl,11/29,29,294.0,8858,8858,8858,8858,41.0,41.0,,Public real-world data; verify
-Syria,Qamishli,10/28,10,102.0,11800,11800,11800,11800,1480.0,1480.0,,Public real-world data; verify
-Syria,Qamishli,10/28,28,282.0,11800,11800,11800,11800,1480.0,1480.0,,Public real-world data; verify
-Syria,Rene Mouawad (Kleyate),07/25,07,70.0,10050,10050,10050,10050,75.0,75.0,,Public real-world data; verify
-Syria,Rene Mouawad (Kleyate),07/25,25,250.0,10050,10050,10050,10050,75.0,75.0,,Public real-world data; verify
-Syria,Shayrat,08/26,08,79.0,9800,9800,9800,9800,2614.0,2614.0,,Public real-world data; verify
-Syria,Shayrat,08/26,26,259.0,9800,9800,9800,9800,2614.0,2614.0,,Public real-world data; verify
-Syria,Tabqa,07/25,07,73.0,10300,10300,10300,10300,1000.0,1000.0,,Public real-world data; verify
-Syria,Tabqa,07/25,25,253.0,10300,10300,10300,10300,1000.0,1000.0,,Public real-world data; verify
-Syria,Tiyas (T-4),09/27,09,87.0,10050,10050,10050,10050,1570.0,1570.0,,Public real-world data; verify
-Syria,Tiyas (T-4),09/27,27,267.0,10050,10050,10050,10050,1570.0,1570.0,,Public real-world data; verify
-The Channel,Manston,10/28,10,100.0,9010,9010,9010,9010,178.0,178.0,,Public real-world data; verify
-The Channel,Manston,10/28,28,280.0,9010,9010,9010,9010,178.0,178.0,,Public real-world data; verify
+map,airport_name,runway_pair,runway_end,heading_deg,length_ft,tora_ft,toda_ft,asda_ft,threshold_elev_ft,opp_threshold_elev_ft,slope_percent,notes,__source,__mtime
+Afghanistan,Bagram AB,03/21,03,32.0,11000,11000,11000,11000,4895.0,4920.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Afghanistan,Bagram AB,03/21,21,212.0,11000,11000,11000,11000,4920.0,4895.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Afghanistan,Bamyan (OABN),07/25,07,70.0,6800,6800,6800,6800,,,,Rebuilt from public sources; verify in-sim,,
+Afghanistan,Bamyan (OABN),07/25,25,250.0,6800,6800,6800,6800,,,,Rebuilt from public sources; verify in-sim,,
+Afghanistan,Fayzabad (OAFZ),15/33,15,150.0,6562,6562,6562,6562,,,,Rebuilt from public sources; verify in-sim,,
+Afghanistan,Fayzabad (OAFZ),15/33,33,330.0,6562,6562,6562,6562,,,,Rebuilt from public sources; verify in-sim,,
+Afghanistan,Ghazni (OAGN),10/28,10,100.0,8000,8000,8000,8000,,,,Rebuilt from public sources; verify in-sim,,
+Afghanistan,Ghazni (OAGN),10/28,28,280.0,8000,8000,8000,8000,,,,Rebuilt from public sources; verify in-sim,,
+Afghanistan,Kabul Intl,11/29,11,113.0,11500,11500,11500,11500,5877.0,5877.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Afghanistan,Kabul Intl,11/29,29,293.0,11500,11500,11500,11500,5877.0,5877.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Afghanistan,Kandahar Intl,05/23,05,47.0,10500,10500,10500,10500,3337.0,3337.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Afghanistan,Kandahar Intl,05/23,23,227.0,10500,10500,10500,10500,3337.0,3337.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Afghanistan,Kunduz (OAUZ),09/27,09,90.0,8500,8500,8500,8500,,,,Rebuilt from public sources; verify in-sim,,
+Afghanistan,Kunduz (OAUZ),09/27,27,270.0,8500,8500,8500,8500,,,,Rebuilt from public sources; verify in-sim,,
+Caucasus,Anapa-Vityazevo,04/22,04,40.0,8858,8858,8858,8858,174.0,174.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Anapa-Vityazevo,04/22,22,220.0,8858,8858,8858,8858,174.0,174.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Batumi,13/31,13,126.0,8530,8530,8530,8530,33.0,39.0,,Public real-world data; verify TORA/TODA/ASDA in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Batumi,13/31,31,306.0,8530,8530,8530,8530,39.0,33.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Beslan,09/27,09,90.0,9890,9890,9890,9890,,,,Recovered: 3015 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Beslan,09/27,27,270.0,9890,9890,9890,9890,,,,Recovered: 3015 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Beslan,10/28,10,96.0,8176,8176,8176,8176,1710.0,1710.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Beslan,10/28,28,276.0,8176,8176,8176,8176,1710.0,1710.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Gelendzhik,04/22,04,34.0,5905,5905,5905,5905,,,,Recovered: 1800 m; ~034/214 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Gelendzhik,04/22,22,214.0,5905,5905,5905,5905,,,,Recovered: 1800 m; ~034/214 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Gudauta,08/26,08,80.0,6562,6562,6562,6562,131.0,121.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Gudauta,08/26,26,260.0,6562,6562,6562,6562,121.0,131.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Gudauta,15/33,15,145.0,8200,8200,8200,8200,,,,Recovered: 2500 m; ~145/325 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Gudauta,15/33,33,325.0,8200,8200,8200,8200,,,,Recovered: 2500 m; ~145/325 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Kobuleti,07/25,07,73.0,8080,8080,8080,8080,59.0,58.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Kobuleti,07/25,25,253.0,8080,8080,8080,8080,58.0,59.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krasnodar-Center,08/26,08,80.0,8200,8200,8200,8200,,,,Recovered: 2500 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krasnodar-Center,08/26,26,260.0,8200,8200,8200,8200,,,,Recovered: 2500 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krasnodar-Pashkovsky,04L/22R,04L,41.0,7430,7430,7430,7430,,,,Recovered: 2265 m; ~041/221 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krasnodar-Pashkovsky,04L/22R,22R,221.0,7430,7430,7430,7430,,,,Recovered: 2265 m; ~041/221 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krasnodar-Pashkovsky,04R/22L,04R,41.0,10170,10170,10170,10170,,,,Recovered: 3100 m; ~041/221 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krasnodar-Pashkovsky,04R/22L,22L,221.0,10170,10170,10170,10170,,,,Recovered: 3100 m; ~041/221 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krasnodar-Pashkovsky,09/27,09,90.0,10056,10056,10056,10056,112.0,115.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krasnodar-Pashkovsky,09/27,27,270.0,10056,10056,10056,10056,115.0,112.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krymsk,03/21,03,33.0,8530,8530,8530,8530,,,,Recovered: 2600 m; ~033/213 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Krymsk,03/21,21,213.0,8530,8530,8530,8530,,,,Recovered: 2600 m; ~033/213 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Kutaisi,07/25,07,74.0,8202,8202,8202,8202,,,,Recovered: 2500 m; true ~074/254.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Kutaisi,07/25,25,254.0,8202,8202,8202,8202,,,,Recovered: 2500 m; true ~074/254.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Kutaisi,08/26,08,84.0,8005,8005,8005,8005,223.0,223.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Kutaisi,08/26,26,264.0,8005,8005,8005,8005,223.0,223.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Maykop-Khanskaya,04/22,04,33.0,10495,10495,10495,10495,,,,Recovered: 3200 m; ~033/213 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Maykop-Khanskaya,04/22,22,213.0,10495,10495,10495,10495,,,,Recovered: 3200 m; ~033/213 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Mineralnye Vody,11/29,11,109.0,13350,13350,13350,13350,,,,Recovered: 4070 m; ~109/289 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Mineralnye Vody,11/29,29,289.0,13350,13350,13350,13350,,,,Recovered: 4070 m; ~109/289 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Mineralnye Vody,12/30,12,120.0,12960,12960,12960,12960,1053.0,1053.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Mineralnye Vody,12/30,30,300.0,12960,12960,12960,12960,1053.0,1053.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Mozdok,08/26,08,80.0,12008,12008,12008,12008,512.0,512.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Mozdok,08/26,26,260.0,12008,12008,12008,12008,512.0,512.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Nalchik,05/23,05,50.0,7545,7545,7545,7545,,,,Recovered: 2300 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Nalchik,05/23,23,230.0,7545,7545,7545,7545,,,,Recovered: 2300 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Nalchik,06/24,06,60.0,7202,7202,7202,7202,1479.0,1479.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Nalchik,06/24,24,240.0,7202,7202,7202,7202,1479.0,1479.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Novorossiysk,04/22,04,36.0,5905,5905,5905,5905,,,,Recovered: 1800 m; ~036/216 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Novorossiysk,04/22,22,216.0,5905,5905,5905,5905,,,,Recovered: 1800 m; ~036/216 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Senaki-Kolkhi,09/27,09,94.0,7870,7870,7870,7870,98.0,98.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Senaki-Kolkhi,09/27,27,274.0,7870,7870,7870,7870,98.0,98.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Sochi-Adler,02/20,02,20.0,7220,7220,7220,7220,,,,Recovered: 2200 m; ~020/200 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Sochi-Adler,02/20,20,200.0,7220,7220,7220,7220,,,,Recovered: 2200 m; ~020/200 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Sochi-Adler,06/24,06,62.0,7218,7218,7218,7218,89.0,89.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Sochi-Adler,06/24,24,242.0,7218,7218,7218,7218,89.0,89.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Sukhumi-Babushara,07/25,07,74.0,8202,8202,8202,8202,39.0,33.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Sukhumi-Babushara,07/25,25,254.0,8202,8202,8202,8202,33.0,39.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Sukhumi-Babushara,11/29,11,110.0,11610,11610,11610,11610,,,,Recovered: 3540 m; ~110/290 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Sukhumi-Babushara,11/29,29,290.0,11610,11610,11610,11610,,,,Recovered: 3540 m; ~110/290 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Tbilisi-Lochini,13/31,13,134.0,9800,9800,9800,9800,1624.0,1624.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Tbilisi-Lochini,13/31,31,314.0,9800,9800,9800,9800,1624.0,1624.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Tbilisi-Soganlug,13/31,13,126.0,8120,8120,8120,8120,,,,Recovered: 2475 m; ~126/306 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Tbilisi-Soganlug,13/31,31,306.0,8120,8120,8120,8120,,,,Recovered: 2475 m; ~126/306 (mag).,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Vaziani,13/31,13,134.0,8071,8071,8071,8071,1545.0,1545.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Caucasus,Vaziani,13/31,31,314.0,8071,8071,8071,8071,1545.0,1545.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Allstedt (EDCU),10/28,10,100.0,3937,3937,3937,3937,,,,"Recovered: ~1,200 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Allstedt (EDCU),10/28,28,280.0,3937,3937,3937,3937,,,,"Recovered: ~1,200 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Alt Daber – Wittstock (reserve),08/26,08,80.0,7776,7776,7776,7776,,,,"Recovered: ~2,370 m (reserve).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Alt Daber – Wittstock (reserve),08/26,26,260.0,7776,7776,7776,7776,,,,"Recovered: ~2,370 m (reserve).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Altenburg–Nobitz (EDAC),04/22,04,36.0,7989,7989,7989,7989,,,,"Recovered: 2,435 m; thr 639/605 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Altenburg–Nobitz (EDAC),04/22,22,216.0,7989,7989,7989,7989,,,,"Recovered: 2,435 m; thr 639/605 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Berlin – Schönefeld (EDDB/SXF),07L/25R,07L,73.0,11811,11811,11811,11811,,,,"Recovered: 3,600 m (historic config).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Berlin – Schönefeld (EDDB/SXF),07L/25R,25R,253.0,11811,11811,11811,11811,,,,"Recovered: 3,600 m (historic config).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Berlin – Schönefeld (EDDB/SXF),07R/25L,07R,73.0,9843,9843,9843,9843,,,,"Recovered: 3,000 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Berlin – Schönefeld (EDDB/SXF),07R/25L,25L,253.0,9843,9843,9843,9843,,,,"Recovered: 3,000 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Bitburg AB (EDRB),06/24,06,60.0,10026,10026,10026,10026,,,,"Recovered: ~3,056 m (Cold War).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Bitburg AB (EDRB),06/24,24,240.0,10026,10026,10026,10026,,,,"Recovered: ~3,056 m (Cold War).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Brandenburg–Briest (EDUB),07/25,07,73.0,8012,8012,8012,8012,,,,"Recovered: 2,442 m (historic full length).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Brandenburg–Briest (EDUB),07/25,25,253.0,8012,8012,8012,8012,,,,"Recovered: 2,442 m (historic full length).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Braunschweig–Wolfsburg (EDVE),08/26,08,76.0,7546,7546,7546,7546,,,,"Recovered: ~2,300 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Braunschweig–Wolfsburg (EDVE),08/26,26,256.0,7546,7546,7546,7546,,,,"Recovered: ~2,300 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Bremen (EDDW),05/23,05,50.0,2297,2297,2297,2297,,,,Recovered: 700 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Bremen (EDDW),05/23,23,230.0,2297,2297,2297,2297,,,,Recovered: 700 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Bremen (EDDW),09/27,09,86.0,6693,6693,6693,6693,,,,"Recovered: 2,040 m; thr 13/14 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Bremen (EDDW),09/27,27,266.0,6693,6693,6693,6693,,,,"Recovered: 2,040 m; thr 13/14 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Büchel AB (ETSB),03/21,03,30.0,8225,8225,8225,8225,,,,"Recovered: 2,507 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Büchel AB (ETSB),03/21,21,210.0,8225,8225,8225,8225,,,,"Recovered: 2,507 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Celle AB (ETHC),08/26,08,80.0,6007,6007,6007,6007,,,,"Recovered: 1,831 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Celle AB (ETHC),08/26,26,260.0,6007,6007,6007,6007,,,,"Recovered: 1,831 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Cottbus–Drewitz (EDCD),10/28,10,100.0,8530,8530,8530,8530,,,,"Recovered: 2,600 m; elev ~269 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Cottbus–Drewitz (EDCD),10/28,28,280.0,8530,8530,8530,8530,,,,"Recovered: 2,600 m; elev ~269 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Damgarten (Ribnitz-Damgarten),07/25,07,70.0,8202,8202,8202,8202,,,,"Recovered: 2,500 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Damgarten (Ribnitz-Damgarten),07/25,25,250.0,8202,8202,8202,8202,,,,"Recovered: 2,500 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Dessau (EDAD),09/27,09,90.0,3278,3278,3278,3278,,,,Recovered: 999 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Dessau (EDAD),09/27,27,270.0,3278,3278,3278,3278,,,,Recovered: 999 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Diepholz (ETND),08/26,08,80.0,8255,8255,8255,8255,,,,"Recovered: ~2,516 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Diepholz (ETND),08/26,26,260.0,8255,8255,8255,8255,,,,"Recovered: ~2,516 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Dresden (EDDC),04/22,04,42.0,9350,9350,9350,9350,,,,"Recovered: 2,850 m; elev ~755 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Dresden (EDDC),04/22,22,222.0,9350,9350,9350,9350,,,,"Recovered: 2,850 m; elev ~755 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Eberswalde–Finow (EDAV),10/28,10,100.0,8268,8268,8268,8268,,,,"Recovered: 2,520 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Eberswalde–Finow (EDAV),10/28,28,280.0,8268,8268,8268,8268,,,,"Recovered: 2,520 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Erfurt–Weimar (EDDE),09/27,09,94.0,8530,8530,8530,8530,,,,"Recovered: 2,600 m; thr 1023/1014 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Erfurt–Weimar (EDDE),09/27,27,274.0,8530,8530,8530,8530,,,,"Recovered: 2,600 m; thr 1023/1014 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Fritzlar (ETHF),12/30,12,119.0,3422,3422,3422,3422,,,,"Recovered: 1,043 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Fritzlar (ETHF),12/30,30,299.0,3422,3422,3422,3422,,,,"Recovered: 1,043 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Geilenkirchen (ETNG),10/28,10,100.0,9843,9843,9843,9843,,,,"Recovered: ~3,000 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Geilenkirchen (ETNG),10/28,28,280.0,9843,9843,9843,9843,,,,"Recovered: ~3,000 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Gera–Leumnitz (EDAJ),11/29,11,110.0,3937,3937,3937,3937,,,,"Recovered: ~1,200 m; elev ~1,021 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Gera–Leumnitz (EDAJ),11/29,29,290.0,3937,3937,3937,3937,,,,"Recovered: ~1,200 m; elev ~1,021 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Giebelstadt (EDQG),08/26,08,80.0,7005,7005,7005,7005,,,,"Recovered: 2,135 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Giebelstadt (EDQG),08/26,26,260.0,7005,7005,7005,7005,,,,"Recovered: 2,135 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Groß Mohrdorf (reserve),13/31,13,130.0,7546,7546,7546,7546,,,,"Recovered: ~2,300–2,350 m (reserve).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Groß Mohrdorf (reserve),13/31,31,310.0,7546,7546,7546,7546,,,,"Recovered: ~2,300–2,350 m (reserve).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Großenhain (EDAK),11/29,11,112.0,4642,4642,4642,4642,,,,"Recovered: 1,415 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Großenhain (EDAK),11/29,29,292.0,4642,4642,4642,4642,,,,"Recovered: 1,415 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Hamburg – Finkenwerder (EDHI),05/23,05,50.0,10443,10443,10443,10443,,,,"Recovered: 3,183 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Hamburg – Finkenwerder (EDHI),05/23,23,230.0,10443,10443,10443,10443,,,,"Recovered: 3,183 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Heringsdorf (EDAH),10/28,10,102.0,7562,7562,7562,7562,,,,"Recovered: 2,305 m; thr 77/89 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Heringsdorf (EDAH),10/28,28,282.0,7562,7562,7562,7562,,,,"Recovered: 2,305 m; thr 77/89 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Hildesheim (EDVM),08/26,08,81.0,4101,4101,4101,4101,,,,"Recovered: ~1,250 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Hildesheim (EDVM),08/26,26,261.0,4101,4101,4101,4101,,,,"Recovered: ~1,250 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Hohn (ETNH),08/26,08,80.0,8005,8005,8005,8005,,,,"Recovered: 2,440 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Hohn (ETNH),08/26,26,260.0,8005,8005,8005,8005,,,,"Recovered: 2,440 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Holzdorf AB (ETSH),09/27,09,94.0,7936,7936,7936,7936,,,,"Recovered: 2,418 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Holzdorf AB (ETSH),09/27,27,274.0,7936,7936,7936,7936,,,,"Recovered: 2,418 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Jena–Schöngleina (EDBJ),08/26,08,80.0,3839,3839,3839,3839,,,,"Recovered: ~1,170 m; elev ~1,230 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Jena–Schöngleina (EDBJ),08/26,26,260.0,3839,3839,3839,3839,,,,"Recovered: ~1,170 m; elev ~1,230 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Jever (ETNJ),11/29,11,110.0,8005,8005,8005,8005,,,,"Recovered: ~8,005 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Jever (ETNJ),11/29,29,290.0,8005,8005,8005,8005,,,,"Recovered: ~8,005 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Jüterbog – Altes Lager,10/28,10,100.0,8530,8530,8530,8530,,,,"Recovered: ~2,600 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Jüterbog – Altes Lager,10/28,28,280.0,8530,8530,8530,8530,,,,"Recovered: ~2,600 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Kyritz (EDBK),14/32,14,138.0,3281,3281,3281,3281,,,,"Recovered: 1,000 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Kyritz (EDBK),14/32,32,318.0,3281,3281,3281,3281,,,,"Recovered: 1,000 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Köthen (EDCK),07/25,07,70.0,2640,2640,2640,2640,,,,Recovered: 805 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Köthen (EDCK),07/25,25,250.0,2640,2640,2640,2640,,,,Recovered: 805 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Leipzig/Halle (EDDP),08L/26R,08L,81.0,11811,11811,11811,11811,,,,"Recovered: 3,600 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Leipzig/Halle (EDDP),08L/26R,26R,261.0,11811,11811,11811,11811,,,,"Recovered: 3,600 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Leipzig/Halle (EDDP),08R/26L,08R,81.0,11811,11811,11811,11811,,,,"Recovered: 3,600 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Leipzig/Halle (EDDP),08R/26L,26L,261.0,11811,11811,11811,11811,,,,"Recovered: 3,600 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Leipzig–Mockau (historic),10/28,10,100.0,3281,3281,3281,3281,,,,"Recovered: ~1,000 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Leipzig–Mockau (historic),10/28,28,280.0,3281,3281,3281,3281,,,,"Recovered: ~1,000 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Lübeck (EDHL),07/25,07,71.0,6896,6896,6896,6896,,,,"Recovered: 2,102 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Lübeck (EDHL),07/25,25,251.0,6896,6896,6896,6896,,,,"Recovered: 2,102 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Magdeburg City (EDBM),09/27,09,90.0,3281,3281,3281,3281,,,,"Recovered: ~1,000 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Magdeburg City (EDBM),09/27,27,270.0,3281,3281,3281,3281,,,,"Recovered: ~1,000 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Magdeburg–Cochstedt (EDBC),08/26,08,80.0,8202,8202,8202,8202,,,,"Recovered: 2,500 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Magdeburg–Cochstedt (EDBC),08/26,26,260.0,8202,8202,8202,8202,,,,"Recovered: 2,500 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Mendig (EDRE),07/25,07,75.0,5342,5342,5342,5342,,,,"Recovered: ~1,615 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Mendig (EDRE),07/25,25,255.0,5342,5342,5342,5342,,,,"Recovered: ~1,615 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Merseburg (EDAM),09/27,09,90.0,4593,4593,4593,4593,,,,"Recovered: ~1,400 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Merseburg (EDAM),09/27,27,270.0,4593,4593,4593,4593,,,,"Recovered: ~1,400 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Neubrandenburg–Trollenhagen (EDBN),09/27,09,90.0,7523,7523,7523,7523,,,,"Recovered: 2,292 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Neubrandenburg–Trollenhagen (EDBN),09/27,27,270.0,7523,7523,7523,7523,,,,"Recovered: 2,292 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Neuruppin Air Base (historical),10/28,10,100.0,7874,7874,7874,7874,,,,"Recovered: 2,400 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Neuruppin Air Base (historical),10/28,28,280.0,7874,7874,7874,7874,,,,"Recovered: 2,400 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Nordholz (ETMN),08/26,08,80.0,8005,8005,8005,8005,,,,"Recovered: ~8,005 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Nordholz (ETMN),08/26,26,260.0,8005,8005,8005,8005,,,,"Recovered: ~8,005 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Nörvenich (ETNN),07/25,07,70.0,8032,8032,8032,8032,,,,"Recovered: ~2,448 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Nörvenich (ETNN),07/25,25,250.0,8032,8032,8032,8032,,,,"Recovered: ~2,448 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Obermehler–Schlotheim (EDCO),11/29,11,107.0,4757,4757,4757,4757,,,,"Recovered: 1,450 m; elev ~909 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Obermehler–Schlotheim (EDCO),11/29,29,287.0,4757,4757,4757,4757,,,,"Recovered: 1,450 m; elev ~909 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Obermehler–Schlotheim (EDOH),10/28,10,100.0,4003,4003,4003,4003,,,,"Recovered: ~1,220 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Obermehler–Schlotheim (EDOH),10/28,28,280.0,4003,4003,4003,4003,,,,"Recovered: ~1,220 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Pferdsfeld (EDRG),09/27,09,90.0,7989,7989,7989,7989,,,,"Recovered: 2,435 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Pferdsfeld (EDRG),09/27,27,270.0,7989,7989,7989,7989,,,,"Recovered: 2,435 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Pinnow – Schwein/Pinnow (EDBP),01/19,01,10.0,2625,2625,2625,2625,,,,Recovered: ~800 m grass.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Pinnow – Schwein/Pinnow (EDBP),01/19,19,190.0,2625,2625,2625,2625,,,,Recovered: ~800 m grass.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,RAF Gatow (EDBG),08R/26L,08R,80.0,6043,6043,6043,6043,,,,"Recovered: 1,842 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,RAF Gatow (EDBG),08R/26L,26L,260.0,6043,6043,6043,6043,,,,"Recovered: 1,842 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Rechlin–Lärz / Müritz Airpark (EDAX),07/25,07,70.0,7808,7808,7808,7808,,,,"Recovered: 2,380 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Rechlin–Lärz / Müritz Airpark (EDAX),07/25,25,250.0,7808,7808,7808,7808,,,,"Recovered: 2,380 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Rothenburg/Görlitz (EDBR),08/26,08,80.0,8202,8202,8202,8202,,,,"Recovered: 2,500 m; elev ~512 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Rothenburg/Görlitz (EDBR),08/26,26,260.0,8202,8202,8202,8202,,,,"Recovered: 2,500 m; elev ~512 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Rügen – Güttin (EDCG),09/27,09,82.0,2953,2953,2953,2953,,,,Recovered: 900 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Rügen – Güttin (EDCG),09/27,27,262.0,2953,2953,2953,2953,,,,Recovered: 900 m.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Schleswig-Jagel (ETNS),05/23,05,50.0,8003,8003,8003,8003,,,,"Recovered: 2,439 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Schleswig-Jagel (ETNS),05/23,23,230.0,8003,8003,8003,8003,,,,"Recovered: 2,439 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Schleswig-Jagel (ETNS),07/25,07,70.0,8081,8081,8081,8081,,,,"Recovered: 2,463 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Schleswig-Jagel (ETNS),07/25,25,250.0,8081,8081,8081,8081,,,,"Recovered: 2,463 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Schwerin–Parchim (EDOP),06/24,06,62.0,9843,9843,9843,9843,,,,"Recovered: 3,000 m; thr elev present earlier.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Schwerin–Parchim (EDOP),06/24,24,242.0,9843,9843,9843,9843,,,,"Recovered: 3,000 m; thr elev present earlier.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Schönhagen (EDAZ),07/25,07,70.0,4987,4987,4987,4987,,,,"Recovered: 1,520 m; elev ~157 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Schönhagen (EDAZ),07/25,25,250.0,4987,4987,4987,4987,,,,"Recovered: 1,520 m; elev ~157 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Sembach AB (ETAS),07/25,07,70.0,7881,7881,7881,7881,,,,"Recovered: 2,402 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Sembach AB (ETAS),07/25,25,250.0,7881,7881,7881,7881,,,,"Recovered: 2,402 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Sperenberg,09/27,09,90.0,8202,8202,8202,8202,,,,"Recovered: 2,500 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Sperenberg,09/27,27,270.0,8202,8202,8202,8202,,,,"Recovered: 2,500 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Stendal–Borstel (EDOV),08/26,08,80.0,6552,6552,6552,6552,,,,"Recovered: 2,000 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Stendal–Borstel (EDOV),08/26,26,260.0,6552,6552,6552,6552,,,,"Recovered: 2,000 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Stralsund–Barth (EDBH),09/27,09,87.0,5528,5528,5528,5528,,,,"Recovered: 1,685 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Stralsund–Barth (EDBH),09/27,27,267.0,5528,5528,5528,5528,,,,"Recovered: 1,685 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Strausberg (EDAY),10/28,10,100.0,3937,3937,3937,3937,,,,"Recovered: ~1,200 m; elev ~157 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Strausberg (EDAY),10/28,28,280.0,3937,3937,3937,3937,,,,"Recovered: ~1,200 m; elev ~157 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Templin – Groß Dölln (EDUT),09/27,09,90.0,11483,11483,11483,11483,,,,"Recovered: 3,500 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Templin – Groß Dölln (EDUT),09/27,27,270.0,11483,11483,11483,11483,,,,"Recovered: 3,500 m (historic).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Tutow (EDUW),17/35,17,170.0,7181,7181,7181,7181,,,,"Recovered: 2,189 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Tutow (EDUW),17/35,35,350.0,7181,7181,7181,7181,,,,"Recovered: 2,189 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Werneuchen (EDBW),08/26,08,80.0,4918,4918,4918,4918,,,,"Recovered: 1,499 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Werneuchen (EDBW),08/26,26,260.0,4918,4918,4918,4918,,,,"Recovered: 1,499 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Wiesbaden AAF (ETOU),07/25,07,70.0,7069,7069,7069,7069,,,,"Recovered: ~2,155 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Wiesbaden AAF (ETOU),07/25,25,250.0,7069,7069,7069,7069,,,,"Recovered: ~2,155 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Wittmundhafen (ETNT),08/26,08,75.0,8005,8005,8005,8005,,,,"Recovered: 2,440 m; thr elev ~23/19 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Wittmundhafen (ETNT),08/26,26,255.0,8005,8005,8005,8005,,,,"Recovered: 2,440 m; thr elev ~23/19 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Zerbst (EDUZ),07/25,07,70.0,2461,2461,2461,2461,,,,Recovered: ~750 m current GA.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Zerbst (EDUZ),07/25,25,250.0,2461,2461,2461,2461,,,,Recovered: ~750 m current GA.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Zweibrücken (EDRZ),03/21,03,30.0,8776,8776,8776,8776,,,,"Recovered: 2,675 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Cold War Germany,Zweibrücken (EDRZ),03/21,21,210.0,8776,8776,8776,8776,,,,"Recovered: 2,675 m.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Kola,Afrikanda (ULAA),12/30,12,120.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Afrikanda (ULAA),12/30,30,300.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Alta (ENAT),11/29,11,110.0,7408,7408,7408,7408,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Alta (ENAT),11/29,29,290.0,7408,7408,7408,7408,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Andøya (ENAN),14/32,14,140.0,8018,8018,8018,8018,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Andøya (ENAN),14/32,32,320.0,8018,8018,8018,8018,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Banak (ENNA),10/28,10,100.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Banak (ENNA),10/28,28,280.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Banak (Lakselv),11/29,11,110.0,8858,8858,8858,8858,82.0,82.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Kola,Banak (Lakselv),11/29,29,290.0,8858,8858,8858,8858,82.0,82.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Kola,Bardufoss (ENDU),10/28,10,100.0,7546,7546,7546,7546,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Bardufoss (ENDU),10/28,28,280.0,7546,7546,7546,7546,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Bodø (ENBO),07/25,07,70.0,9843,9843,9843,9843,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Bodø (ENBO),07/25,25,250.0,9843,9843,9843,9843,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Bodø Main,07/25,07,72.0,9200,9200,9200,9200,42.0,42.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Kola,Bodø Main,07/25,25,252.0,9200,9200,9200,9200,42.0,42.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Kola,Enontekiö (EFET),12/30,12,120.0,6562,6562,6562,6562,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Enontekiö (EFET),12/30,30,300.0,6562,6562,6562,6562,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Evenes (ENEV),17/35,17,170.0,9810,9810,9810,9810,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Evenes (ENEV),17/35,35,350.0,9810,9810,9810,9810,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Hammerfest (ENHF),08/26,08,80.0,3937,3937,3937,3937,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Hammerfest (ENHF),08/26,26,260.0,3937,3937,3937,3937,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Honningsvåg/Valan (ENHV),08/26,08,80.0,3937,3937,3937,3937,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Honningsvåg/Valan (ENHV),08/26,26,260.0,3937,3937,3937,3937,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Ivalo (EFIV),04/22,04,40.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Ivalo (EFIV),04/22,22,220.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kandalaksha (reserve),09/27,09,90.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kandalaksha (reserve),09/27,27,270.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kemi–Tornio (EFKE),18/36,18,180.0,8530,8530,8530,8530,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kemi–Tornio (EFKE),18/36,36,360.0,8530,8530,8530,8530,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kilp-Yavr (reserve),09/27,09,90.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kilp-Yavr (reserve),09/27,27,270.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kirkenes/Høybuktmoen (ENKR),06/24,06,60.0,7218,7218,7218,7218,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kirkenes/Høybuktmoen (ENKR),06/24,24,240.0,7218,7218,7218,7218,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kittilä (EFKT),16/34,16,160.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kittilä (EFKT),16/34,34,340.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kuusamo (EFKS),12/30,12,120.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Kuusamo (EFKS),12/30,30,300.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Mehamn (ENMH),17/35,17,170.0,2953,2953,2953,2953,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Mehamn (ENMH),17/35,35,350.0,2953,2953,2953,2953,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Monchegorsk (ULCM),12/30,12,120.0,9843,9843,9843,9843,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Monchegorsk (ULCM),12/30,30,300.0,9843,9843,9843,9843,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Murmansk (ULMM),13/31,13,130.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Murmansk (ULMM),13/31,31,310.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Olenya AB (Olenegorsk),03/21,03,30.0,11483,11483,11483,11483,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Olenya AB (Olenegorsk),03/21,21,210.0,11483,11483,11483,11483,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Oulu (EFOU),12/30,12,120.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Oulu (EFOU),12/30,30,300.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Rovaniemi,03/21,03,28.0,9843,9843,9843,9843,642.0,642.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Kola,Rovaniemi,03/21,21,208.0,9843,9843,9843,9843,642.0,642.0,,Approx real-world length; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Kola,Rovaniemi (EFRO),03/21,03,30.0,9843,9843,9843,9843,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Rovaniemi (EFRO),03/21,21,210.0,9843,9843,9843,9843,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Severomorsk-1 (ULAM),14/32,14,140.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Severomorsk-1 (ULAM),14/32,32,320.0,8202,8202,8202,8202,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Severomorsk-3 (ULAS),17/35,17,170.0,11155,11155,11155,11155,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Severomorsk-3 (ULAS),17/35,35,350.0,11155,11155,11155,11155,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Sodankylä (EFSO),10/28,10,100.0,6562,6562,6562,6562,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Sodankylä (EFSO),10/28,28,280.0,6562,6562,6562,6562,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Tromsø/Langnes (ENTC),01/19,01,10.0,7723,7723,7723,7723,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Tromsø/Langnes (ENTC),01/19,19,190.0,7723,7723,7723,7723,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Vadsø (ENVD),09/27,09,90.0,3937,3937,3937,3937,,,,Rebuilt from public sources; verify in-sim,,
+Kola,Vadsø (ENVD),09/27,27,270.0,3937,3937,3937,3937,,,,Rebuilt from public sources; verify in-sim,,
+Marianas,Andersen AFB,06L/24R,06L,62.0,11000,11000,11000,11000,610.0,631.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Andersen AFB,06L/24R,24R,242.0,11000,11000,11000,11000,631.0,610.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Andersen AFB (PGUA) 06L/24R,06L/24R,06L,60.0,10528,10528,10528,10528,,,,"Recovered: PGUA 06L/24R 10,528 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Andersen AFB (PGUA) 06L/24R,06L/24R,24R,240.0,10528,10528,10528,10528,,,,"Recovered: PGUA 06L/24R 10,528 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Andersen AFB (PGUA) 06R/24L,06R/24L,06R,60.0,11200,11200,11200,11200,,,,"Recovered: PGUA 06R/24L 11,200 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Andersen AFB (PGUA) 06R/24L,06R/24L,24L,240.0,11200,11200,11200,11200,,,,"Recovered: PGUA 06R/24L 11,200 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Antonio B. Won Pat Intl,06L/24R,06L,62.0,10018,10018,10018,10018,298.0,298.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Antonio B. Won Pat Intl,06L/24R,24R,242.0,10018,10018,10018,10018,298.0,298.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Guam Intl (PGUM) 06L/24R,06L/24R,06L,65.0,12017,12017,12017,12017,,,,"Recovered: PGUM 06L/24R 12,017 ft; true 65/245.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Guam Intl (PGUM) 06L/24R,06L/24R,24R,245.0,12017,12017,12017,12017,,,,"Recovered: PGUM 06L/24R 12,017 ft; true 65/245.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Guam Intl (PGUM) 06R/24L,06R/24L,06R,65.0,10014,10014,10014,10014,,,,"Recovered: PGUM 06R/24L 10,014 ft; true 65/245.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Guam Intl (PGUM) 06R/24L,06R/24L,24L,245.0,10014,10014,10014,10014,,,,"Recovered: PGUM 06R/24L 10,014 ft; true 65/245.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Rota Intl (PGRO),09/27,09,92.0,7000,7000,7000,7000,,,,"Recovered: PGRO 7,000 ft; true 92/272.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Rota Intl (PGRO),09/27,27,272.0,7000,7000,7000,7000,,,,"Recovered: PGRO 7,000 ft; true 92/272.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Saipan Intl,07/25,07,72.0,8700,8700,8700,8700,215.0,215.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Saipan Intl,07/25,25,252.0,8700,8700,8700,8700,215.0,215.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Saipan Intl (PGSN),07/25,07,70.0,8699,8699,8699,8699,,,,"Recovered: PGSN 8,699 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Saipan Intl (PGSN),07/25,25,250.0,8699,8699,8699,8699,,,,"Recovered: PGSN 8,699 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian Intl (PGWT),08/26,08,80.0,8600,8600,8600,8600,,,,"Recovered: PGWT 8,600 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian Intl (PGWT),08/26,26,260.0,8600,8600,8600,8600,,,,"Recovered: PGWT 8,600 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian North Field — Able (historical),08/26,08,80.0,8500,8500,8500,8500,,,,"Recovered: WWII-era ~8,500 ft (historical).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian North Field — Able (historical),08/26,26,260.0,8500,8500,8500,8500,,,,"Recovered: WWII-era ~8,500 ft (historical).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian North Field — Baker (historical),08/26,08,80.0,8500,8500,8500,8500,,,,"Recovered: WWII-era ~8,500 ft (historical).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian North Field — Baker (historical),08/26,26,260.0,8500,8500,8500,8500,,,,"Recovered: WWII-era ~8,500 ft (historical).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian North Field — Charlie (historical),08/26,08,80.0,8500,8500,8500,8500,,,,"Recovered: WWII-era ~8,500 ft (historical).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian North Field — Charlie (historical),08/26,26,260.0,8500,8500,8500,8500,,,,"Recovered: WWII-era ~8,500 ft (historical).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian North Field — Dog (historical),08/26,08,80.0,8500,8500,8500,8500,,,,"Recovered: WWII-era ~8,500 ft (historical).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Marianas,Tinian North Field — Dog (historical),08/26,26,260.0,8500,8500,8500,8500,,,,"Recovered: WWII-era ~8,500 ft (historical).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,Creech AFB,08/26,08,76.0,7999,7999,7999,7999,3135.0,3135.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,Creech AFB,08/26,26,256.0,7999,7999,7999,7999,3135.0,3135.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,Desert Rock (KDRA) [historic],02/20,02,20.0,5400,5400,5400,5400,,,,"Rebuilt: Desert Rock historic ~5,400 ft.",,
+Nevada,Desert Rock (KDRA) [historic],02/20,20,200.0,5400,5400,5400,5400,,,,"Rebuilt: Desert Rock historic ~5,400 ft.",,
+Nevada,Harry Reid Intl,08L/26R,08L,85.0,14712,14712,14712,14712,2181.0,2181.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,Harry Reid Intl,08L/26R,26R,265.0,14712,14712,14712,14712,2181.0,2181.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,Henderson Executive,17R/35L,17R,173.0,6501,6501,6501,6501,2492.0,2492.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,Henderson Executive,17R/35L,35L,353.0,6501,6501,6501,6501,2492.0,2492.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,NAS Fallon (KNFL) 13L/31R,13L/31R,13L,133.0,8004,8004,8004,8004,,,,"Rebuilt: NAS Fallon 13L/31R ~8,004 ft.",,
+Nevada,NAS Fallon (KNFL) 13L/31R,13L/31R,31R,313.0,8004,8004,8004,8004,,,,"Rebuilt: NAS Fallon 13L/31R ~8,004 ft.",,
+Nevada,NAS Fallon (KNFL) 13R/31L,13R/31L,13R,133.0,14005,14005,14005,14005,,,,"Rebuilt: NAS Fallon 13R/31L ~14,005 ft.",,
+Nevada,NAS Fallon (KNFL) 13R/31L,13R/31L,31L,313.0,14005,14005,14005,14005,,,,"Rebuilt: NAS Fallon 13R/31L ~14,005 ft.",,
+Nevada,Nellis AFB,03L/21R,03L,34.0,10050,10050,10050,10050,1870.0,1873.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,Nellis AFB,03L/21R,21R,214.0,10050,10050,10050,10050,1873.0,1870.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,North Las Vegas,12R/30L,12R,120.0,5004,5004,5004,5004,2205.0,2205.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Nevada,North Las Vegas,12R/30L,30L,300.0,5004,5004,5004,5004,2205.0,2205.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Normandy 2.0,Carpiquet,13/31,13,130.0,6234,6234,6234,6234,256.0,272.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Normandy 2.0,Carpiquet,13/31,31,310.0,6234,6234,6234,6234,272.0,256.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Normandy 2.0,Deauville-Normandie,12/30,12,117.0,8199,8199,8199,8199,479.0,479.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Normandy 2.0,Deauville-Normandie,12/30,30,297.0,8199,8199,8199,8199,479.0,479.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Normandy 2.0,Evreux-Fauville,10/28,10,102.0,7874,7874,7874,7874,464.0,464.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Normandy 2.0,Evreux-Fauville,10/28,28,282.0,7874,7874,7874,7874,464.0,464.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Abu Dhabi Intl (OMAA) 13L/31R,13L/31R,13L,126.0,13451,13451,13451,13451,62.0,72.0,,"Recovered: OMAA 13L/31R 4,100 m; true 126/306; thr 62/72 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Abu Dhabi Intl (OMAA) 13L/31R,13L/31R,31R,306.0,13451,13451,13451,13451,72.0,62.0,,"Recovered: OMAA 13L/31R 4,100 m; true 126/306; thr 62/72 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Abu Dhabi Intl (OMAA) 13R/31L,13R/31L,13R,126.0,13471,13471,13471,13471,78.0,83.0,,"Recovered: OMAA 13R/31L 4,106 m; true 126/306; thr 78/83 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Abu Dhabi Intl (OMAA) 13R/31L,13R/31L,31L,306.0,13471,13471,13471,13471,83.0,78.0,,"Recovered: OMAA 13R/31L 4,106 m; true 126/306; thr 78/83 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Abu Musa Island (OIBA),08/26,08,81.0,9793,9793,9793,9793,11.0,18.0,,"Recovered: OIBA 2,985 m; true 081/261; thr 11/18 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Abu Musa Island (OIBA),08/26,26,261.0,9793,9793,9793,9793,18.0,11.0,,"Recovered: OIBA 2,985 m; true 081/261; thr 11/18 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Ain Intl (OMAL),01/19,01,6.0,13140,13140,13140,13140,865.0,838.0,,"Recovered: OMAL 4,005 m; true 006/186; thr 865/838 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Ain Intl (OMAL),01/19,19,186.0,13140,13140,13140,13140,838.0,865.0,,"Recovered: OMAL 4,005 m; true 006/186; thr 865/838 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Bateen Executive (OMAD),13/31,13,126.0,10505,10505,10505,10505,15.0,13.0,,"Recovered: OMAD 3,202 m; true 126/306; thr 15/13 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Bateen Executive (OMAD),13/31,31,306.0,10505,10505,10505,10505,13.0,15.0,,"Recovered: OMAD 3,202 m; true 126/306; thr 15/13 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Dhafra AB,13L/31R,13L,128.0,12400,12400,12400,12400,77.0,79.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Dhafra AB,13L/31R,31R,308.0,12400,12400,12400,12400,79.0,77.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Maktoum Intl,12/30,12,116.0,14435,14435,14435,14435,114.0,114.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Maktoum Intl,12/30,30,296.0,14435,14435,14435,14435,114.0,114.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Minhad AB (OMDM),09/27,09,88.0,12901,12901,12901,12901,130.0,163.0,,"Recovered: OMDM 3,932 m; true 088/268; thr 130/163 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Al Minhad AB (OMDM),09/27,27,268.0,12901,12901,12901,12901,163.0,130.0,,"Recovered: OMDM 3,932 m; true 088/268; thr 130/163 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Bandar Abbas Intl,09/27,09,91.0,12004,12004,12004,12004,22.0,22.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Bandar Abbas Intl,09/27,27,271.0,12004,12004,12004,12004,22.0,22.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Bandar Lengeh (OIBL),08/26,08,78.0,8202,8202,8202,8202,66.0,75.0,,"Recovered: OIBL 2,500 m; true 078/258; thr 66/75 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Bandar Lengeh (OIBL),08/26,26,258.0,8202,8202,8202,8202,75.0,66.0,,"Recovered: OIBL 2,500 m; true 078/258; thr 66/75 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Dubai Intl,12L/30R,12L,115.0,13123,13123,13123,13123,62.0,62.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Dubai Intl,12L/30R,30R,295.0,13123,13123,13123,13123,62.0,62.0,,Added; verify in DCS,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Fujairah Intl,11/29,11,113.0,12467,12467,12467,12467,152.0,152.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Fujairah Intl,11/29,29,293.0,12467,12467,12467,12467,152.0,152.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Havadarya (OIKP),08/26,08,77.0,8530,8530,8530,8530,16.0,19.0,,"Recovered: OIKP 2,600 m; true 077/257; thr 16/19 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Havadarya (OIKP),08/26,26,257.0,8530,8530,8530,8530,19.0,16.0,,"Recovered: OIKP 2,600 m; true 077/257; thr 16/19 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Jask (OIZJ),06/24,06,60.0,7677,7677,7677,7677,32.0,32.0,,"Recovered: OIZJ 2,340 m; ~060/240; elev ~32 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Jask (OIZJ),06/24,24,240.0,7677,7677,7677,7677,32.0,32.0,,"Recovered: OIZJ 2,340 m; ~060/240; elev ~32 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Khasab,01/19,01,14.0,8074,8074,8074,8074,100.0,100.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Khasab,01/19,19,194.0,8074,8074,8074,8074,100.0,100.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Kish Intl (OIBK),09L/27R,09L,93.0,11972,11972,11972,11972,94.0,99.0,,"Recovered: OIBK 3,649 m; true 093/273; thr 94/99 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Kish Intl (OIBK),09L/27R,27R,273.0,11972,11972,11972,11972,99.0,94.0,,"Recovered: OIBK 3,649 m; true 093/273; thr 94/99 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Lavan Island (OIBV),11/29,11,109.0,8835,8835,8835,8835,44.0,45.0,,"Recovered: OIBV 2,693 m; true 109/289; thr 44/45 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Lavan Island (OIBV),11/29,29,289.0,8835,8835,8835,8835,45.0,44.0,,"Recovered: OIBV 2,693 m; true 109/289; thr 44/45 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Qeshm/Dayrestan Intl (OIKQ),05/23,05,49.0,13861,13861,13861,13861,14.0,45.0,,"Recovered: OIKQ 4,225 m; true 049/229; thr 14/45 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Qeshm/Dayrestan Intl (OIKQ),05/23,23,229.0,13861,13861,13861,13861,45.0,14.0,,"Recovered: OIKQ 4,225 m; true 049/229; thr 14/45 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Ras Al Khaimah Intl (OMRK),16/34,16,163.0,12336,12336,12336,12336,64.0,94.0,,"Recovered: OMRK 3,760 m; true 163/343; thr 64/94 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Ras Al Khaimah Intl (OMRK),16/34,34,343.0,12336,12336,12336,12336,94.0,64.0,,"Recovered: OMRK 3,760 m; true 163/343; thr 64/94 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Ras Al Khaimah Intl (OMRK) Helipad strip [aux],16/34,16,163.0,3000,3000,3000,3000,,,,Aux short strip placeholder to ensure coverage; verify in-sim.,,
+Persian Gulf,Ras Al Khaimah Intl (OMRK) Helipad strip [aux],16/34,34,343.0,3000,3000,3000,3000,,,,Aux short strip placeholder to ensure coverage; verify in-sim.,,
+Persian Gulf,Sharjah International (OMSJ),12/30,12,121.0,13320,13320,13320,13320,89.0,112.0,,"Recovered: SkyVector OMSJ 12/30 4,060 m; true 121/301; thr elev 89/112 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Sharjah International (OMSJ),12/30,30,301.0,13320,13320,13320,13320,112.0,89.0,,"Recovered: SkyVector OMSJ 12/30 4,060 m; true 121/301; thr elev 89/112 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Sirri Island (OIBS),12/30,12,125.0,8375,8375,8375,8375,26.0,1.0,,"Recovered: OIBS 2,553 m; true 125/305; thr 26/1 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Persian Gulf,Sirri Island (OIBS),12/30,30,305.0,8375,8375,8375,8375,1.0,26.0,,"Recovered: OIBS 2,553 m; true 125/305; thr 26/1 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Sinai,Cairo Intl,05R/23L,05R,52.0,13100,13100,13100,13100,382.0,455.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Sinai,Cairo Intl,05R/23L,23L,232.0,13100,13100,13100,13100,455.0,382.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Sinai,El Arish Intl,10/28,10,99.0,9840,9840,9840,9840,121.0,121.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Sinai,El Arish Intl,10/28,28,279.0,9840,9840,9840,9840,121.0,121.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,El Calafate (SAWC),07/25,07,72.0,8366,8366,8366,8366,647.0,632.0,,"Recovered: SAWC 2,550 m; true 072/252; thr 647/632 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,El Calafate (SAWC),07/25,25,252.0,8366,8366,8366,8366,632.0,647.0,,"Recovered: SAWC 2,550 m; true 072/252; thr 647/632 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Mount Pleasant,10/28,10,97.0,10000,10000,10000,10000,246.0,247.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Mount Pleasant,10/28,28,277.0,10000,10000,10000,10000,247.0,246.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Port Stanley (SFAL),09/27,09,85.0,3013,3013,3013,3013,75.0,75.0,,Recovered: SFAL 918 m; true 085/265; elev ~75 ft; displaced thr 206 ft.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Port Stanley (SFAL),09/27,27,265.0,3013,3013,3013,3013,75.0,75.0,,Recovered: SFAL 918 m; true 085/265; elev ~75 ft; displaced thr 206 ft.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Porvenir (SCFM) 03/21,03/21,03,33.0,3150,3150,3150,3150,104.0,104.0,,Recovered: SCFM 03/21 960 m; true 033/213; thr 104 ft.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Porvenir (SCFM) 03/21,03/21,21,213.0,3150,3150,3150,3150,104.0,104.0,,Recovered: SCFM 03/21 960 m; true 033/213; thr 104 ft.,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Porvenir (SCFM) 09/27,09/27,09,97.0,8202,8202,8202,8202,61.0,104.0,,"Recovered: SCFM 09/27 2,500 m; true 097/277; thr 61/104 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Porvenir (SCFM) 09/27,09/27,27,277.0,8202,8202,8202,8202,104.0,61.0,,"Recovered: SCFM 09/27 2,500 m; true 097/277; thr 61/104 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Puerto Natales / Teniente Julio Gallardo (SCNT),10/28,10,106.0,6562,5906,5906,6562,209.0,218.0,,"Recovered: SCNT AIP (2024-11-28). RWY10 TORA/TODA 1800 m, ASDA 2000 m. RWY28 TORA/TODA/ASDA 2000 m (LDA 1800 m).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Puerto Natales / Teniente Julio Gallardo (SCNT),10/28,28,286.0,6562,5906,5906,6562,218.0,209.0,,"Recovered: SCNT AIP (2024-11-28). RWY10 TORA/TODA 1800 m, ASDA 2000 m. RWY28 TORA/TODA/ASDA 2000 m (LDA 1800 m).",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Puerto Williams (SCGZ),08/26,08,78.0,4724,4724,4724,4724,88.0,42.0,,"Recovered: SCGZ 1,440 m; true 078/258; thr 88/42 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Puerto Williams (SCGZ),08/26,26,258.0,4724,4724,4724,4724,42.0,88.0,,"Recovered: SCGZ 1,440 m; true 078/258; thr 88/42 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Punta Arenas (SCCI) 01/19,01/19,01,16.0,5502,5502,5502,5502,122.0,110.0,,"Recovered: SCCI 01/19 1,677 m; true 016/196; thr 122/110 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Punta Arenas (SCCI) 01/19,01/19,19,196.0,5502,5502,5502,5502,110.0,122.0,,"Recovered: SCCI 01/19 1,677 m; true 016/196; thr 122/110 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Punta Arenas (SCCI) 07/25,07/25,07,76.0,9154,9154,9154,9154,139.0,112.0,,"Recovered: SCCI 07/25 2,790 m; true 076/256; thr 139/112 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Punta Arenas (SCCI) 07/25,07/25,25,256.0,9154,9154,9154,9154,112.0,139.0,,"Recovered: SCCI 07/25 2,790 m; true 076/256; thr 139/112 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Punta Arenas (SCCI) 12/30,12/30,12,126.0,7874,7874,7874,7874,138.0,112.0,,"Recovered: SCCI 12/30 2,400 m; true 126/306; thr 138/112 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Punta Arenas (SCCI) 12/30,12/30,30,306.0,7874,7874,7874,7874,112.0,138.0,,"Recovered: SCCI 12/30 2,400 m; true 126/306; thr 138/112 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,RAF Mount Pleasant (EGYP) 05/23,05/23,05,52.0,5003,5003,5003,5003,203.0,191.0,,"Recovered: EGYP 05/23 1,525 m; true 052/232; thr 203/191 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,RAF Mount Pleasant (EGYP) 05/23,05/23,23,232.0,5003,5003,5003,5003,191.0,203.0,,"Recovered: EGYP 05/23 1,525 m; true 052/232; thr 203/191 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,RAF Mount Pleasant (EGYP) 10/28,10/28,10,102.0,8494,8494,8494,8494,233.0,197.0,,"Recovered: EGYP 10/28 2,589 m; true 102/282; thr 233/197 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,RAF Mount Pleasant (EGYP) 10/28,10/28,28,282.0,8494,8494,8494,8494,197.0,233.0,,"Recovered: EGYP 10/28 2,589 m; true 102/282; thr 233/197 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Río Gallegos (SAWG),07/25,07,74.0,11644,11644,11644,11644,62.0,52.0,,"Recovered: SAWG 3,549 m; true 074/254; thr 62/52 ft; displaced 243 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Río Gallegos (SAWG),07/25,25,254.0,11644,11644,11644,11644,52.0,62.0,,"Recovered: SAWG 3,549 m; true 074/254; thr 62/52 ft; displaced 243 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Río Grande (SAWE),08/26,08,76.0,6562,6562,6562,6562,63.0,43.0,,"Recovered: SAWE 2,000 m; true 076/256; thr 63/43 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Río Grande (SAWE),08/26,26,256.0,6562,6562,6562,6562,43.0,63.0,,"Recovered: SAWE 2,000 m; true 076/256; thr 63/43 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Stanley,09/27,09,89.0,4100,4100,4100,4100,75.0,75.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Stanley,09/27,27,269.0,4100,4100,4100,4100,75.0,75.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Ushuaia (SAWH),07/25,07,74.0,9199,9199,9199,9199,82.0,69.0,,"Recovered: SAWH 2,804 m; true 074/254; thr 82/69 ft; displaced 591/531 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+South Atlantic,Ushuaia (SAWH),07/25,25,254.0,9199,9199,9199,9199,69.0,82.0,,"Recovered: SAWH 2,804 m; true 074/254; thr 82/69 ft; displaced 591/531 ft.",/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Adana Şakirpaşa (LTAF),05/23,05,50.0,9843,9843,9843,9843,,,,"Rebuilt: Adana ~3,000 m.",,
+Syria,Adana Şakirpaşa (LTAF),05/23,23,230.0,9843,9843,9843,9843,,,,"Rebuilt: Adana ~3,000 m.",,
+Syria,Al Qusayr AB,10/28,10,100.0,8200,8200,8200,8200,,,,"Rebuilt: Al Qusayr ~2,500 m.",,
+Syria,Al Qusayr AB,10/28,28,280.0,8200,8200,8200,8200,,,,"Rebuilt: Al Qusayr ~2,500 m.",,
+Syria,Aleppo (OSAP),09/27,09,92.0,9843,9843,9843,9843,,,,"Rebuilt: Aleppo ~3,000 m main.",,
+Syria,Aleppo (OSAP),09/27,27,272.0,9843,9843,9843,9843,,,,"Rebuilt: Aleppo ~3,000 m main.",,
+Syria,Aleppo Intl,09/27,09,85.0,9514,9514,9514,9514,1276.0,1276.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Aleppo Intl,09/27,27,265.0,9514,9514,9514,9514,1276.0,1276.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Bassel Al-Assad / Latakia (OSLK),17/35,17,174.0,9843,9843,9843,9843,,,,"Rebuilt: Latakia/Khmeimim ~3,000 m.",,
+Syria,Bassel Al-Assad / Latakia (OSLK),17/35,35,354.0,9843,9843,9843,9843,,,,"Rebuilt: Latakia/Khmeimim ~3,000 m.",,
+Syria,Beirut-Rafic Hariri,16/34,16,157.0,10660,10660,11800,10660,87.0,64.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Beirut-Rafic Hariri,16/34,34,337.0,10660,10660,11800,10660,64.0,87.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Beirut–Rafic Hariri Intl (OLBA) 03/21,03/21,03,34.0,10695,10695,10695,10695,,,,"Rebuilt: Beirut 03/21 ~10,695 ft.",,
+Syria,Beirut–Rafic Hariri Intl (OLBA) 03/21,03/21,21,214.0,10695,10695,10695,10695,,,,"Rebuilt: Beirut 03/21 ~10,695 ft.",,
+Syria,Beirut–Rafic Hariri Intl (OLBA) 16/34,16/34,16,164.0,11483,11483,11483,11483,,,,"Rebuilt: Beirut 16/34 ~11,483 ft.",,
+Syria,Beirut–Rafic Hariri Intl (OLBA) 16/34,16/34,34,344.0,11483,11483,11483,11483,,,,"Rebuilt: Beirut 16/34 ~11,483 ft.",,
+Syria,Damascus Intl,05/23,05,47.0,11500,11500,11500,11500,2025.0,2025.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Damascus Intl,05/23,23,227.0,11500,11500,11500,11500,2025.0,2025.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Damascus Intl (OSDI) 05L/23R,05L/23R,05L,50.0,11200,11200,11200,11200,,,,"Rebuilt: Damascus Intl ~11,200 ft parallels.",,
+Syria,Damascus Intl (OSDI) 05L/23R,05L/23R,23R,230.0,11200,11200,11200,11200,,,,"Rebuilt: Damascus Intl ~11,200 ft parallels.",,
+Syria,Damascus Intl (OSDI) 05R/23L,05R/23L,05R,50.0,11200,11200,11200,11200,,,,"Rebuilt: Damascus Intl second parallel ~11,200 ft.",,
+Syria,Damascus Intl (OSDI) 05R/23L,05R/23L,23L,230.0,11200,11200,11200,11200,,,,"Rebuilt: Damascus Intl second parallel ~11,200 ft.",,
+Syria,Deir ez-Zor,13/31,13,129.0,9970,9970,9970,9970,702.0,702.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Deir ez-Zor,13/31,31,309.0,9970,9970,9970,9970,702.0,702.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Deir ez-Zor (OSDZ),13/31,13,130.0,9843,9843,9843,9843,,,,"Rebuilt: Deir ez-Zor ~3,000 m.",,
+Syria,Deir ez-Zor (OSDZ),13/31,31,310.0,9843,9843,9843,9843,,,,"Rebuilt: Deir ez-Zor ~3,000 m.",,
+Syria,Gaziantep (LTAJ),10/28,10,100.0,10050,10050,10050,10050,,,,"Rebuilt: Gaziantep ~10,050 ft.",,
+Syria,Gaziantep (LTAJ),10/28,28,280.0,10050,10050,10050,10050,,,,"Rebuilt: Gaziantep ~10,050 ft.",,
+Syria,Haifa (LLHA),16/34,16,160.0,4325,4325,4325,4325,,,,"Rebuilt: Haifa ~4,325 ft.",,
+Syria,Haifa (LLHA),16/34,34,340.0,4325,4325,4325,4325,,,,"Rebuilt: Haifa ~4,325 ft.",,
+Syria,Hama,09/27,09,90.0,10500,10500,10500,10500,1023.0,1023.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Hama,09/27,27,270.0,10500,10500,10500,10500,1023.0,1023.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Hama (OSDI-Hama),09/27,09,90.0,9843,9843,9843,9843,,,,"Rebuilt: Hama ~3,000 m.",,
+Syria,Hama (OSDI-Hama),09/27,27,270.0,9843,9843,9843,9843,,,,"Rebuilt: Hama ~3,000 m.",,
+Syria,Hatay (LTDA),04/22,04,40.0,9800,9800,9800,9800,,,,"Rebuilt: Hatay ~9,800 ft.",,
+Syria,Hatay (LTDA),04/22,22,220.0,9800,9800,9800,9800,,,,"Rebuilt: Hatay ~9,800 ft.",,
+Syria,Incirlik AB (LTAG),05/23,05,50.0,10000,10000,10000,10000,,,,"Rebuilt: Incirlik ~10,000 ft.",,
+Syria,Incirlik AB (LTAG),05/23,23,230.0,10000,10000,10000,10000,,,,"Rebuilt: Incirlik ~10,000 ft.",,
+Syria,Khalkhalah AB (OSKH),06/24,06,60.0,10500,10500,10500,10500,,,,"Rebuilt: Khalkhalah ~3,200 m.",,
+Syria,Khalkhalah AB (OSKH),06/24,24,240.0,10500,10500,10500,10500,,,,"Rebuilt: Khalkhalah ~3,200 m.",,
+Syria,Khmeimim,17/35,17,168.0,9730,9730,9730,9730,43.0,47.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Khmeimim,17/35,35,348.0,9730,9730,9730,9730,47.0,43.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Kuweires AB (OS67),09/27,09,92.0,9843,9843,9843,9843,,,,"Rebuilt: Kuweires ~3,000 m.",,
+Syria,Kuweires AB (OS67),09/27,27,272.0,9843,9843,9843,9843,,,,"Rebuilt: Kuweires ~3,000 m.",,
+Syria,Larnaca Intl,04/22,04,44.0,8883,8883,8883,8883,7.0,7.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Larnaca Intl,04/22,22,224.0,8883,8883,8883,8883,7.0,7.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Marj Ruhayyil (Mezzeh),10/28,10,102.0,9100,9100,9100,9100,2234.0,2234.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Marj Ruhayyil (Mezzeh),10/28,28,282.0,9100,9100,9100,9100,2234.0,2234.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Marj Ruhayyil / Sasa AB,09/27,09,90.0,8200,8200,8200,8200,,,,"Rebuilt: Sasa ~2,500 m.",,
+Syria,Marj Ruhayyil / Sasa AB,09/27,27,270.0,8200,8200,8200,8200,,,,"Rebuilt: Sasa ~2,500 m.",,
+Syria,Megiddo (LLMG),11/29,11,110.0,3940,3940,3940,3940,,,,"Rebuilt: Megiddo ~3,940 ft.",,
+Syria,Megiddo (LLMG),11/29,29,290.0,3940,3940,3940,3940,,,,"Rebuilt: Megiddo ~3,940 ft.",,
+Syria,Palmyra (OSPR),15/33,15,150.0,9186,9186,9186,9186,,,,"Rebuilt: Palmyra ~2,800 m.",,
+Syria,Palmyra (OSPR),15/33,33,330.0,9186,9186,9186,9186,,,,"Rebuilt: Palmyra ~2,800 m.",,
+Syria,Palmyra (Tadmur),03/21,03,30.0,9800,9800,9800,9800,1326.0,1326.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Palmyra (Tadmur),03/21,21,210.0,9800,9800,9800,9800,1326.0,1326.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Paphos Intl,11/29,11,114.0,8858,8858,8858,8858,41.0,41.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Paphos Intl,11/29,29,294.0,8858,8858,8858,8858,41.0,41.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Qamishli,10/28,10,102.0,11800,11800,11800,11800,1480.0,1480.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Qamishli,10/28,28,282.0,11800,11800,11800,11800,1480.0,1480.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Qamishli (OSKL),15/33,15,150.0,11800,11800,11800,11800,,,,"Rebuilt: Qamishli long runway (~3,600 m).",,
+Syria,Qamishli (OSKL),15/33,33,330.0,11800,11800,11800,11800,,,,"Rebuilt: Qamishli long runway (~3,600 m).",,
+Syria,Ramat David (LLRD) 03/21,03/21,03,35.0,9843,9843,9843,9843,,,,"Rebuilt: Ramat David ~3,000 m 03/21.",,
+Syria,Ramat David (LLRD) 03/21,03/21,21,215.0,9843,9843,9843,9843,,,,"Rebuilt: Ramat David ~3,000 m 03/21.",,
+Syria,Ramat David (LLRD) 09/27,09/27,09,90.0,8202,8202,8202,8202,,,,"Rebuilt: Ramat David secondary ~2,500 m.",,
+Syria,Ramat David (LLRD) 09/27,09/27,27,270.0,8202,8202,8202,8202,,,,"Rebuilt: Ramat David secondary ~2,500 m.",,
+Syria,Rayak Air Base (OLRA),04/22,04,40.0,4150,4150,4150,4150,,,,"Rebuilt: Rayak ~4,150 ft.",,
+Syria,Rayak Air Base (OLRA),04/22,22,220.0,4150,4150,4150,4150,,,,"Rebuilt: Rayak ~4,150 ft.",,
+Syria,Rene Mouawad (Kleyate),07/25,07,70.0,10050,10050,10050,10050,75.0,75.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Rene Mouawad (Kleyate),07/25,25,250.0,10050,10050,10050,10050,75.0,75.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Rene Mouawad / Kleyate (OLKA),16/34,16,160.0,9843,9843,9843,9843,,,,"Rebuilt: Kleyate ~3,000 m.",,
+Syria,Rene Mouawad / Kleyate (OLKA),16/34,34,340.0,9843,9843,9843,9843,,,,"Rebuilt: Kleyate ~3,000 m.",,
+Syria,Rosh Pina (LLIB),04/22,04,40.0,6200,6200,6200,6200,,,,"Rebuilt: Rosh Pina ~6,200 ft.",,
+Syria,Rosh Pina (LLIB),04/22,22,220.0,6200,6200,6200,6200,,,,"Rebuilt: Rosh Pina ~6,200 ft.",,
+Syria,Sayqal AB,09/27,09,90.0,10500,10500,10500,10500,,,,"Rebuilt: Sayqal ~3,200 m.",,
+Syria,Sayqal AB,09/27,27,270.0,10500,10500,10500,10500,,,,"Rebuilt: Sayqal ~3,200 m.",,
+Syria,Shayrat,08/26,08,79.0,9800,9800,9800,9800,2614.0,2614.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Shayrat,08/26,26,259.0,9800,9800,9800,9800,2614.0,2614.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Tabqa,07/25,07,73.0,10300,10300,10300,10300,1000.0,1000.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Tabqa,07/25,25,253.0,10300,10300,10300,10300,1000.0,1000.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Tabqa AB,08/26,08,80.0,10500,10500,10500,10500,,,,"Rebuilt: Tabqa ~3,200 m.",,
+Syria,Tabqa AB,08/26,26,260.0,10500,10500,10500,10500,,,,"Rebuilt: Tabqa ~3,200 m.",,
+Syria,Tiyas (T-4),09/27,09,87.0,10050,10050,10050,10050,1570.0,1570.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Tiyas (T-4),09/27,27,267.0,10050,10050,10050,10050,1570.0,1570.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+Syria,Tiyas / T-4 Airbase (OSTY),10/28,10,100.0,10500,10500,10500,10500,,,,"Rebuilt: T-4 ~3,200 m.",,
+Syria,Tiyas / T-4 Airbase (OSTY),10/28,28,280.0,10500,10500,10500,10500,,,,"Rebuilt: T-4 ~3,200 m.",,
+The Channel,Manston,10/28,10,100.0,9010,9010,9010,9010,178.0,178.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
+The Channel,Manston,10/28,28,280.0,9010,9010,9010,9010,178.0,178.0,,Public real-world data; verify,/mnt/data/dcs_airports_expanded_master.csv,1757900268.0906632
