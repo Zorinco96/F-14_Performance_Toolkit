@@ -1,17 +1,14 @@
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.2-ui-wb-fix3 (2025-09-17)
+# Version: v1.1.3 (2025-09-17)
 #
-# This patch applies:
-# 1) Environment defaults to Manual.
-# 2) W&B Simple note: MTOW = 74,349 lb (default GTOW).
-# 3) W&B Simple LDW default = 60,000 lb + note: MLDW(field)=60,000 lb, MLDW(carrier)=54,000 lb.
-# 4) Weight entries show whole pounds (no decimals).
-# 5) Climb Profile adds Time & Fuel to Takeoff + 100 NM (placeholders).
-# 6) Move Takeoff Results: after Takeoff Configuration, before Climb Profile.
-# 7) Move Landing Setup: just before Landing Results.
-# 8) Takeoff Results reformatted into vertical columns + separate DCS performance row.
+# Changes from v1.1.2-ui-wb-fix3:
+# 1) Takeoff Results: clearer break before "DCS Expected Performance".
+# 2) Landing Setup: auto-pulls selected departure airport/runway as Destination 1,
+#    user can add up to 4 landing candidates total.
+# 3) Landing Results: includes Factored Landing Distance, Available Landing Distance,
+#    and (placeholder) Calculated Maximum Landing Weight per runway/conditions.
 # ============================================================
 # 🚨 Bogged Down Protocol (BDP) 🚨
 # 1) STOP  2) REVERT to last good tag  3) RESET chat if needed  4) SCOPE small
@@ -47,7 +44,7 @@ EXT_TANK_FUEL_LB = 1800            # ~267 gal tank full, placeholder
 
 # Simple W&B defaults
 DEFAULT_GTOW = 74349               # MTOW; also our default GTOW in Simple
-DEFAULT_LDW  = 60000               # per request (note: 60k field / 54k carrier limits)
+DEFAULT_LDW  = 60000               # field MLDW (carrier 54,000)
 
 # Station list (mirrors DCS/Heatblur naming for glove A/B and tunnel)
 STATIONS: List[str] = ["1A", "1B", "2", "3", "4", "5", "6", "7", "8A", "8B"]
@@ -87,7 +84,7 @@ AUTO_QTY_BY_STORE = {
 @st.cache_data(show_spinner=False)
 def load_airports(path_or_url: str) -> pd.DataFrame:
     df = pd.read_csv(path_or_url)
-    for col in ("length_ft", "tora_ft", "toda_ft", "asda_ft", "threshold_elev_ft", "heading_deg"):
+    for col in ("length_ft", "tora_ft", "toda_ft", "asda_ft", "threshold_elev_ft", "heading_deg", "lda_ft"):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
@@ -198,7 +195,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.2-ui-wb-fix3 (no performance math)")
+    st.caption("UI skeleton • v1.1.3 (no performance math)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -272,7 +269,7 @@ st.markdown(
     """
     <div style="position:sticky;top:0;background:var(--background-color);padding:0.4rem 0;z-index:5;border-bottom:1px solid rgba(255,255,255,0.1)">
         <strong>F-14 Performance — DCS World</strong>
-        <span style="opacity:0.7"> • UI-only v1.1.2 • Auto-recompute ON</span>
+        <span style="opacity:0.7"> • UI-only v1.1.3 • Auto-recompute ON</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -320,6 +317,8 @@ with st.expander("2) Runway", expanded=True):
         tora = int((tora_series.max() if not tora_series.empty else rwy_rows.get("length_ft", pd.Series([0.0])).max()) or 0)
         elev = int((rwy_rows.get("threshold_elev_ft", pd.Series([0.0])).max()) or 0)
         hdg = float((rwy_rows.get("heading_deg", pd.Series([0.0])).max()) or 0.0)
+        # Also try LDA if present
+        lda = int((rwy_rows.get("lda_ft", pd.Series([0.0])).max()) or tora)
         st.metric("Takeoff Run Available (ft)", f"{tora:,}")
         st.metric("Field Elevation (ft)", f"{elev:,}")
         st.metric("Runway Heading (°T)", f"{hdg:.0f}")
@@ -342,7 +341,7 @@ with st.expander("2) Runway", expanded=True):
 # Section 3 — Environment (paste parser + manual)
 # =========================
 with st.expander("3) Environment", expanded=True):
-    # 1) Default to Manual
+    # Default to Manual (from previous patch)
     mode_env = st.radio("Input mode", ["Paste from DCS briefing", "Manual"], horizontal=True, index=1)
 
     if mode_env == "Paste from DCS briefing":
@@ -389,14 +388,13 @@ with st.expander("4) Weight & Balance", expanded=True):
     wb_mode = st.radio("Mode", ["Simple (enter Gross Takeoff Weight)", "Detailed (DCS-style loadout)"])
 
     if wb_mode.startswith("Simple"):
-        # 2 & 3 & 4) Defaults + notes + integers
         gw_tow = st.number_input("Gross Takeoff Weight (lb)", value=int(DEFAULT_GTOW), step=1, min_value=0, format="%d")
         st.caption("MTOW (maximum takeoff weight) is **74,349 lb** — used as the default GTOW.")
         gw_ldg_plan = st.number_input("Planned Landing Weight (lb)", value=int(DEFAULT_LDW), step=1, min_value=0, format="%d")
         st.caption("**MLDW (field) = 60,000 lb**, **MLDW (carrier) = 54,000 lb**.")
         st.caption("Switch to Detailed mode to build weight via stations and fuel.")
     else:
-        # Fuel — Pounds default and shown first (Change #2 already active), integer pounds (Change #4)
+        # Fuel — Pounds default and shown first
         st.markdown("**Fuel** — Enter by pounds or percent. External tanks are either FULL or EMPTY.")
         cF1, cF2 = st.columns(2)
         fuel_input_mode = cF1.radio("Fuel input", ["Pounds (lb)", "Percent"], index=0, key="fuel_input_mode")
@@ -439,11 +437,11 @@ with st.expander("4) Weight & Balance", expanded=True):
                 allowed = list(STORES_CATALOG.keys())
                 if compat_beta:
                     if sta in ("1A","8A"):
-                        allowed = ["—","AIM-9M"]  # glove rails A
+                        allowed = ["—","AIM-9M"]
                     elif sta in ("1B","8B"):
-                        allowed = ["—","AIM-7M","LANTIRN"]  # glove rails B
+                        allowed = ["—","AIM-7M","LANTIRN"]
                     elif sta in ("2","7"):
-                        allowed = ["—","Drop Tank 267 gal"]  # tank stations
+                        allowed = ["—","Drop Tank 267 gal"]
                     elif sta in ("3","4","5","6"):
                         allowed = ["—","AIM-54C","AIM-7M","Mk-82","Mk-83","GBU-12","ZUNI LAU-10"]
 
@@ -451,7 +449,6 @@ with st.expander("4) Weight & Balance", expanded=True):
                              index=(allowed.index(cur_store) if cur_store in allowed else 0),
                              key=store_key)
 
-                # Auto-derive quantity, keep widget but disable (also integers)
                 auto_qty = AUTO_QTY_BY_STORE.get(st.session_state[store_key], 0)
                 st.number_input(f"Qty {sta}", value=int(auto_qty),
                                 min_value=0, max_value=2, step=1, key=qty_key, disabled=True, format="%d")
@@ -489,11 +486,11 @@ with st.expander("5) Takeoff Configuration", expanded=True):
     st.caption("AUTO thrust will target 14 CFR 121.189 and ≥300 ft/NM AEO using the minimum required setting (to be modeled).")
 
 # =========================
-# (6) Takeoff Results — moved here per request
+# (6) Takeoff Results — stays after Takeoff Config
 # =========================
 st.header("Takeoff Results")
 
-# 8) Vertical columns
+# Vertical columns
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -519,9 +516,8 @@ with col3:
 
 with col4:
     st.subheader("Dispatchability")
-    # Placeholder logic: compare required vs available
     available = int(locals().get("tora", 0))
-    required = 8600  # use accelerate-stop as limiter (mock)
+    required = 8600  # limiter (mock)
     if available >= required:
         st.success("Dispatchable")
         st.caption("Limiting: None (mock)")
@@ -529,13 +525,13 @@ with col4:
         st.error("NOT Dispatchable")
         st.caption("Limiting: Accelerate-Stop distance (mock)")
 
-# Separate horizontal section for DCS-expected performance
-st.markdown("**DCS expected performance (mock)**")
+# ===== Clear break for DCS Expected Performance =====
+st.divider()
+st.subheader("DCS Expected Performance (mock)")
 p1, p2 = st.columns(2)
 p1.metric("Distance to reach Vr", "3,400 ft")
 p2.metric("Distance to Liftoff (35 ft)", "5,100 ft")
-
-st.markdown("---")
+st.divider()
 
 # =========================
 # Section 6 — Climb Profile (default: Most efficient)
@@ -555,9 +551,8 @@ with st.expander("6) Climb Profile", expanded=True):
     r2.metric("Time to Cruise Altitude", "07:50")
     r3.metric("Fuel to Top of Climb", "2,100 lb")
     r4.metric("TOC Distance", "37 NM")
-    # 5) Added: Time & Fuel to Takeoff + 100 NM (placeholders)
-    r5.metric("Time to TO + 100 NM", "09:45")
-    r6.metric("Fuel to TO + 100 NM", "2,650 lb")
+    r5.metric("Time to TO + 100 NM", "09:45")   # placeholder
+    r6.metric("Fuel to TO + 100 NM", "2,650 lb")# placeholder
 
     # Overlay climb traces (mock)
     climb_overlay = pd.DataFrame({
@@ -580,71 +575,105 @@ with st.expander("6) Climb Profile", expanded=True):
 st.markdown("---")
 
 # =========================
-# Section 7 — Landing Setup (moved per request: now just before Landing Results)
+# Section 7 — Landing Setup
+#  - Auto-seeds Destination 1 from the departure selection (airport/runway)
+#  - User may add up to four candidates total
 # =========================
 with st.expander("7) Landing Setup", expanded=True):
-    c1, c2, c3 = st.columns(3)
-    with c1:
+    def pick_destination(slot_idx: int, default_map: Optional[str], default_airport: Optional[str], default_end: Optional[str]) -> Dict[str, Any]:
+        """Render selectors for one destination slot and return info dict."""
         maps = sorted(airports["map"].dropna().unique().tolist())
-        dest_map = st.selectbox("Destination Map", maps, key="ldg_map")
-        dest_sub = airports[airports["map"] == dest_map]
-        dest_apt = st.selectbox("Destination Airport", sorted(dest_sub["airport_name"].dropna().unique().tolist()), key="ldg_airport")
-    with c2:
-        dest_rows = dest_sub[dest_sub["airport_name"] == dest_apt]
-        dest_end = st.selectbox("Runway End", sorted(dest_rows.get("runway_end", pd.Series(dtype=str)).dropna().astype(str).unique().tolist()) or ["Full Length"], key="ldg_end")
-        dest_tora_series = dest_rows.loc[dest_rows["runway_end"].astype(str) == str(dest_end), "tora_ft"] if "runway_end" in dest_rows.columns else pd.Series()
-        dest_tora = int((dest_tora_series.max() if not dest_tora_series.empty else dest_rows.get("length_ft", pd.Series([0.0])).max()) or 0)
-        st.metric("Takeoff Run Available at Destination (ft)", f"{dest_tora:,}")
-    with c3:
-        cond = st.radio("Runway condition", ["DRY", "WET"], horizontal=True)
-        st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel is assumed EMPTY on landing.")
+        map_key = f"ldg_map_{slot_idx}"
+        apt_key = f"ldg_airport_{slot_idx}"
+        end_key = f"ldg_end_{slot_idx}"
 
-    st.markdown("**Landing Scenarios**")
-    st.markdown("A) 3,000 lb fuel; **all external stores from takeoff retained** (pods/tanks kept).")
-    st.markdown("B) 3,000 lb fuel; **weapons expended** (missiles/bombs/rockets removed; pods/tanks kept).")
-    st.markdown("C) Custom: set **remaining fuel** and **current stores** below.")
+        map_idx = maps.index(default_map) if (default_map in maps) else 0
+        sel_map = st.selectbox(f"[{slot_idx}] Map", maps, index=map_idx, key=map_key)
 
-    with st.expander("C) Custom landing configuration", expanded=False):
-        cF1, cF2 = st.columns(2)
-        with cF1:
-            ldg_fuel_mode = st.radio("Fuel input", ["Percent", "Pounds (lb)"], index=1, key="ldg_fuel_mode")
-        with cF2:
-            l_ext_left = st.checkbox("External Tank LEFT: FULL (landing)", key="ldg_ext_left_full")
-            l_ext_right = st.checkbox("External Tank RIGHT: FULL (landing)", key="ldg_ext_right_full")
-            st.caption("Note: For realism, leave landing tanks EMPTY.")
-        if ldg_fuel_mode == "Percent":
-            ldg_fuel_pct = st.number_input("Landing Fuel (%)", value=20, min_value=0, max_value=100, step=1, format="%d", key="ldg_fuel_pct")
-            ldg_total_lb = compute_total_fuel_lb(float(ldg_fuel_pct), l_ext_left, l_ext_right)
-            st.metric("Computed Landing Fuel (lb)", f"{int(ldg_total_lb):,}" if ldg_total_lb is not None else "—")
-        else:
-            ldg_fuel_lb = st.number_input("Landing Fuel (lb)", value=3000, step=1, min_value=0, format="%d", key="ldg_fuel_lb")
-            st.metric("Computed Internal Fuel (%)", f"{compute_percent_from_total(float(ldg_fuel_lb), l_ext_left, l_ext_right):.0f}%")
+        sub = airports[airports["map"] == sel_map]
+        apts = sorted(sub["airport_name"].dropna().unique().tolist())
+        apt_idx = apts.index(default_airport) if (default_airport in apts) else (0 if apts else 0)
+        sel_apt = st.selectbox(f"[{slot_idx}] Airport", apts, index=apt_idx, key=apt_key)
 
-        st.markdown("**Current Stores (DCS-style)**")
-        colsL = st.columns(5)
-        for i, sta in enumerate(STATIONS):
-            with colsL[i % 5]:
-                st.write(f"**STA {sta}**")
-                ldg_store_key = f"ldg_store_{sta}"
-                ldg_qty_key   = f"ldg_qty_{sta}"
-                cur_ldg_store = st.session_state.get(ldg_store_key, "—")
+        rows = sub[sub["airport_name"] == sel_apt]
+        ends = sorted(rows.get("runway_end", pd.Series(dtype=str)).dropna().astype(str).unique().tolist()) or ["Full Length"]
+        end_idx = ends.index(default_end) if (default_end in ends) else 0
+        sel_end = st.selectbox(f"[{slot_idx}] Runway End", ends, index=end_idx, key=end_key)
 
-                st.selectbox(f"Store {sta} (LDG)", list(STORES_CATALOG.keys()),
-                             index=(list(STORES_CATALOG.keys()).index(cur_ldg_store) if cur_ldg_store in STORES_CATALOG else 0),
-                             key=ldg_store_key)
+        # Distances
+        tora_series = rows.loc[rows["runway_end"].astype(str) == str(sel_end), "tora_ft"] if "runway_end" in rows.columns else pd.Series()
+        lda_series  = rows.loc[rows["runway_end"].astype(str) == str(sel_end), "lda_ft"] if "runway_end" in rows.columns else pd.Series()
+        length_series = rows.get("length_ft", pd.Series([0.0]))
+        tora_ft = int((tora_series.max() if not tora_series.empty else length_series.max()) or 0)
+        lda_ft  = int((lda_series.max() if not lda_series.empty else length_series.max()) or 0)
 
-                # Auto-qty based on selected store; keep qty widget but disable (integers)
-                auto_ldg_qty = AUTO_QTY_BY_STORE.get(st.session_state[ldg_store_key], 0)
-                st.number_input(f"Qty {sta} (LDG)", value=int(auto_ldg_qty), min_value=0, max_value=2, step=1,
-                                key=ldg_qty_key, disabled=True, format="%d")
+        m1, m2 = st.columns(2)
+        m1.metric("Available Takeoff (TORA)", f"{tora_ft:,} ft")
+        m2.metric("Available Landing (LDA)", f"{lda_ft:,} ft")
+        return {"map": sel_map, "airport": sel_apt, "end": sel_end, "tora_ft": tora_ft, "lda_ft": lda_ft}
+
+    # How many candidates (1–4)
+    num_dest = st.number_input("Number of landing candidates", min_value=1, max_value=4, value=1, step=1, format="%d")
+
+    dests: List[Dict[str, Any]] = []
+
+    # Destination 1 seeded from departure selection in Section 2
+    dep_map = locals().get("map_sel")
+    dep_airport = locals().get("apt")
+    dep_end = locals().get("rwy_end")
+    st.markdown("**Destination 1 (seeded from departure selection)**")
+    dests.append(pick_destination(1, dep_map, dep_airport, dep_end))
+
+    # Additional destinations
+    for slot in range(2, num_dest + 1):
+        st.markdown(f"**Destination {slot}**")
+        dests.append(pick_destination(slot, None, None, None))
+
+    # Common landing condition selector (applies to all shown results)
+    cond = st.radio("Runway condition (applies to all candidates below)", ["DRY", "WET"], horizontal=True, key="ldg_cond")
+    st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel is assumed EMPTY on landing.")
 
 st.markdown("---")
 
 # =========================
 # Landing Results
+#  - Adds Factored Landing Distance, Available Landing Distance (LDA),
+#    and (placeholder) Calculated Maximum Landing Weight.
 # =========================
 st.header("Landing Results")
 
+# Helper to compute factored distance (placeholder factors)
+def factored_distance(unfactored_ft: int, condition: str) -> int:
+    # Common planning factors (placeholder): dry ~1.67, wet ~1.92
+    factor = 1.67 if condition == "DRY" else 1.92
+    return int(round(unfactored_ft * factor))
+
+# Mock base unfactored distances (A/B scenarios); choose more conservative B for table?
+UNFACTORED_LDR_A = 4600
+UNFACTORED_LDR_B = 4200
+
+# Per-destination summary table
+if 'dests' in locals():
+    rows = []
+    for i, d in enumerate(dests, start=1):
+        lda_ft = int(d.get("lda_ft", 0))
+        # Use A for conservative planning by default (placeholder)
+        base_unfactored = UNFACTORED_LDR_A
+        f_ldr = factored_distance(base_unfactored, st.session_state.get("ldg_cond", "DRY"))
+
+        # Placeholder max landing weight calc:
+        # scale field MLDW (60,000) by LDA / Factored-LDR, cap at 60,000
+        mlw_est = int(min(60000, max(0, (60000 * (lda_ft / f_ldr)) if f_ldr > 0 else 0)))
+
+        rows.append({
+            "Dest": f"{i}: {d['airport']} ({d['map']}) — RWY {d['end']}",
+            "Available LDA (ft)": lda_ft,
+            "Factored LDR (ft)": f_ldr,
+            "Calc Max Landing Wt (lb)": mlw_est,
+        })
+    st.dataframe(pd.DataFrame(rows))
+
+# Existing scenario blocks (still shown for quick feel — placeholders)
 st.subheader("Scenario A — 3,000 lb fuel, stores retained")
 la1, la2, la3, la4, la5 = st.columns(5)
 la1.metric("Stall Speed (Vs)", "121 kt")
@@ -652,7 +681,7 @@ la2.metric("Reference Speed (Vref)", "157 kt")
 la3.metric("Approach Speed (Vapp)", "165 kt")
 la4.metric("Go-Around Speed (Vac)", "167 kt")
 la5.metric("Final Segment Speed (Vfs)", "177 kt")
-st.metric("Required Landing Distance from 50 ft", "4,600 ft")
+st.metric("Required Landing Distance from 50 ft (unfactored)", f"{UNFACTORED_LDR_A:,} ft")
 
 st.subheader("Scenario B — 3,000 lb fuel, weapons expended (pods/tanks kept)")
 lb1, lb2, lb3, lb4, lb5 = st.columns(5)
@@ -661,40 +690,24 @@ lb2.metric("Reference Speed (Vref)", "153 kt")
 lb3.metric("Approach Speed (Vapp)", "161 kt")
 lb4.metric("Go-Around Speed (Vac)", "164 kt")
 lb5.metric("Final Segment Speed (Vfs)", "174 kt")
-st.metric("Required Landing Distance from 50 ft", "4,200 ft")
+st.metric("Required Landing Distance from 50 ft (unfactored)", f"{UNFACTORED_LDR_B:,} ft")
 
-st.subheader("Scenario C — Custom (set above)")
-lc1, lc2, lc3, lc4, lc5 = st.columns(5)
-lc1.metric("Stall Speed (Vs)", "—")
-lc2.metric("Reference Speed (Vref)", "—")
-lc3.metric("Approach Speed (Vapp)", "—")
-lc4.metric("Go-Around Speed (Vac)", "—")
-lc5.metric("Final Segment Speed (Vfs)", "—")
-st.metric("Required Landing Distance from 50 ft", "—")
-
-# Accessory graph: LDR comparison (mock)
-ldr_df = pd.DataFrame({"Scenario": ["A: stores kept", "B: weapons expended"], "LDR_ft": [4600, 4200]}).set_index("Scenario")
-st.bar_chart(ldr_df)
-
-# Table: runway margins (mock)
-st.markdown("**Runway margins (mock)**")
-dest_tora_val = int(locals().get("dest_tora", 0))
-dest_end_val = locals().get("dest_end", "—")
-st.dataframe(pd.DataFrame({
-    "Runway": [f"Runway {dest_end_val}"],
-    "Available (ft)": [dest_tora_val],
-    "Required (ft) — A": [4600],
-    "Required (ft) — B": [4200],
-    "Margin (ft) — A": [dest_tora_val - 4600],
-    "Margin (ft) — B": [dest_tora_val - 4200],
-}))
+# Comparison chart (mock)
+if 'dests' in locals() and len(dests) > 0:
+    cmp_df = pd.DataFrame({
+        "Destination": [f"{i}: {d['airport']} ({d['map']})" for i, d in enumerate(dests, start=1)],
+        "Available LDA (ft)": [int(d.get("lda_ft", 0)) for d in dests],
+        "Factored LDR A (ft)": [factored_distance(UNFACTORED_LDR_A, st.session_state.get("ldg_cond", "DRY")) for _ in dests],
+        "Factored LDR B (ft)": [factored_distance(UNFACTORED_LDR_B, st.session_state.get("ldg_cond", "DRY")) for _ in dests],
+    }).set_index("Destination")
+    st.bar_chart(cmp_df[["Available LDA (ft)", "Factored LDR A (ft)"]])
 
 st.markdown("---")
 
 # =========================
 # Scenario JSON (debug)
 # =========================
-if show_debug:
+if 'show_debug' in locals() and show_debug:
     scenario = {
         "aircraft": locals().get("ac"),
         "runway": {
@@ -732,27 +745,13 @@ if show_debug:
         "takeoff_config": {"flaps": locals().get("flaps"), "thrust": locals().get("thrust"), "derate_rpm": locals().get("derate")},
         "climb": {"cruise_alt_ft": locals().get("cruise_alt"), "profile": locals().get("climb_profile"), "ignore_reg": locals().get("ignore_reg")},
         "landing": {
-            "dest_map": locals().get("dest_map"),
-            "dest_airport": locals().get("dest_apt"),
-            "dest_end": locals().get("dest_end"),
-            "dest_tora_ft": locals().get("dest_tora"),
-            "condition": locals().get("cond"),
+            "condition": st.session_state.get("ldg_cond"),
+            "candidates": [
+                {**d} for d in locals().get("dests", [])
+            ],
             "scenarios": {
-                "A": {"fuel_lb": 3000, "stores": "takeoff stores kept", "ext_tanks_fuel": "EMPTY at landing"},
-                "B": {"fuel_lb": 3000, "stores": "weapons expended; pods/tanks kept", "ext_tanks_fuel": "EMPTY at landing"},
-                "C": {
-                    "fuel_mode": st.session_state.get("ldg_fuel_mode"),
-                    "fuel_pct": st.session_state.get("ldg_fuel_pct"),
-                    "fuel_lb": st.session_state.get("ldg_fuel_lb"),
-                    "ext_left_full": st.session_state.get("ldg_ext_left_full"),
-                    "ext_right_full": st.session_state.get("ldg_ext_right_full"),
-                    "stations": {
-                        sta: {
-                            "store": st.session_state.get(f"ldg_store_{sta}", "—"),
-                            "qty": AUTO_QTY_BY_STORE.get(st.session_state.get(f"ldg_store_{sta}", "—"), 0),
-                        } for sta in STATIONS
-                    },
-                },
+                "A_unfactored_ft": UNFACTORED_LDR_A,
+                "B_unfactored_ft": UNFACTORED_LDR_B,
             },
         },
         "preset": locals().get("preset"),
@@ -760,4 +759,4 @@ if show_debug:
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
 
-st.caption("UI-only baseline v1.1.2 with targeted fixes. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
+st.caption("UI-only baseline v1.1.3. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
