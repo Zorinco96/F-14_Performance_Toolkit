@@ -1,18 +1,14 @@
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.2 (2025-09-17)
+# Version: v1.1.2-ui-wb-fix2 (2025-09-17)
 #
-# Purpose: Full UI skeleton (no performance math). Implements the approved UX:
-# - Curated F-14B presets (stores/fuel only; flaps/thrust AUTO)
-# - Global runway search across all maps; slope removed
-# - Environment paste/manual with unit auto-detect; ISA lapse to field
-# - Weight & Balance (Detailed): simple DCS-style tiles; single store picker
-#   + Fuel by % or lb; external tanks FULL/EMPTY; import stubs; Compatibility Mode (beta)
-# - Takeoff Config: both radios vertical; last thrust option "DERATE (Manual)"
-# - Climb Profile: default Most efficient; overlay graph + schedule placeholders
-# - Landing Setup: scenarios A/B/C; tanks treated EMPTY at landing
-# - Results in three separate sections (plain language) incl. Stabilizer Trim
+# Changes vs v1.1.2:
+# 1) Simple W&B defaults: GTOW=74,349 lb, LDW=54,500 lb
+# 2) Detailed W&B fuel: defaults to Pounds, "lb" shown first
+# 3) Stations (Detailed): selecting a store auto-sets quantity; qty input disabled
+# 4) Takeoff Results: tidy labels; rotate-distance positive-only line chart
+# 5) NEW — Landing Setup Scenario C: stations now also auto-set qty; qty input disabled
 # ============================================================
 # 🚨 Bogged Down Protocol (BDP) 🚨
 # 1) STOP  2) REVERT to last good tag  3) RESET chat if needed  4) SCOPE small
@@ -46,6 +42,10 @@ ISA_LAPSE_C_PER_1000FT = 1.98
 INTERNAL_FUEL_MAX_LB = 16200       # rough F-14B internal capacity placeholder
 EXT_TANK_FUEL_LB = 1800            # ~267 gal tank full, placeholder
 
+# Simple W&B defaults (change #1)
+DEFAULT_GTOW = 74349.0
+DEFAULT_LDW  = 54500.0
+
 # Station list (mirrors DCS/Heatblur naming for glove A/B and tunnel)
 STATIONS: List[str] = ["1A", "1B", "2", "3", "4", "5", "6", "7", "8A", "8B"]
 SYMMETRY = {"1A": "8A", "8A": "1A", "1B": "8B", "8B": "1B", "2": "7", "7": "2", "3": "6", "6": "3", "4": "5", "5": "4"}
@@ -62,6 +62,20 @@ STORES_CATALOG: Dict[str, str] = {
     "ZUNI LAU-10": "ROCKETS",
     "Drop Tank 267 gal": "FUEL TANKS",
     "LANTIRN": "PODS",
+}
+
+# Auto-quantity mapping used in Detailed W&B and Landing Scenario C (change #3 + #5)
+AUTO_QTY_BY_STORE = {
+    "—": 0,
+    "AIM-9M": 1,
+    "AIM-7M": 1,
+    "AIM-54C": 1,
+    "Mk-82": 1,
+    "Mk-83": 1,
+    "GBU-12": 1,
+    "ZUNI LAU-10": 1,
+    "Drop Tank 267 gal": 1,
+    "LANTIRN": 1,
 }
 
 # =========================
@@ -113,9 +127,7 @@ for p in PERF_PATHS:
 # Helpers (unit detect, parsing)
 # =========================
 def detect_length_unit(text: str) -> Tuple[Optional[float], str]:
-    """Return (length_ft, detected_unit_str). Accept '8500', '1.2 nm', '1.2nm'.
-       Heuristic: suffix nm → NM; numeric ≤5 without suffix → NM; else feet.
-    """
+    """Return (length_ft, detected_unit_str). Accept '8500', '1.2 nm', '1.2nm'."""
     if text is None: return None, ""
     s = text.strip().lower()
     if not s: return None, ""
@@ -183,7 +195,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.2 (no performance math)")
+    st.caption("UI skeleton • v1.1.2-ui-wb-fix2 (no performance math)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -273,31 +285,34 @@ with st.expander("1) Aircraft", expanded=True):
 # =========================
 # Section 2 — Runway (GLOBAL search + manual override)
 # =========================
+@st.cache_data(show_spinner=False)
+def load_airports_cached() -> pd.DataFrame:
+    return airports
+
 with st.expander("2) Runway", expanded=True):
+    airports_cached = load_airports_cached()
     c1, c2, c3 = st.columns([1.4, 1.2, 1])
 
     with c1:
         search_all = st.text_input("Search airport (all maps)", placeholder="Type part of the airport name…")
-        all_apts = airports[airports["airport_name"].notna()]
+        all_apts = airports_cached[airports_cached["airport_name"].notna()]
         matches = all_apts[all_apts["airport_name"].str.contains(search_all, case=False, na=False)] if search_all else all_apts
         pick_names = sorted(matches["airport_name"].unique().tolist())
         apt = st.selectbox("Airport", pick_names, key="rw_airport")
 
-        # Derive default map from selected airport; allow override
         default_map = None
         mdf = matches[matches["airport_name"] == apt]
         if not mdf.empty:
             default_map = mdf["map"].iloc[0]
-        maps = sorted(airports["map"].dropna().unique().tolist())
+        maps = sorted(airports_cached["map"].dropna().unique().tolist())
         map_sel = st.selectbox("Map", maps, index=(maps.index(default_map) if default_map in maps else 0), key="rw_map")
 
-        sub = airports[(airports["airport_name"] == apt) & (airports["map"] == map_sel)]
+        sub = airports_cached[(airports_cached["airport_name"] == apt) & (airports_cached["map"] == map_sel)]
 
     with c2:
         rwy_rows = sub
         ends = rwy_rows.get("runway_end", pd.Series(dtype=str)).dropna().astype(str).unique().tolist()
         rwy_end = st.selectbox("Runway End / Intersection", sorted(ends) if ends else ["Full Length"], key="rw_end")
-        # Available distance (TORA if present else length)
         tora_series = rwy_rows.loc[rwy_rows["runway_end"].astype(str) == str(rwy_end), "tora_ft"] if "runway_end" in rwy_rows.columns else pd.Series()
         tora = float(tora_series.max() if not tora_series.empty else rwy_rows.get("length_ft", pd.Series([0.0])).max())
         elev = float(rwy_rows.get("threshold_elev_ft", pd.Series([0.0])).max())
@@ -370,14 +385,15 @@ with st.expander("4) Weight & Balance", expanded=True):
     wb_mode = st.radio("Mode", ["Simple (enter Gross Takeoff Weight)", "Detailed (DCS-style loadout)"])
 
     if wb_mode.startswith("Simple"):
-        gw_tow = st.number_input("Gross Takeoff Weight (lb)", value=70000.0, step=500.0)
-        gw_ldg_plan = st.number_input("Planned Landing Weight (lb)", value=56000.0, step=500.0)
+        # Change #1: defaults set here
+        gw_tow = st.number_input("Gross Takeoff Weight (lb)", value=DEFAULT_GTOW, step=500.0)
+        gw_ldg_plan = st.number_input("Planned Landing Weight (lb)", value=DEFAULT_LDW, step=500.0)
         st.caption("Switch to Detailed mode to build weight via stations and fuel.")
     else:
-        # Fuel — either percentage of internal or total pounds; ext tanks FULL/EMPTY
-        st.markdown("**Fuel** — Enter by percentage or total pounds. External tanks are either FULL or EMPTY.")
+        # Fuel — Pounds default and shown first (change #2)
+        st.markdown("**Fuel** — Enter by pounds or percent. External tanks are either FULL or EMPTY.")
         cF1, cF2 = st.columns(2)
-        fuel_input_mode = cF1.radio("Fuel input", ["Percent", "Pounds (lb)"], index=0, key="fuel_input_mode")
+        fuel_input_mode = cF1.radio("Fuel input", ["Pounds (lb)", "Percent"], index=0, key="fuel_input_mode")
         cT = st.columns(3)
         with cT[0]:
             ext_left_full = st.checkbox("External Tank LEFT: FULL", key="ext_left_full")
@@ -386,16 +402,16 @@ with st.expander("4) Weight & Balance", expanded=True):
         with cT[2]:
             st.caption("Landing scenarios assume external tanks are EMPTY of fuel.")
 
-        if fuel_input_mode == "Percent":
-            fuel_percent = st.number_input("Total Fuel (%)", value=80.0, min_value=0.0, max_value=100.0, step=1.0, key="fuel_percent")
-            computed_total = compute_total_fuel_lb(fuel_percent, ext_left_full, ext_right_full)
-            st.metric("Computed Total Fuel (lb)", f"{computed_total:.0f}" if computed_total is not None else "—")
-            st.session_state["fuel_total_lb"] = computed_total
-        else:
+        if fuel_input_mode.startswith("Pounds"):
             fuel_total_lb = st.number_input("Total Fuel (lb)", value=float(st.session_state.get("fuel_total_lb", 12000.0)), step=100.0, key="fuel_total_lb")
             computed_pct = compute_percent_from_total(fuel_total_lb, ext_left_full, ext_right_full)
             st.metric("Computed Internal Fuel (%)", f"{computed_pct:.0f}%" if computed_pct is not None else "—")
             st.session_state["fuel_percent"] = computed_pct
+        else:
+            fuel_percent = st.number_input("Total Fuel (%)", value=float(st.session_state.get("fuel_percent", 80.0)), min_value=0.0, max_value=100.0, step=1.0, key="fuel_percent")
+            computed_total = compute_total_fuel_lb(fuel_percent, ext_left_full, ext_right_full)
+            st.metric("Computed Total Fuel (lb)", f"{computed_total:.0f}" if computed_total is not None else "—")
+            st.session_state["fuel_total_lb"] = computed_total
 
         # Import stubs
         cimp1, cimp2 = st.columns(2)
@@ -405,14 +421,13 @@ with st.expander("4) Weight & Balance", expanded=True):
         compat_beta = st.checkbox("Compatibility Mode (beta)", value=False,
                                   help="Filters obviously impossible station/store pairs (approx).")
 
-        st.markdown("**Loadout (F-14B)** — Click station tiles and pick a store; set quantity. Use symmetry to mirror.")
+        st.markdown("**Loadout (F-14B)** — Click station tiles and pick a store; qty is auto-set.")
         cols = st.columns(5)
         for i, sta in enumerate(STATIONS):
             with cols[i % 5]:
                 st.write(f"**STA {sta}**")
                 store_key, qty_key, pylon_key = f"store_{sta}", f"qty_{sta}", f"pylon_{sta}"
                 cur_store = st.session_state.get(store_key, "—")
-                st.session_state.setdefault(qty_key, 0)
 
                 # Allowed stores (rough filter when compatibility on)
                 allowed = list(STORES_CATALOG.keys())
@@ -429,15 +444,19 @@ with st.expander("4) Weight & Balance", expanded=True):
                 st.selectbox(f"Store {sta}", allowed,
                              index=(allowed.index(cur_store) if cur_store in allowed else 0),
                              key=store_key)
-                st.number_input(f"Qty {sta}", value=int(st.session_state.get(qty_key, 0)),
-                                min_value=0, max_value=2, step=1, key=qty_key)
+
+                # Change #3: auto-derive quantity, keep widget but disable
+                auto_qty = AUTO_QTY_BY_STORE.get(st.session_state[store_key], 0)
+                st.number_input(f"Qty {sta}", value=auto_qty,
+                                min_value=0, max_value=2, step=1, key=qty_key, disabled=True)
+
                 st.checkbox("Remove pylon", value=bool(st.session_state.get(pylon_key, False)), key=pylon_key)
 
                 # Symmetry
                 sym = SYMMETRY.get(sta)
                 if sym and st.button(f"Apply → {sym}", key=f"symbtn_{sta}"):
                     st.session_state[f"store_{sym}"] = st.session_state[store_key]
-                    st.session_state[f"qty_{sym}"] = st.session_state[qty_key]
+                    st.session_state[f"qty_{sym}"] = AUTO_QTY_BY_STORE.get(st.session_state[store_key], 0)
                     st.session_state[f"pylon_{sym}"] = st.session_state[pylon_key]
 
         st.markdown("### Totals (mock)")
@@ -546,15 +565,25 @@ with st.expander("7) Landing Setup", expanded=True):
         for i, sta in enumerate(STATIONS):
             with colsL[i % 5]:
                 st.write(f"**STA {sta}**")
-                st.selectbox(f"Store {sta} (LDG)", list(STORES_CATALOG.keys()), key=f"ldg_store_{sta}")
-                st.number_input(f"Qty {sta} (LDG)", value=0, min_value=0, max_value=2, step=1, key=f"ldg_qty_{sta}")
+                ldg_store_key = f"ldg_store_{sta}"
+                ldg_qty_key   = f"ldg_qty_{sta}"
+                cur_ldg_store = st.session_state.get(ldg_store_key, "—")
+
+                st.selectbox(f"Store {sta} (LDG)", list(STORES_CATALOG.keys()),
+                             index=(list(STORES_CATALOG.keys()).index(cur_ldg_store) if cur_ldg_store in STORES_CATALOG else 0),
+                             key=ldg_store_key)
+
+                # NEW change #5: auto-qty based on selected store; keep qty widget but disable
+                auto_ldg_qty = AUTO_QTY_BY_STORE.get(st.session_state[ldg_store_key], 0)
+                st.number_input(f"Qty {sta} (LDG)", value=auto_ldg_qty, min_value=0, max_value=2, step=1,
+                                key=ldg_qty_key, disabled=True)
 
 # =========================
 # RESULTS — three separate sections (plain language)
 # =========================
 st.markdown("---")
 
-# Takeoff Results
+# Takeoff Results (change #4 formatting retained)
 st.header("Takeoff Results")
 
 m1, m2, m3, m4 = st.columns(4)
@@ -570,7 +599,9 @@ m7.metric("Stabilizer Trim", "+2.0 units")
 
 r1, r2, r3, r4 = st.columns(4)
 r1.metric("Runway Distance Required", "8,200 ft")
-r2.metric("Runway Distance Available", f"{tora:.0f} ft")
+# 'tora' may be defined from Runway section; guard with fallback
+tora_val = locals().get("tora", 0.0)
+r2.metric("Runway Distance Available", f"{tora_val:.0f} ft")
 r3.metric("Accelerate-go Distance", "9,100 ft")
 r4.metric("Accelerate-stop Distance", "8,600 ft")
 
@@ -658,13 +689,15 @@ st.bar_chart(ldr_df)
 
 # Table: runway margins (mock)
 st.markdown("**Runway margins (mock)**")
+dest_tora_val = locals().get("dest_tora", 0.0)
+dest_end_val = locals().get("dest_end", "—")
 st.dataframe(pd.DataFrame({
-    "Runway": ["{}".format("Runway {}".format(dest_end))],
-    "Available (ft)": [dest_tora],
+    "Runway": [f"Runway {dest_end_val}"],
+    "Available (ft)": [dest_tora_val],
     "Required (ft) — A": [4600],
     "Required (ft) — B": [4200],
-    "Margin (ft) — A": [dest_tora - 4600],
-    "Margin (ft) — B": [dest_tora - 4200],
+    "Margin (ft) — A": [dest_tora_val - 4600],
+    "Margin (ft) — B": [dest_tora_val - 4200],
 }))
 
 st.markdown("---")
@@ -676,22 +709,22 @@ if show_debug:
     scenario = {
         "aircraft": ac,
         "runway": {
-            "map": map_sel,
-            "airport": apt,
-            "end": rwy_end,
-            "tora_ft": tora,
-            "elev_ft": elev,
-            "heading_deg": hdg,
+            "map": locals().get("map_sel"),
+            "airport": locals().get("apt"),
+            "end": locals().get("rwy_end"),
+            "tora_ft": locals().get("tora"),
+            "elev_ft": locals().get("elev"),
+            "heading_deg": locals().get("hdg"),
             "manual_override": bool(st.session_state.get("rw_manual")),
         },
         "environment": {
             "temp_sl_c": (locals().get("temp_sl")),
             "qnh_inhg": (locals().get("qnh_inhg")),
             "wind": (locals().get("w") if "w" in locals() else {}),
-            "field_temp_c": (temp_at_elevation(locals().get("temp_sl"), elev) if "temp_sl" in locals() else None),
+            "field_temp_c": (temp_at_elevation(locals().get("temp_sl"), locals().get("elev", 0.0)) if "temp_sl" in locals() else None),
         },
         "wb": {
-            "mode": wb_mode,
+            "mode": locals().get("wb_mode"),
             "fuel": {
                 "input_mode": st.session_state.get("fuel_input_mode"),
                 "percent": st.session_state.get("fuel_percent"),
@@ -702,19 +735,19 @@ if show_debug:
             "stations": {
                 sta: {
                     "store": st.session_state.get(f"store_{sta}", "—"),
-                    "qty": st.session_state.get(f"qty_{sta}", 0),
+                    "qty": AUTO_QTY_BY_STORE.get(st.session_state.get(f"store_{sta}", "—"), 0),
                     "pylon_removed": st.session_state.get(f"pylon_{sta}", False),
                 } for sta in STATIONS
             },
         },
-        "takeoff_config": {"flaps": flaps, "thrust": thrust, "derate_rpm": (derate if 'derate' in locals() else None)},
-        "climb": {"cruise_alt_ft": cruise_alt, "profile": climb_profile, "ignore_reg": ignore_reg},
+        "takeoff_config": {"flaps": locals().get("flaps"), "thrust": locals().get("thrust"), "derate_rpm": locals().get("derate")},
+        "climb": {"cruise_alt_ft": locals().get("cruise_alt"), "profile": locals().get("climb_profile"), "ignore_reg": locals().get("ignore_reg")},
         "landing": {
-            "dest_map": dest_map,
-            "dest_airport": dest_apt,
-            "dest_end": dest_end,
-            "dest_tora_ft": dest_tora,
-            "condition": cond,
+            "dest_map": locals().get("dest_map"),
+            "dest_airport": locals().get("dest_apt"),
+            "dest_end": locals().get("dest_end"),
+            "dest_tora_ft": locals().get("dest_tora"),
+            "condition": locals().get("cond"),
             "scenarios": {
                 "A": {"fuel_lb": 3000, "stores": "takeoff stores kept", "ext_tanks_fuel": "EMPTY at landing"},
                 "B": {"fuel_lb": 3000, "stores": "weapons expended; pods/tanks kept", "ext_tanks_fuel": "EMPTY at landing"},
@@ -724,13 +757,18 @@ if show_debug:
                     "fuel_lb": st.session_state.get("ldg_fuel_lb"),
                     "ext_left_full": st.session_state.get("ldg_ext_left_full"),
                     "ext_right_full": st.session_state.get("ldg_ext_right_full"),
-                    "stations": {sta: {"store": st.session_state.get(f"ldg_store_{sta}", "—"), "qty": st.session_state.get(f"ldg_qty_{sta}", 0)} for sta in STATIONS},
+                    "stations": {
+                        sta: {
+                            "store": st.session_state.get(f"ldg_store_{sta}", "—"),
+                            "qty": AUTO_QTY_BY_STORE.get(st.session_state.get(f"ldg_store_{sta}", "—"), 0),
+                        } for sta in STATIONS
+                    },
                 },
             },
         },
-        "preset": preset,
+        "preset": locals().get("preset"),
     }
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
 
-st.caption("UI-only baseline v1.1.2. Once you sign off on UX, we'll move logic into f14_takeoff_core.py and wire real models.")
+st.caption("UI-only baseline v1.1.2 with targeted fixes. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
