@@ -1,0 +1,195 @@
+diff --git a/f14_takeoff_app.py b/f14_takeoff_app.py
+index 1111111..2222222 100644
+--- a/f14_takeoff_app.py
++++ b/f14_takeoff_app.py
+@@ -1,8 +1,8 @@
+ # ============================================================
+ # F-14B Performance Calculator for DCS World — UI-first build
+ # File: f14_takeoff_app.py
+-# Version: v1.1.0 (2025-09-16)
++# Version: v1.1.0-bdp1 (2025-09-16)
+ #
+-# Purpose: Full UI skeleton (no performance math). Implements your approved
++# Purpose: Full UI skeleton (no performance math). Implements your approved
+ # design: Aircraft → Runway → Environment → Weight & Balance → Takeoff Config
+ # → Climb Profile → Landing Setup → Results. Mobile-friendly, debounced.
+@@ -43,7 +43,7 @@ def load_airports(path_or_url: str) -> pd.DataFrame:
+-    for col in ("length_ft", "tora_ft", "toda_ft", "asda_ft", "threshold_elev_ft", "heading_deg", "slope_pct"):
++    for col in ("length_ft", "tora_ft", "toda_ft", "asda_ft", "threshold_elev_ft", "heading_deg"):
+         if col in df.columns:
+             df[col] = pd.to_numeric(df[col], errors="coerce")
+     return df
+@@ -124,7 +124,7 @@ with st.sidebar:
+-    st.caption("UI skeleton • v1.1.0 (no math yet)")
++    st.caption("UI skeleton • v1.1.0-bdp1 (no math yet)")
+@@ -132,12 +132,12 @@ with st.sidebar:
+-    preset = st.selectbox(
+-        "Load preset",
+-        ["—", "Clean • 56k • TO 20°", "Heavy • 72k • TO 20°", "Recovery • 68k • LDG 35°"],
+-        index=0,
+-    )
++    preset = st.selectbox("Load preset", ["—","Fleet CAP","Heavy Intercept","Bombcat LANTIRN","Strike (iron)"], index=0)
+     if preset != "—":
+         st.info(f"Preset loaded: {preset}")
+@@ -147,7 +147,7 @@ st.markdown(
+-        <span style="opacity:0.7"> • UI-only v1.1.0 • Auto-recompute ON</span>
++        <span style="opacity:0.7"> • UI-only v1.1.0-bdp1 • Auto-recompute ON</span>
+     </div>
+@@ -163,38 +163,54 @@ with st.expander("2) Runway", expanded=True):
+-    # Picker
+-    c1, c2, c3 = st.columns([1.2, 1.2, 1])
+-    with c1:
+-        maps = sorted(airports["map"].dropna().unique().tolist())
+-        map_sel = st.selectbox("Map", maps, key="rw_map")
+-        sub = airports[airports["map"] == map_sel]
+-        search = st.text_input("Search airport", placeholder="Type part of the name…")
+-        if search:
+-            sub = sub[sub["airport_name"].str.contains(search, case=False, na=False)]
+-        apt = st.selectbox("Airport", sorted(sub["airport_name"].dropna().unique().tolist()), key="rw_airport")
+-    with c2:
+-        rwy_rows = sub[sub["airport_name"] == apt]
++    # Global search + map/airport selection
++    c1, c2, c3 = st.columns([1.4, 1.2, 1])
++    with c1:
++        search_all = st.text_input("Search airport (all maps)", placeholder="Type part of the airport name…")
++        all_apts = airports[airports["airport_name"].notna()]
++        if search_all:
++            matches = all_apts[all_apts["airport_name"].str.contains(search_all, case=False, na=False)]
++        else:
++            matches = all_apts
++        pick_names = sorted(matches["airport_name"].unique().tolist())
++        apt = st.selectbox("Airport", pick_names, key="rw_airport")
++        # derive/default map from chosen airport (but allow override)
++        default_map = matches[matches["airport_name"] == apt]["map"].iloc[0] if len(matches[matches["airport_name"] == apt]) else None
++        maps = sorted(airports["map"].dropna().unique().tolist())
++        map_sel = st.selectbox("Map", maps, index=(maps.index(default_map) if default_map in maps else 0), key="rw_map")
++        sub = airports[(airports["airport_name"] == apt) & (airports["map"] == map_sel)]
++    with c2:
++        rwy_rows = sub
+         ends = rwy_rows.get("runway_end", pd.Series(dtype=str)).dropna().astype(str).unique().tolist()
+         rwy_end = st.selectbox("Runway End / Intersection", sorted(ends) if ends else ["Full Length"], key="rw_end")
+         # Available distance (TORA if present else length)
+         tora_series = rwy_rows.loc[rwy_rows["runway_end"].astype(str) == str(rwy_end), "tora_ft"] if "runway_end" in rwy_rows.columns else pd.Series()
+         tora = float(tora_series.max() if not tora_series.empty else rwy_rows.get("length_ft", pd.Series([0.0])).max())
+         elev = float(rwy_rows.get("threshold_elev_ft", pd.Series([0.0])).max())
+         hdg = float(rwy_rows.get("heading_deg", pd.Series([0.0])).max())
+-        slope = float(rwy_rows.get("slope_pct", pd.Series([0.0])).max())
+-        st.metric("TORA (ft)", f"{tora:.0f}")
+-        st.metric("Elev (ft)", f"{elev:.0f}")
+-        st.metric("Heading (°T)", f"{hdg:.0f}")
+-        st.metric("Slope (%)", f"{slope:.1f}")
++        st.metric("TORA (ft)", f"{tora:.0f}")
++        st.metric("Elev (ft)", f"{elev:.0f}")
++        st.metric("Heading (°T)", f"{hdg:.0f}")
+     with c3:
+         st.checkbox("Manual runway entry", value=False, key="rw_manual")
+         if st.session_state["rw_manual"]:
+             mr_len = st.text_input("Runway length (ft or NM)", placeholder="8500 or 1.4 NM")
+             len_ft, unit_label = detect_length_unit(mr_len)
+             st.caption(f"Detected: {unit_label or '—'} → {f'{len_ft:.0f} ft' if len_ft else ''}")
+             mr_elev = st.number_input("Elevation (ft)", value=elev or 0.0, step=50.0)
+             mr_hdg = st.number_input("Heading (°T)", value=hdg or 0.0, step=1.0)
+-            mr_slope = st.number_input("Slope (%)", value=slope or 0.0, step=0.1)
+             mr_tora = st.number_input("TORA (ft)", value=float(len_ft or tora or 0.0), step=100.0)
+             # Override visual
+             if len_ft:
+                 tora = float(len_ft)
+-            elev, hdg, slope = mr_elev, mr_hdg, mr_slope
++            elev, hdg = mr_elev, mr_hdg
+             st.info("Manual values override database for calculations.")
+@@ -255,12 +271,34 @@ with st.expander("4) Weight & Balance", expanded=True):
+-        st.markdown("**Loadout (F-14B)** — select stores per station. This mimics the DCS Rearm/Refuel layout.")
++        st.markdown("**Loadout (F-14B)** — select stores per station. This mimics the DCS Rearm/Refuel layout.")
++        # Import stubs
++        cimp1, cimp2 = st.columns([1,1])
++        with cimp1:
++            std_choice = st.selectbox("Import standard loadout (stub)", ["—","Fleet CAP","Heavy Intercept","Bombcat LANTIRN","Strike (iron)"])
++        with cimp2:
++            miz = st.file_uploader("Import from DCS .miz (stub)", type=["miz"])
++        compat_beta = st.checkbox("Compatibility Mode (beta)", value=False, help="Filters obviously impossible station/store pairs (approx).")
+@@ -287,17 +325,28 @@ with st.expander("4) Weight & Balance", expanded=True):
+-                cat = st.selectbox(
+-                    f"Category {sta}", ["—"] + list(stores_categories.keys()), key=f"cat_{sta}"
+-                )
+-                item = "—"
+-                if cat != "—":
+-                    item = st.selectbox(
+-                        f"Store {sta}", ["—"] + stores_categories[cat], key=f"store_{sta}"
+-                    )
++                cat = st.selectbox(f"Category {sta}", ["—"] + list(stores_categories.keys()), key=f"cat_{sta}")
++                # Basic, approximate compatibility filter when enabled (placeholder rules)
++                allowed = stores_categories.get(cat, [])
++                if compat_beta and cat != "—":
++                    if sta in ["1A","8A"]:  # glove stations A: short rails
++                        allowed = [s for s in allowed if s in ["AIM-9M"]]
++                    if sta in ["1B","8B"]:  # glove stations B
++                        allowed = [s for s in allowed if s in ["AIM-7MH","LANTIRN"]]
++                    if sta in ["2","7"]:    # tank stations
++                        allowed = [s for s in allowed if s in ["Drop Tank 267 gal"]]
++                    if sta in ["3","4","5","6"]:  # tunnel pallets
++                        allowed = [s for s in allowed if s in ["AIM-54C","AIM-7MH","Mk-82","Mk-83","GBU-12","ZUNI LAU-10"]]
++                item = "—"
++                if cat != "—":
++                    item = st.selectbox(f"Store {sta}", ["—"] + allowed, key=f"store_{sta}")
+@@ -324,16 +373,16 @@ with st.expander("5) Takeoff Configuration", expanded=True):
+-    c1, c2, c3 = st.columns(3)
+-    with c1:
+-        flaps = st.radio("Flaps", ["AUTO", "UP", "MANEUVER", "FULL"], horizontal=True)
+-    with c2:
+-        thrust = st.radio("Thrust", ["AUTO", "MILITARY", "AFTERBURNER", "Manual derate"], horizontal=False)
++    c1, c2, c3 = st.columns(3)
++    with c1:
++        flaps = st.radio("Flaps", ["AUTO", "UP", "MANEUVER", "FULL"], horizontal=False)
++    with c2:
++        thrust = st.radio("Thrust", ["AUTO", "MILITARY", "AFTERBURNER", "DERATE (Manual)"], horizontal=False)
+     with c3:
+         derate = 0
+-        if thrust == "Manual derate":
++        if thrust == "DERATE (Manual)":
+             derate = st.slider("Derate (RPM %)", min_value=70, max_value=100, value=95)
+-        st.metric("Req. climb grad (AEO)", "≥ 300 ft/NM")
++        st.metric("Req. climb grad (all engines)", "≥ 300 ft/NM")
+@@ -353,10 +402,27 @@ with st.expander("6) Climb Profile", expanded=True):
+-    st.markdown("### Results (mock)")
++    st.markdown("### Results (mock)")
+     r1, r2, r3, r4 = st.columns(4)
+     r1.metric("Time to 10k", "02:40")
+     r2.metric("Time to TOC", "07:50")
+     r3.metric("Fuel to TOC", "2,100 lb")
+     r4.metric("TOC Distance", "37 NM")
+-    st.caption("Speed schedules and numbers are placeholders; real climb model will populate here.")
++    # Overlay climb traces (mock)
++    climb_overlay = pd.DataFrame({
++        "Time_min": [0,2,4,6,8],
++        "MostEff_ft": [0,6000,12000,20000,28000],
++        "MinTime_ft": [0,7000,13000,20500,28000],
++    }).set_index("Time_min")
++    st.line_chart(climb_overlay)
++    # Placeholder schedule cards
++    st.markdown("**Climb schedule (placeholders)**")
++    s1, s2 = st.columns(2)
++    with s1:
++        st.write("• **1,000 ft AGL:** RPM/FF: — / —, Target: V2 + 15 kt")
++        st.write("• **to 10,000 ft:** RPM/FF: — / —, Target IAS: — kt")
++    with s2:
++        st.write("• **10k → Mach trans:** RPM/FF: — / —, Target IAS: — kt")
++        st.write("• **Mach trans → Cruise:** RPM/FF: — / —, Target Mach: —")
++    st.caption("Numbers above will populate once climb model is wired.")
+@@ -416,21 +482,24 @@ with st.container():
+-        st.warning("Most restrictive: ASDR > TORA (mock)")
++        st.warning("Most restrictive: Accelerate-stop distance exceeds available runway (mock)")
+@@ -423,14 +492,18 @@ with st.container():
+-    # Sticky footer actions
++    # Sticky footer actions
+@@ -439,7 +512,7 @@ with st.container():
+-# =========================
+-# Scenario JSON (debug)
+-# =========================
++# =========================
++# Scenario JSON (debug)
++# =========================
+@@ -456,7 +529,6 @@ if show_debug:
+             "heading_deg": hdg,
+-            "slope_pct": slope,
+             "manual_override": bool(st.session_state.get("rw_manual")),
+         },
