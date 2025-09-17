@@ -1,39 +1,28 @@
 # ============================================================
-# F-14B Performance Calculator for DCS World — UI-first build
+# F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.1 (2025-09-16)
+# Version: v1.1.2 (2025-09-17)
 #
-# Purpose: Full UI skeleton (no performance math). Implements approved design
-# with curated F-14B presets kept, simplified DCS-style W&B, runway slope removed,
-# Climb default set to Most Efficient, multi-scenario landing planning, and
-# separate Results sections with plain-language labels. External tanks are
-# modeled as FULL/EMPTY only and treated EMPTY at landing scenarios A/B.
-#
-# Changelog v1.1.1:
-# - Keep Quick Presets (curated F-14B) — thrust/flaps remain AUTO
-# - Remove runway slope everywhere
-# - W&B Detailed: simpler DCS-style station tiles; single "Store" picker
-#   + Total Fuel by % or lb (choose input mode); ext tanks FULL/EMPTY
-# - Climb default = Most efficient; regulatory toggle retained
-# - Landing scenarios A/B/C per spec
-# - Results split into three sections (no tabs), plain language labels
-# - Added placeholder graphs (lightweight) and tables
-#
+# Purpose: Full UI skeleton (no performance math). Implements the approved UX:
+# - Curated F-14B presets (stores/fuel only; flaps/thrust AUTO)
+# - Global runway search across all maps; slope removed
+# - Environment paste/manual with unit auto-detect; ISA lapse to field
+# - Weight & Balance (Detailed): simple DCS-style tiles; single store picker
+#   + Fuel by % or lb; external tanks FULL/EMPTY; import stubs; Compatibility Mode (beta)
+# - Takeoff Config: both radios vertical; last thrust option "DERATE (Manual)"
+# - Climb Profile: default Most efficient; overlay graph + schedule placeholders
+# - Landing Setup: scenarios A/B/C; tanks treated EMPTY at landing
+# - Results in three separate sections (plain language) incl. Stabilizer Trim
 # ============================================================
-# 🚨 Bogged Down Protocol 🚨
-# If development chat becomes slow or confusing:
-# 1. STOP — Do not keep patching endlessly.
-# 2. REVERT — Roll back to last saved checkpoint (Git tag vX.Y.Z).
-# 3. RESET — Start a new chat if needed, say "continue from vX.Y.Z".
-# 4. SCOPE — Focus on one module/card at a time.
-# 5. SAVE — Commit working versions often with clear tags.
+# 🚨 Bogged Down Protocol (BDP) 🚨
+# 1) STOP  2) REVERT to last good tag  3) RESET chat if needed  4) SCOPE small
+# 5) SAVE often with clear tags
 # ============================================================
 
 from __future__ import annotations
 import re
 import json
-from dataclasses import dataclass
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 
 import pandas as pd
 import streamlit as st
@@ -48,24 +37,21 @@ st.set_page_config(
 )
 
 # =========================
-# Constants / simple assumptions for UI-only phase
+# Constants (UI placeholders)
 # =========================
 FT_PER_NM = 6076.11549
 ISA_LAPSE_C_PER_1000FT = 1.98
-INTERNAL_FUEL_MAX_LB = 16200  # rough F-14B internal capacity placeholder
-EXT_TANK_FUEL_LB = 1800       # ~267 gal tank, full, placeholder
 
-# Station list (mirrors DCS/Heatblur naming)
-STATIONS = ["1A", "1B", "2", "3", "4", "5", "6", "7", "8A", "8B"]
-SYMMETRY = {
-    "1A": "8A", "8A": "1A",
-    "1B": "8B", "8B": "1B",
-    "2": "7",   "7": "2",
-    "3": "6",   "6": "3",
-    "4": "5",   "5": "4",
-}
+# Simple fuel model placeholders
+INTERNAL_FUEL_MAX_LB = 16200       # rough F-14B internal capacity placeholder
+EXT_TANK_FUEL_LB = 1800            # ~267 gal tank full, placeholder
 
-STORES_CATALOG = {
+# Station list (mirrors DCS/Heatblur naming for glove A/B and tunnel)
+STATIONS: List[str] = ["1A", "1B", "2", "3", "4", "5", "6", "7", "8A", "8B"]
+SYMMETRY = {"1A": "8A", "8A": "1A", "1B": "8B", "8B": "1B", "2": "7", "7": "2", "3": "6", "6": "3", "4": "5", "5": "4"}
+
+# Catalog (category tagging only used for future filtering)
+STORES_CATALOG: Dict[str, str] = {
     "—": "—",
     "AIM-9M": "AIR-TO-AIR",
     "AIM-7M": "AIR-TO-AIR",
@@ -109,8 +95,7 @@ PERF_PATHS = [
 airports = None
 for p in AIRPORTS_PATHS:
     try:
-        airports = load_airports(p)
-        break
+        airports = load_airports(p); break
     except Exception:
         continue
 if airports is None:
@@ -120,105 +105,75 @@ if airports is None:
 perf = None
 for p in PERF_PATHS:
     try:
-        perf = load_perf(p)
-        break
+        perf = load_perf(p); break
     except Exception:
         continue
 
 # =========================
-# Helpers (unit detect, parsing, simple fuel link)
+# Helpers (unit detect, parsing)
 # =========================
-
 def detect_length_unit(text: str) -> Tuple[Optional[float], str]:
-    """Return (length_ft, detected_unit_str). Accept '8500', '1.4 nm', '1.4nm'.
-    Heuristic: if suffix nm present → NM. If numeric ≤ 5 with no suffix → NM. Else → feet.
+    """Return (length_ft, detected_unit_str). Accept '8500', '1.2 nm', '1.2nm'.
+       Heuristic: suffix nm → NM; numeric ≤5 without suffix → NM; else feet.
     """
-    if text is None:
-        return None, ""
+    if text is None: return None, ""
     s = text.strip().lower()
-    if not s:
-        return None, ""
-
+    if not s: return None, ""
     nm_match = re.search(r"([0-9]*\.?[0-9]+)\s*(nm|nmi)", s)
     if nm_match:
-        nm = float(nm_match.group(1))
-        return nm * FT_PER_NM, "NM (auto)"
-
+        nm = float(nm_match.group(1)); return nm * FT_PER_NM, "NM (auto)"
     num_match = re.search(r"([0-9]*\.?[0-9]+)", s)
-    if not num_match:
-        return None, ""
+    if not num_match: return None, ""
     val = float(num_match.group(1))
-
-    if val <= 5:
-        return val * FT_PER_NM, "NM (heuristic)"
+    if val <= 5: return val * FT_PER_NM, "NM (heuristic)"
     return val, "ft (auto)"
 
-
 def detect_pressure(qnh_text: str) -> Tuple[Optional[float], str]:
-    """Parse QNH in inHg or hPa. Return (inHg, label). Default display is inHg."""
-    if not qnh_text:
-        return None, ""
+    """Parse QNH in inHg or hPa. Return (inHg, label)."""
+    if not qnh_text: return None, ""
     s = qnh_text.strip().lower()
     hpa_match = re.search(r"([0-9]{3,4})\s*(hpa|mb)", s)
     inhg_match = re.search(r"([0-9]*\.?[0-9]+)\s*(inhg|hg)", s)
     num_match = re.search(r"([0-9]*\.?[0-9]+)", s)
-
     if hpa_match:
-        hpa = float(hpa_match.group(1))
-        inhg = hpa * 0.0295299830714
-        return inhg, "hPa → inHg"
-    if inhg_match:
-        return float(inhg_match.group(1)), "inHg"
+        hpa = float(hpa_match.group(1)); return hpa * 0.0295299830714, "hPa → inHg"
+    if inhg_match: return float(inhg_match.group(1)), "inHg"
     if num_match:
         val = float(num_match.group(1))
-        if 900 <= val <= 1100:
-            return val * 0.0295299830714, "hPa (heuristic) → inHg"
+        if 900 <= val <= 1100: return val * 0.0295299830714, "hPa (heuristic) → inHg"
         return val, "inHg (assumed)"
     return None, ""
 
-
 def parse_wind(text: str) -> Dict[str, Any]:
-    if not text:
-        return {"dir_deg": None, "spd_kts": None, "unit": ""}
+    """Parse '270/15 kt' or '270/7 m/s'. Returns dict(dir_deg, spd_kts, unit)."""
+    if not text: return {"dir_deg": None, "spd_kts": None, "unit": ""}
     s = text.strip().lower()
     m = re.search(r"(\d{2,3})\s*[/@]??\s*([0-9]*\.?[0-9]+)\s*(m/s|ms|kt|kts)?", s)
-    if not m:
-        return {"dir_deg": None, "spd_kts": None, "unit": ""}
-    deg = int(m.group(1))
-    val = float(m.group(2))
-    unit = (m.group(3) or "kt").replace("ms", "m/s")
-    spd_kts = val * 1.94384 if unit in ("m/s",) else val
+    if not m: return {"dir_deg": None, "spd_kts": None, "unit": ""}
+    deg = int(m.group(1)); val = float(m.group(2)); unit = (m.group(3) or "kt").replace("ms","m/s")
+    spd_kts = val * 1.94384 if unit == "m/s" else val
     return {"dir_deg": deg, "spd_kts": spd_kts, "unit": "m/s→kt" if unit == "m/s" else "kt"}
 
-
 def temp_at_elevation(temp_sl_c: Optional[float], elev_ft: float, lapse_c_per_1000ft: float = ISA_LAPSE_C_PER_1000FT) -> Optional[float]:
-    if temp_sl_c is None:
-        return None
+    if temp_sl_c is None: return None
     return float(temp_sl_c - lapse_c_per_1000ft * (elev_ft / 1000.0))
-
 
 def hw_xw_components(wind_dir: Optional[int], wind_kts: Optional[float], rwy_heading_deg: Optional[float]) -> Tuple[Optional[float], Optional[float]]:
     import math
-    if None in (wind_dir, wind_kts, rwy_heading_deg):
-        return None, None
+    if None in (wind_dir, wind_kts, rwy_heading_deg): return None, None
     angle = math.radians((wind_dir - rwy_heading_deg) % 360)
-    hw = wind_kts * math.cos(angle)
-    xw = wind_kts * math.sin(angle)
+    hw = wind_kts * math.cos(angle); xw = wind_kts * math.sin(angle)
     return hw, abs(xw)
 
-# Fuel helpers (UI-only linking). External tanks are FULL/EMPTY; landing assumes EMPTY.
-
+# Fuel helpers (UI-only). External tanks are FULL/EMPTY; landing assumes EMPTY.
 def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
-    if from_percent is None:
-        return None
+    if from_percent is None: return None
     internal = INTERNAL_FUEL_MAX_LB * max(0.0, min(100.0, from_percent)) / 100.0
     ext = (EXT_TANK_FUEL_LB if ext_left_full else 0) + (EXT_TANK_FUEL_LB if ext_right_full else 0)
     return internal + ext
 
-
 def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
-    if total_lb is None:
-        return None
+    if total_lb is None: return None
     ext = (EXT_TANK_FUEL_LB if ext_left_full else 0) + (EXT_TANK_FUEL_LB if ext_right_full else 0)
     internal = max(0.0, total_lb - ext)
     return max(0.0, min(100.0, (internal / INTERNAL_FUEL_MAX_LB) * 100.0))
@@ -228,7 +183,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.1 (no performance math)")
+    st.caption("UI skeleton • v1.1.2 (no performance math)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -244,7 +199,7 @@ with st.sidebar:
     )
 
     def apply_preset(name: str):
-        # Reset selections
+        # Reset stations
         for sta in STATIONS:
             st.session_state[f"store_{sta}"] = "—"
             st.session_state[f"qty_{sta}"] = 0
@@ -264,7 +219,6 @@ with st.sidebar:
             st.session_state[f"qty_{sta}"] = qty
 
         if "Fleet CAP" in name:
-            # 54C on 3/6, 7M on 4/5, 9M on 1A/8A, tanks on 2/7
             for s in ("3","6"): set_sta(s, "AIM-54C")
             for s in ("4","5"): set_sta(s, "AIM-7M")
             for s in ("1A","8A"): set_sta(s, "AIM-9M")
@@ -281,7 +235,7 @@ with st.sidebar:
             for s in ("4","5"): set_sta(s, "GBU-12", qty=2)
             for s in ("1A","8A"): set_sta(s, "AIM-9M")
             set_sta("7", "Drop Tank 267 gal")
-            st.session_state["ext_right_full"] = True  # assume right tank only
+            st.session_state["ext_right_full"] = True
             st.session_state["fuel_total_lb"] = compute_total_fuel_lb(80.0, False, True)
         elif "Strike (iron)" in name:
             for s in ("3","4","5","6"): set_sta(s, "Mk-82")
@@ -298,11 +252,12 @@ with st.sidebar:
     auto_recompute = st.toggle("Auto-recompute", value=True)
     show_debug = st.toggle("Show scenario JSON", value=False)
 
+# Sticky header
 st.markdown(
     """
-    <div style=\"position:sticky;top:0;background:var(--background-color);padding:0.4rem 0;z-index:5;border-bottom:1px solid rgba(255,255,255,0.1)\">
+    <div style="position:sticky;top:0;background:var(--background-color);padding:0.4rem 0;z-index:5;border-bottom:1px solid rgba(255,255,255,0.1)">
         <strong>F-14 Performance — DCS World</strong>
-        <span style=\"opacity:0.7\"> • UI-only v1.1.1 • Auto-recompute ON</span>
+        <span style="opacity:0.7"> • UI-only v1.1.2 • Auto-recompute ON</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -316,21 +271,30 @@ with st.expander("1) Aircraft", expanded=True):
     st.caption("Selecting the airframe sets defaults for flaps/thrust and W&B stations.")
 
 # =========================
-# Section 2 — Runway (picker + manual override)
+# Section 2 — Runway (GLOBAL search + manual override)
 # =========================
 with st.expander("2) Runway", expanded=True):
-    # Picker
-    c1, c2, c3 = st.columns([1.2, 1.2, 1])
+    c1, c2, c3 = st.columns([1.4, 1.2, 1])
+
     with c1:
+        search_all = st.text_input("Search airport (all maps)", placeholder="Type part of the airport name…")
+        all_apts = airports[airports["airport_name"].notna()]
+        matches = all_apts[all_apts["airport_name"].str.contains(search_all, case=False, na=False)] if search_all else all_apts
+        pick_names = sorted(matches["airport_name"].unique().tolist())
+        apt = st.selectbox("Airport", pick_names, key="rw_airport")
+
+        # Derive default map from selected airport; allow override
+        default_map = None
+        mdf = matches[matches["airport_name"] == apt]
+        if not mdf.empty:
+            default_map = mdf["map"].iloc[0]
         maps = sorted(airports["map"].dropna().unique().tolist())
-        map_sel = st.selectbox("Map", maps, key="rw_map")
-        sub = airports[airports["map"] == map_sel]
-        search = st.text_input("Search airport", placeholder="Type part of the name…")
-        if search:
-            sub = sub[sub["airport_name"].str.contains(search, case=False, na=False)]
-        apt = st.selectbox("Airport", sorted(sub["airport_name"].dropna().unique().tolist()), key="rw_airport")
+        map_sel = st.selectbox("Map", maps, index=(maps.index(default_map) if default_map in maps else 0), key="rw_map")
+
+        sub = airports[(airports["airport_name"] == apt) & (airports["map"] == map_sel)]
+
     with c2:
-        rwy_rows = sub[sub["airport_name"] == apt]
+        rwy_rows = sub
         ends = rwy_rows.get("runway_end", pd.Series(dtype=str)).dropna().astype(str).unique().tolist()
         rwy_end = st.selectbox("Runway End / Intersection", sorted(ends) if ends else ["Full Length"], key="rw_end")
         # Available distance (TORA if present else length)
@@ -341,6 +305,7 @@ with st.expander("2) Runway", expanded=True):
         st.metric("Takeoff Run Available (ft)", f"{tora:.0f}")
         st.metric("Field Elevation (ft)", f"{elev:.0f}")
         st.metric("Runway Heading (°T)", f"{hdg:.0f}")
+
     with c3:
         st.checkbox("Manual runway entry", value=False, key="rw_manual")
         if st.session_state["rw_manual"]:
@@ -350,7 +315,6 @@ with st.expander("2) Runway", expanded=True):
             mr_elev = st.number_input("Elevation (ft)", value=elev or 0.0, step=50.0)
             mr_hdg = st.number_input("Heading (°T)", value=hdg or 0.0, step=1.0)
             mr_tora = st.number_input("TORA (ft)", value=float(len_ft or tora or 0.0), step=100.0)
-            # Override visual
             if len_ft:
                 tora = float(len_ft)
             elev, hdg = mr_elev, mr_hdg
@@ -366,7 +330,7 @@ with st.expander("3) Environment", expanded=True):
         blob = st.text_area("Paste briefing text", height=160, placeholder="Paste the DCS weather section here…")
         if blob:
             temp_m = re.search(r"temp[^\d-]*(-?\d+)", blob, flags=re.I)
-            qnh_m = re.search(r"qnh[^\d]*(\d{3,4}|\d+\.?\d*)", blob, flags=re.I)
+            qnh_m  = re.search(r"qnh[^\d]*(\d{3,4}|\d+\.?\d*)", blob, flags=re.I)
             wind_m = re.search(r"(\d{2,3})\s*[/@]\s*(\d+\.?\d*)\s*(kt|kts|m/s)?", blob, flags=re.I)
             temp_sl = float(temp_m.group(1)) if temp_m else None
             qnh_text = qnh_m.group(1) + (" hPa" if (qnh_m and len(qnh_m.group(1)) >= 3) else "") if qnh_m else ""
@@ -410,15 +374,16 @@ with st.expander("4) Weight & Balance", expanded=True):
         gw_ldg_plan = st.number_input("Planned Landing Weight (lb)", value=56000.0, step=500.0)
         st.caption("Switch to Detailed mode to build weight via stations and fuel.")
     else:
-        # Fuel: choose one input mode; external tanks are FULL/EMPTY only
+        # Fuel — either percentage of internal or total pounds; ext tanks FULL/EMPTY
         st.markdown("**Fuel** — Enter by percentage or total pounds. External tanks are either FULL or EMPTY.")
-        fuel_input_mode = st.radio("Fuel input", ["Percent", "Pounds (lb)"], index=0, key="fuel_input_mode")
-        cF1, cF2, cF3 = st.columns([1,1,1])
-        with cF1:
+        cF1, cF2 = st.columns(2)
+        fuel_input_mode = cF1.radio("Fuel input", ["Percent", "Pounds (lb)"], index=0, key="fuel_input_mode")
+        cT = st.columns(3)
+        with cT[0]:
             ext_left_full = st.checkbox("External Tank LEFT: FULL", key="ext_left_full")
-        with cF2:
+        with cT[1]:
             ext_right_full = st.checkbox("External Tank RIGHT: FULL", key="ext_right_full")
-        with cF3:
+        with cT[2]:
             st.caption("Landing scenarios assume external tanks are EMPTY of fuel.")
 
         if fuel_input_mode == "Percent":
@@ -432,21 +397,43 @@ with st.expander("4) Weight & Balance", expanded=True):
             st.metric("Computed Internal Fuel (%)", f"{computed_pct:.0f}%" if computed_pct is not None else "—")
             st.session_state["fuel_percent"] = computed_pct
 
-        st.markdown("**Loadout (F-14B)** — Click station tiles and pick a store; set quantity. Use the symmetry button to mirror.")
+        # Import stubs
+        cimp1, cimp2 = st.columns(2)
+        std_choice = cimp1.selectbox("Import standard loadout (stub)",
+                                     ["—","Fleet CAP","Heavy Intercept","Bombcat LANTIRN","Strike (iron)"])
+        miz = cimp2.file_uploader("Import from DCS .miz (stub)", type=["miz"])
+        compat_beta = st.checkbox("Compatibility Mode (beta)", value=False,
+                                  help="Filters obviously impossible station/store pairs (approx).")
+
+        st.markdown("**Loadout (F-14B)** — Click station tiles and pick a store; set quantity. Use symmetry to mirror.")
         cols = st.columns(5)
         for i, sta in enumerate(STATIONS):
             with cols[i % 5]:
                 st.write(f"**STA {sta}**")
-                store_key = f"store_{sta}"
-                qty_key = f"qty_{sta}"
-                pylon_key = f"pylon_{sta}"
+                store_key, qty_key, pylon_key = f"store_{sta}", f"qty_{sta}", f"pylon_{sta}"
                 cur_store = st.session_state.get(store_key, "—")
                 st.session_state.setdefault(qty_key, 0)
-                # Single store picker (category implied)
-                _ = st.selectbox(f"Store {sta}", list(STORES_CATALOG.keys()), index=list(STORES_CATALOG.keys()).index(cur_store) if cur_store in STORES_CATALOG else 0, key=store_key)
-                _ = st.number_input(f"Qty {sta}", value=int(st.session_state.get(qty_key, 0)), min_value=0, max_value=2, step=1, key=qty_key)
+
+                # Allowed stores (rough filter when compatibility on)
+                allowed = list(STORES_CATALOG.keys())
+                if compat_beta:
+                    if sta in ("1A","8A"):
+                        allowed = ["—","AIM-9M"]  # glove rails A
+                    elif sta in ("1B","8B"):
+                        allowed = ["—","AIM-7M","LANTIRN"]  # glove rails B
+                    elif sta in ("2","7"):
+                        allowed = ["—","Drop Tank 267 gal"]  # tank stations
+                    elif sta in ("3","4","5","6"):
+                        allowed = ["—","AIM-54C","AIM-7M","Mk-82","Mk-83","GBU-12","ZUNI LAU-10"]
+
+                st.selectbox(f"Store {sta}", allowed,
+                             index=(allowed.index(cur_store) if cur_store in allowed else 0),
+                             key=store_key)
+                st.number_input(f"Qty {sta}", value=int(st.session_state.get(qty_key, 0)),
+                                min_value=0, max_value=2, step=1, key=qty_key)
                 st.checkbox("Remove pylon", value=bool(st.session_state.get(pylon_key, False)), key=pylon_key)
-                # Symmetry copier
+
+                # Symmetry
                 sym = SYMMETRY.get(sta)
                 if sym and st.button(f"Apply → {sym}", key=f"symbtn_{sta}"):
                     st.session_state[f"store_{sym}"] = st.session_state[store_key]
@@ -466,12 +453,12 @@ with st.expander("4) Weight & Balance", expanded=True):
 with st.expander("5) Takeoff Configuration", expanded=True):
     c1, c2, c3 = st.columns(3)
     with c1:
-        flaps = st.radio("Flaps", ["AUTO", "UP", "MANEUVER", "FULL"], horizontal=True)
+        flaps = st.radio("Flaps", ["AUTO", "UP", "MANEUVER", "FULL"], horizontal=False)
     with c2:
-        thrust = st.radio("Thrust", ["AUTO", "MILITARY", "AFTERBURNER", "Manual derate"], horizontal=False)
+        thrust = st.radio("Thrust", ["AUTO", "MILITARY", "AFTERBURNER", "DERATE (Manual)"], horizontal=False)
     with c3:
         derate = 0
-        if thrust == "Manual derate":
+        if thrust == "DERATE (Manual)":
             derate = st.slider("Derate (RPM %)", min_value=70, max_value=100, value=95)
         st.metric("Required climb gradient (all engines)", "≥ 300 ft/NM")
     st.caption("AUTO thrust will target 14 CFR 121.189 and ≥300 ft/NM AEO using the minimum required setting (to be modeled).")
@@ -488,7 +475,30 @@ with st.expander("6) Climb Profile", expanded=True):
     with c3:
         ignore_reg = st.checkbox("Ignore regulatory speed restrictions (≤250 KIAS <10k)")
 
-    st.caption("Initial segment assumed V2 + 15 kt to 1,000 ft AGL. Numbers below are placeholders until the climb model is wired.")
+    # Cards (placeholders)
+    r1, r2, r3, r4 = st.columns(4)
+    r1.metric("Time to 10,000 ft", "02:40")
+    r2.metric("Time to Cruise Altitude", "07:50")
+    r3.metric("Fuel to Top of Climb", "2,100 lb")
+    r4.metric("Top of Climb Distance", "37 NM")
+
+    # Overlay climb traces (placeholder)
+    climb_overlay = pd.DataFrame({
+        "Time_min": [0, 2, 4, 6, 8],
+        "MostEff_ft": [0, 6000, 12000, 20000, 28000],
+        "MinTime_ft": [0, 7000, 13000, 20500, 28000],
+    }).set_index("Time_min")
+    st.line_chart(climb_overlay)
+
+    # Schedule placeholders
+    st.markdown("**Climb schedule (placeholders)**")
+    s1, s2 = st.columns(2)
+    with s1:
+        st.write("• **1,000 ft AGL:** RPM/FF — / —, Target: V2 + 15 kt")
+        st.write("• **Up to 10,000 ft:** RPM/FF — / —, Target IAS — kt")
+    with s2:
+        st.write("• **10k → Mach transition:** RPM/FF — / —, Target IAS — kt")
+        st.write("• **Mach transition → Cruise:** RPM/FF — / —, Target Mach —")
 
 # =========================
 # Section 7 — Landing Setup (Scenarios A/B/C)
@@ -496,6 +506,7 @@ with st.expander("6) Climb Profile", expanded=True):
 with st.expander("7) Landing Setup", expanded=True):
     c1, c2, c3 = st.columns(3)
     with c1:
+        maps = sorted(airports["map"].dropna().unique().tolist())
         dest_map = st.selectbox("Destination Map", maps, key="ldg_map")
         dest_sub = airports[airports["map"] == dest_map]
         dest_apt = st.selectbox("Destination Airport", sorted(dest_sub["airport_name"].dropna().unique().tolist()), key="ldg_airport")
@@ -507,10 +518,10 @@ with st.expander("7) Landing Setup", expanded=True):
         st.metric("Takeoff Run Available at Destination (ft)", f"{dest_tora:.0f}")
     with c3:
         cond = st.radio("Runway condition", ["DRY", "WET"], horizontal=True)
-        st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel assumed EMPTY on landing.")
+        st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel is assumed EMPTY on landing.")
 
     st.markdown("**Landing Scenarios**")
-    st.markdown("A) 3,000 lb fuel; **all external stores from takeoff retained** (tanks/pods kept).")
+    st.markdown("A) 3,000 lb fuel; **all external stores from takeoff retained** (pods/tanks kept).")
     st.markdown("B) 3,000 lb fuel; **weapons expended** (missiles/bombs/rockets removed; pods/tanks kept).")
     st.markdown("C) Custom: set **remaining fuel** and **current stores** below.")
 
@@ -524,7 +535,8 @@ with st.expander("7) Landing Setup", expanded=True):
             st.caption("Note: For realism, leave landing tanks EMPTY.")
         if ldg_fuel_mode == "Percent":
             ldg_fuel_pct = st.number_input("Landing Fuel (%)", value=20.0, min_value=0.0, max_value=100.0, step=1.0, key="ldg_fuel_pct")
-            st.metric("Computed Landing Fuel (lb)", f"{compute_total_fuel_lb(ldg_fuel_pct, l_ext_left, l_ext_right):.0f}")
+            ldg_total_lb = compute_total_fuel_lb(ldg_fuel_pct, l_ext_left, l_ext_right)
+            st.metric("Computed Landing Fuel (lb)", f"{ldg_total_lb:.0f}" if ldg_total_lb is not None else "—")
         else:
             ldg_fuel_lb = st.number_input("Landing Fuel (lb)", value=3000.0, step=100.0, key="ldg_fuel_lb")
             st.metric("Computed Internal Fuel (%)", f"{compute_percent_from_total(ldg_fuel_lb, l_ext_left, l_ext_right):.0f}%")
@@ -568,15 +580,15 @@ s2.metric("Estimated Distance to Lift Off and Reach 35 ft in DCS", "5,100 ft")
 
 st.warning("Most restrictive (mock): Accelerate-stop distance exceeds available runway.")
 
-# Accessory graph: distance to rotate by flap/thrust (placeholder)
+# Accessory graph: distance to rotate by flap/thrust (positive-only, mock)
 st.markdown("**How configuration affects distance to rotate (mock)**")
 rot_df = pd.DataFrame({
     "Configuration": ["Flaps UP / MIL", "MANEUVER / MIL", "FULL / MIL", "FULL / AB"],
-    "Distance_ft": [4200, 3600, 3200, 2800],
+    "Distance_ft": [max(0,4200), max(0,3600), max(0,3200), max(0,2800)],
 })
-st.bar_chart(rot_df.set_index("Configuration"))
+st.line_chart(rot_df.set_index("Configuration"))
 
-# Table: config breakdown (placeholder)
+# Table: configuration breakdown (mock)
 st.markdown("**Configuration breakdown (mock)**")
 st.dataframe(pd.DataFrame({
     "Flaps": ["UP", "MANEUVER", "FULL", "FULL"],
@@ -598,12 +610,13 @@ c2.metric("Time to Cruise Altitude", "07:50")
 c3.metric("Fuel to Top of Climb", "2,100 lb")
 c4.metric("Top of Climb Distance", "37 NM")
 
-# Accessory graph: altitude vs time (placeholder)
+# Overlay climb curves (mock)
 climb_df = pd.DataFrame({
     "Time_min": [0, 2, 4, 6, 8],
-    "Altitude_ft": [0, 6000, 12000, 20000, 28000],
-})
-st.line_chart(climb_df.set_index("Time_min"))
+    "MostEff_ft": [0, 6000, 12000, 20000, 28000],
+    "MinTime_ft": [0, 7000, 13000, 20500, 28000],
+}).set_index("Time_min")
+st.line_chart(climb_df)
 
 st.info("Regulatory status: Compliant (≤250 KIAS below 10,000 ft) — placeholder")
 
@@ -639,17 +652,14 @@ lc4.metric("Go-Around Speed (Vac)", "—")
 lc5.metric("Final Segment Speed (Vfs)", "—")
 st.metric("Required Landing Distance from 50 ft", "—")
 
-# Accessory graph: LDR comparison (placeholder)
-ldr_df = pd.DataFrame({
-    "Scenario": ["A: stores kept", "B: weapons expended"],
-    "LDR_ft": [4600, 4200],
-})
-st.bar_chart(ldr_df.set_index("Scenario"))
+# Accessory graph: LDR comparison (mock)
+ldr_df = pd.DataFrame({"Scenario": ["A: stores kept", "B: weapons expended"], "LDR_ft": [4600, 4200]}).set_index("Scenario")
+st.bar_chart(ldr_df)
 
-# Table: runway-by-runway margins (placeholder)
+# Table: runway margins (mock)
 st.markdown("**Runway margins (mock)**")
 st.dataframe(pd.DataFrame({
-    "Runway": [str(dest_end)],
+    "Runway": ["{}".format("Runway {}".format(dest_end))],
     "Available (ft)": [dest_tora],
     "Required (ft) — A": [4600],
     "Required (ft) — B": [4200],
@@ -660,7 +670,7 @@ st.dataframe(pd.DataFrame({
 st.markdown("---")
 
 # =========================
-# Scenario JSON (debug, optional)
+# Scenario JSON (debug)
 # =========================
 if show_debug:
     scenario = {
@@ -675,10 +685,10 @@ if show_debug:
             "manual_override": bool(st.session_state.get("rw_manual")),
         },
         "environment": {
-            "temp_sl_c": temp_sl if 'temp_sl' in locals() else None,
-            "qnh_inhg": qnh_inhg if 'qnh_inhg' in locals() else None,
-            "wind": (w if 'w' in locals() else {}),
-            "field_temp_c": (temp_at_elevation(temp_sl, elev) if 'temp_sl' in locals() else None),
+            "temp_sl_c": (locals().get("temp_sl")),
+            "qnh_inhg": (locals().get("qnh_inhg")),
+            "wind": (locals().get("w") if "w" in locals() else {}),
+            "field_temp_c": (temp_at_elevation(locals().get("temp_sl"), elev) if "temp_sl" in locals() else None),
         },
         "wb": {
             "mode": wb_mode,
@@ -694,8 +704,7 @@ if show_debug:
                     "store": st.session_state.get(f"store_{sta}", "—"),
                     "qty": st.session_state.get(f"qty_{sta}", 0),
                     "pylon_removed": st.session_state.get(f"pylon_{sta}", False),
-                }
-                for sta in STATIONS
+                } for sta in STATIONS
             },
         },
         "takeoff_config": {"flaps": flaps, "thrust": thrust, "derate_rpm": (derate if 'derate' in locals() else None)},
@@ -724,4 +733,4 @@ if show_debug:
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
 
-st.caption("UI-only baseline v1.1.1. Once you sign off on UX, we will move logic into f14_takeoff_core.py and wire real models.")
+st.caption("UI-only baseline v1.1.2. Once you sign off on UX, we'll move logic into f14_takeoff_core.py and wire real models.")
