@@ -1,18 +1,20 @@
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.3-hotfix6 (2025-09-17)
+# Version: v1.1.3-hotfix7 (2025-09-17)
 #
-# Hotfix6:
-# - Takeoff Results (Col 2): adds small N1% / FF(pph) table tied to Thrust & DERATE slider.
+# Hotfix7:
+# - Takeoff Results: N1%/FF(pph) shows per-engine pph; label updated.
+# - Takeoff Results: Expected Climb Gradient (AEO) moved to Dispatchability column.
+# - Climb Profile: Climb Schedule (placeholder) shows two side-by-side columns
+#   for "Most efficient" and "Minimum time" profiles.
 #
-# Prior changes retained (hotfix5 and earlier):
-# - Landing Setup: "Add Alternate" + "Remove Alternate"; alternates inherit departure theatre.
-# - Takeoff Config: DERATE (Manual) slider 85%–100% RPM.
-# - Takeoff Results: Expected Climb Gradient (AEO) metric.
-# - Landing Results: Unfactored LDR, Factored LDR, LDA, Calc MLW, with robust fallbacks.
-# - Environment defaults to Manual; W&B Simple defaults & notes; integer lb inputs.
-# - Robust NaN-safe runway pulls (tora/elev/hdg/lda) with fallbacks.
+# Prior changes retained:
+# - Alternates with Add/Remove; alternates inherit departure theatre.
+# - DERATE slider 85%–100% RPM.
+# - Landing Results per-destination: Unfactored LDR, Factored LDR, LDA, Calc MLW.
+# - Environment defaults to Manual; W&B notes; integer lb inputs.
+# - NaN-safe runway pulls (tora/elev/hdg/lda) with fallbacks.
 # ============================================================
 # 🚨 Bogged Down Protocol (BDP) 🚨
 # 1) STOP  2) REVERT to last good tag  3) RESET chat if needed  4) SCOPE small
@@ -237,7 +239,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.3-hotfix6 (no performance math)")
+    st.caption("UI skeleton • v1.1.3-hotfix7 (no performance math)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -542,31 +544,32 @@ st.header("Takeoff Results")
 # --- helper to create mock engine table tied to thrust/derate ---
 def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
     """
-    Returns a small N1/FF(pph) table keyed by selected thrust and derate.
+    Returns a small N1/FF(pph/engine) table keyed by selected thrust and derate.
     Placeholder logic (not real F-14B data):
-      - BASE profiles (approx): MIL=96%/14000 pph; AB=102%/38000 pph; AUTO=95%/13000 pph;
+      - BASE profiles (approx): MIL ~96% / 7000 pph per engine; AB ~102% / 19000 pph per engine;
+        AUTO ~95% / 6500 pph per engine.
       - DERATE uses derate_pct for TO/IC, then reduces for climb segments.
     """
     def rows(n1_to, ff_to, n1_ic, ff_ic, n1_cl, ff_cl):
         return [
-            {"Phase": "Takeoff",        "Target N1 (%)": int(round(n1_to)), "FF (pph, both)": int(round(ff_to))},
-            {"Phase": "Initial Climb",  "Target N1 (%)": int(round(n1_ic)), "FF (pph, both)": int(round(ff_ic))},
-            {"Phase": "Climb Segment",  "Target N1 (%)": int(round(n1_cl)), "FF (pph, both)": int(round(ff_cl))},
+            {"Phase": "Takeoff",        "Target N1 (%)": int(round(n1_to)), "FF (pph/engine)": int(round(ff_to))},
+            {"Phase": "Initial Climb",  "Target N1 (%)": int(round(n1_ic)), "FF (pph/engine)": int(round(ff_ic))},
+            {"Phase": "Climb Segment",  "Target N1 (%)": int(round(n1_cl)), "FF (pph/engine)": int(round(ff_cl))},
         ]
 
     if thrust_sel == "MILITARY":
-        data = rows(96, 14000, 95, 13000, 93, 12000)
+        data = rows(96, 7000, 95, 6500, 93, 6000)
     elif thrust_sel == "AFTERBURNER":
-        data = rows(102, 38000, 98, 20000, 95, 15000)
+        data = rows(102, 19000, 98, 10000, 95, 7500)
     elif thrust_sel == "DERATE (Manual)":
         n1_to = max(85, min(100, derate_pct))
         n1_ic = max(85, n1_to - 2)
         n1_cl = max(85, n1_ic - 2)
-        # crude FF scaling vs MIL baseline (96% ~ 14000 pph both)
+        # crude FF scaling vs MIL baseline (96% ~ 7000 pph per engine)
         scale = (n1_to / 96.0)
-        data = rows(n1_to, 14000 * scale, n1_ic, 13000 * scale, n1_cl, 12000 * scale)
+        data = rows(n1_to, 7000 * scale, n1_ic, 6500 * scale, n1_cl, 6000 * scale)
     else:  # AUTO
-        data = rows(95, 13000, 94, 12500, 92, 11500)
+        data = rows(95, 6500, 94, 6250, 92, 5750)
 
     return pd.DataFrame(data)
 
@@ -584,10 +587,7 @@ with col2:
     st.metric("Flaps", flaps if 'flaps' in locals() else "—")
     st.metric("Thrust", thrust if 'thrust' in locals() else "—")
     st.metric("Stabilizer Trim", "+2.0 units")
-    st.metric("Expected Climb Gradient (AEO)", "350 ft/NM")  # placeholder
-
-    # NEW: N1/FF micro-table
-    st.caption("N1% / FF(pph) — mock guidance")
+    st.caption("N1% / FF(pph/engine) — mock guidance")
     engine_df = build_engine_table(thrust if 'thrust' in locals() else "AUTO", int(derate if 'derate' in locals() else 95))
     st.dataframe(engine_df, hide_index=True, use_container_width=True)
 
@@ -608,6 +608,8 @@ with col4:
     else:
         st.error("NOT Dispatchable")
         st.caption("Limiting: Accelerate-Stop distance (mock)")
+    # Moved here: Expected Climb Gradient (AEO)
+    st.metric("Expected Climb Gradient (AEO)", "350 ft/NM")  # placeholder
 
 st.divider()
 st.subheader("DCS Expected Performance (mock)")
@@ -617,24 +619,41 @@ p2.metric("Distance to Liftoff (35 ft)", "5,100 ft")
 st.divider()
 
 # =========================
-# Section 6 — Climb Profile (Climb Schedule prominent)
+# Section 6 — Climb Profile (Climb Schedule prominent, 2 columns)
 # =========================
 with st.expander("6) Climb Profile", expanded=True):
-    # Prominent schedule callout first
-    st.markdown(
-        """
-        <div style="border:1px solid rgba(255,255,255,0.15); padding:16px; border-radius:12px; background:rgba(255,255,255,0.03);">
-          <h3 style="margin-top:0">Climb Schedule (placeholder)</h3>
-          <ul style="line-height:1.6; font-size:1.05rem;">
-            <li><strong>1,000 ft AGL</strong>: RPM/FF — / —, Target: V2 + 15 kt</li>
-            <li><strong>Up to 10,000 ft</strong>: RPM/FF — / —, Target IAS — kt</li>
-            <li><strong>10k → Mach transition</strong>: RPM/FF — / —, Target IAS — kt</li>
-            <li><strong>Mach transition → Cruise</strong>: RPM/FF — / —, Target Mach —</li>
-          </ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # Two-column schedule card (placeholder content)
+    colA, colB = st.columns(2)
+    with colA:
+        st.markdown(
+            """
+            <div style="border:1px solid rgba(255,255,255,0.15); padding:16px; border-radius:12px; background:rgba(255,255,255,0.03);">
+              <h3 style="margin-top:0">Climb Schedule — Most efficient</h3>
+              <ul style="line-height:1.6; font-size:1.05rem;">
+                <li><strong>1,000 ft AGL</strong>: RPM/FF — / —, Target: V2 + 15 kt</li>
+                <li><strong>Up to 10,000 ft</strong>: RPM/FF — / —, Target IAS — kt</li>
+                <li><strong>10k → Mach</strong>: RPM/FF — / —, Target IAS — kt</li>
+                <li><strong>Mach → Cruise</strong>: RPM/FF — / —, Target Mach —</li>
+              </ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with colB:
+        st.markdown(
+            """
+            <div style="border:1px solid rgba(255,255,255,0.15); padding:16px; border-radius:12px; background:rgba(255,255,255,0.03);">
+              <h3 style="margin-top:0">Climb Schedule — Minimum time</h3>
+              <ul style="line-height:1.6; font-size:1.05rem;">
+                <li><strong>1,000 ft AGL</strong>: RPM/FF — / —, Target: V2 + 25 kt</li>
+                <li><strong>Up to 10,000 ft</strong>: RPM/FF — / —, Target IAS — kt</li>
+                <li><strong>10k → Mach</strong>: RPM/FF — / —, Target IAS — kt</li>
+                <li><strong>Mach → Cruise</strong>: RPM/FF — / —, Target Mach —</li>
+              </ul>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -662,14 +681,12 @@ with st.expander("6) Climb Profile", expanded=True):
 st.markdown("---")
 
 # =========================
-# Section 7 — Landing Setup (Dest 1 seeded; "Add Alternate" + "Remove Alternate")
+# Section 7 — Landing Setup (Dest 1 seeded; Add/Remove Alternate)
 # =========================
 with st.expander("7) Landing Setup", expanded=True):
     def pick_destination(slot_idx: int, fixed_map: Optional[str] = None,
                          default_airport: Optional[str] = None, default_end: Optional[str] = None) -> Dict[str, Any]:
-        """Render selectors for one destination slot and return info dict with safe fallbacks.
-           If fixed_map is provided, theatre selection is hidden and that map is used.
-        """
+        """Render selectors for one destination slot and return info dict with safe fallbacks."""
         # Map handling
         if fixed_map:
             sel_map = fixed_map
@@ -677,8 +694,7 @@ with st.expander("7) Landing Setup", expanded=True):
         else:
             maps = sorted(airports["map"].dropna().unique().tolist())
             map_key = f"ldg_map_{slot_idx}"
-            map_idx = maps.index(default_airport) if (default_airport in maps) else 0  # (unused path kept for completeness)
-            sel_map = st.selectbox(f"[{slot_idx}] Map", maps, index=(maps.index(fixed_map) if (fixed_map in maps) else 0), key=map_key)
+            sel_map = st.selectbox(f"[{slot_idx}] Map", maps, key=map_key)
 
         sub = airports[airports["map"] == sel_map]
         apts = sorted(sub["airport_name"].dropna().unique().tolist())
@@ -719,7 +735,7 @@ with st.expander("7) Landing Setup", expanded=True):
 
         return {"map": sel_map, "airport": sel_apt, "end": sel_end, "tora_ft": tora_ft, "lda_ft": lda_ft}
 
-    # Destination 1 seeded from departure selection in Section 2 (user can still edit)
+    # Destination 1 seeded from departure selection in Section 2
     dep_map = locals().get("map_sel")
     dep_airport = locals().get("apt")
     dep_end = locals().get("rwy_end")
@@ -729,10 +745,8 @@ with st.expander("7) Landing Setup", expanded=True):
 
     # Manage alternates in session_state
     st.session_state.setdefault("alt_slots", [])
-    # Add button
     add_alt = st.button("➕ Add Alternate")
     if add_alt and len(st.session_state["alt_slots"]) < 3:
-        # Generate next slot index (2..4)
         next_slot = 2
         while next_slot in st.session_state["alt_slots"] or next_slot == 1:
             next_slot += 1
@@ -741,7 +755,6 @@ with st.expander("7) Landing Setup", expanded=True):
 
     dests: List[Dict[str, Any]] = [dest1]
 
-    # Render each alternate (map fixed to departure) with Remove buttons
     for slot in sorted(st.session_state["alt_slots"]):
         st.markdown(f"**Alternate {slot - 1}**")
         alt_cols = st.columns([6, 1])
@@ -862,4 +875,4 @@ if 'show_debug' in locals() and show_debug:
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
 
-st.caption("UI-only v1.1.3-hotfix6. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
+st.caption("UI-only v1.1.3-hotfix7. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
