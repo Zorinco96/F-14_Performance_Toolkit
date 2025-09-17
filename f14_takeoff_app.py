@@ -1,18 +1,18 @@
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.3-hotfix4 (2025-09-17)
+# Version: v1.1.3-hotfix6 (2025-09-17)
 #
-# Hotfix4:
-# - Landing Setup: slider removed; added "Add Alternate" button.
-#   Alternates inherit departure theatre (no map selector), up to 3.
-# - Climb Profile: "Climb Schedule" made prominent (styled callout at top).
+# Hotfix6:
+# - Takeoff Results (Col 2): adds small N1% / FF(pph) table tied to Thrust & DERATE slider.
 #
-# Prior changes retained (hotfix2/3):
-# - Robust NaN-safe runway pulls (tora/elev/hdg/lda).
-# - LDA fallbacks when column missing: lda_ft → length_ft → tora_ft → 0.
-# - Landing Results per-destination: Unfactored LDR, Factored LDR, LDA, Calc MLW.
-# - Environment defaults to Manual; W&B Simple defaults & notes updated; integer lb inputs.
+# Prior changes retained (hotfix5 and earlier):
+# - Landing Setup: "Add Alternate" + "Remove Alternate"; alternates inherit departure theatre.
+# - Takeoff Config: DERATE (Manual) slider 85%–100% RPM.
+# - Takeoff Results: Expected Climb Gradient (AEO) metric.
+# - Landing Results: Unfactored LDR, Factored LDR, LDA, Calc MLW, with robust fallbacks.
+# - Environment defaults to Manual; W&B Simple defaults & notes; integer lb inputs.
+# - Robust NaN-safe runway pulls (tora/elev/hdg/lda) with fallbacks.
 # ============================================================
 # 🚨 Bogged Down Protocol (BDP) 🚨
 # 1) STOP  2) REVERT to last good tag  3) RESET chat if needed  4) SCOPE small
@@ -237,7 +237,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.3-hotfix4 (no performance math)")
+    st.caption("UI skeleton • v1.1.3-hotfix6 (no performance math)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -530,7 +530,7 @@ with st.expander("5) Takeoff Configuration", expanded=True):
     with c3:
         derate = 0
         if thrust == "DERATE (Manual)":
-            derate = st.slider("Derate (RPM %)", min_value=70, max_value=100, value=95)
+            derate = st.slider("Derate (RPM %)", min_value=85, max_value=100, value=95)  # min 85%
         st.metric("Required climb gradient (all engines)", "≥ 300 ft/NM")
     st.caption("AUTO thrust will target 14 CFR 121.189 and ≥300 ft/NM AEO using the minimum required setting (to be modeled).")
 
@@ -538,6 +538,37 @@ with st.expander("5) Takeoff Configuration", expanded=True):
 # (6) Takeoff Results
 # =========================
 st.header("Takeoff Results")
+
+# --- helper to create mock engine table tied to thrust/derate ---
+def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
+    """
+    Returns a small N1/FF(pph) table keyed by selected thrust and derate.
+    Placeholder logic (not real F-14B data):
+      - BASE profiles (approx): MIL=96%/14000 pph; AB=102%/38000 pph; AUTO=95%/13000 pph;
+      - DERATE uses derate_pct for TO/IC, then reduces for climb segments.
+    """
+    def rows(n1_to, ff_to, n1_ic, ff_ic, n1_cl, ff_cl):
+        return [
+            {"Phase": "Takeoff",        "Target N1 (%)": int(round(n1_to)), "FF (pph, both)": int(round(ff_to))},
+            {"Phase": "Initial Climb",  "Target N1 (%)": int(round(n1_ic)), "FF (pph, both)": int(round(ff_ic))},
+            {"Phase": "Climb Segment",  "Target N1 (%)": int(round(n1_cl)), "FF (pph, both)": int(round(ff_cl))},
+        ]
+
+    if thrust_sel == "MILITARY":
+        data = rows(96, 14000, 95, 13000, 93, 12000)
+    elif thrust_sel == "AFTERBURNER":
+        data = rows(102, 38000, 98, 20000, 95, 15000)
+    elif thrust_sel == "DERATE (Manual)":
+        n1_to = max(85, min(100, derate_pct))
+        n1_ic = max(85, n1_to - 2)
+        n1_cl = max(85, n1_ic - 2)
+        # crude FF scaling vs MIL baseline (96% ~ 14000 pph both)
+        scale = (n1_to / 96.0)
+        data = rows(n1_to, 14000 * scale, n1_ic, 13000 * scale, n1_cl, 12000 * scale)
+    else:  # AUTO
+        data = rows(95, 13000, 94, 12500, 92, 11500)
+
+    return pd.DataFrame(data)
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -552,8 +583,13 @@ with col2:
     st.subheader("Configuration")
     st.metric("Flaps", flaps if 'flaps' in locals() else "—")
     st.metric("Thrust", thrust if 'thrust' in locals() else "—")
-    st.metric("N1 / FF", "— / —")   # placeholder
     st.metric("Stabilizer Trim", "+2.0 units")
+    st.metric("Expected Climb Gradient (AEO)", "350 ft/NM")  # placeholder
+
+    # NEW: N1/FF micro-table
+    st.caption("N1% / FF(pph) — mock guidance")
+    engine_df = build_engine_table(thrust if 'thrust' in locals() else "AUTO", int(derate if 'derate' in locals() else 95))
+    st.dataframe(engine_df, hide_index=True, use_container_width=True)
 
 with col3:
     st.subheader("Runway Distances (mock)")
@@ -626,7 +662,7 @@ with st.expander("6) Climb Profile", expanded=True):
 st.markdown("---")
 
 # =========================
-# Section 7 — Landing Setup (Dest 1 seeded; "Add Alternate" button)
+# Section 7 — Landing Setup (Dest 1 seeded; "Add Alternate" + "Remove Alternate")
 # =========================
 with st.expander("7) Landing Setup", expanded=True):
     def pick_destination(slot_idx: int, fixed_map: Optional[str] = None,
@@ -693,6 +729,7 @@ with st.expander("7) Landing Setup", expanded=True):
 
     # Manage alternates in session_state
     st.session_state.setdefault("alt_slots", [])
+    # Add button
     add_alt = st.button("➕ Add Alternate")
     if add_alt and len(st.session_state["alt_slots"]) < 3:
         # Generate next slot index (2..4)
@@ -700,13 +737,20 @@ with st.expander("7) Landing Setup", expanded=True):
         while next_slot in st.session_state["alt_slots"] or next_slot == 1:
             next_slot += 1
         st.session_state["alt_slots"].append(next_slot)
+        st.rerun()
 
     dests: List[Dict[str, Any]] = [dest1]
 
-    # Render each alternate (map fixed to departure)
+    # Render each alternate (map fixed to departure) with Remove buttons
     for slot in sorted(st.session_state["alt_slots"]):
         st.markdown(f"**Alternate {slot - 1}**")
-        dests.append(pick_destination(slot, fixed_map=dep_map, default_airport=None, default_end=None))
+        alt_cols = st.columns([6, 1])
+        with alt_cols[0]:
+            dests.append(pick_destination(slot, fixed_map=dep_map, default_airport=None, default_end=None))
+        with alt_cols[1]:
+            if st.button("Remove", key=f"rm_alt_{slot}"):
+                st.session_state["alt_slots"] = [s for s in st.session_state["alt_slots"] if s != slot]
+                st.rerun()
 
     cond = st.radio("Runway condition (applies to all candidates below)", ["DRY", "WET"], horizontal=True, key="ldg_cond")
     st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel is assumed EMPTY on landing.")
@@ -818,4 +862,4 @@ if 'show_debug' in locals() and show_debug:
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
 
-st.caption("UI-only v1.1.3-hotfix4. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
+st.caption("UI-only v1.1.3-hotfix6. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
