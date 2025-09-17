@@ -1,11 +1,12 @@
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.3-hotfix1 (2025-09-17)
+# Version: v1.1.3-hotfix2 (2025-09-17)
 #
-# Hotfix:
-# - Fix KeyError when 'lda_ft' is missing in dcs_airports.csv by robust fallbacks.
-# - LDA now falls back to length_ft, then TORA, then 0 with a user-facing hint.
+# Hotfix2:
+# - Guard all runway numeric pulls against NaN/None (elev/tora/lda/heading),
+#   preventing ValueError when casting to int/float.
+# - Same guards for manual overrides’ defaults.
 #
 # v1.1.3 summary (unchanged):
 # 1) Clear break before "DCS Expected Performance".
@@ -66,7 +67,7 @@ STORES_CATALOG: Dict[str, str] = {
     "LANTIRN": "PODS",
 }
 
-# Auto-quantity mapping used in Detailed W&B and Landing Scenario C
+# Auto-quantity mapping used in Detailed W&B
 AUTO_QTY_BY_STORE = {
     "—": 0,
     "AIM-9M": 1,
@@ -79,6 +80,43 @@ AUTO_QTY_BY_STORE = {
     "Drop Tank 267 gal": 1,
     "LANTIRN": 1,
 }
+
+# =========================
+# Robust numeric helpers
+# =========================
+def _s_int(val, default: int = 0) -> int:
+    try:
+        if val is None:
+            return default
+        if isinstance(val, (pd.Series,)):
+            val = val.max(skipna=True)
+        if pd.isna(val):
+            return default
+        return int(val)
+    except Exception:
+        try:
+            v = float(val)
+            return 0 if pd.isna(v) else int(v)
+        except Exception:
+            return default
+
+def _s_float(val, default: float = 0.0) -> float:
+    try:
+        if val is None:
+            return default
+        if isinstance(val, (pd.Series,)):
+            val = val.max(skipna=True)
+        v = pd.to_numeric(val, errors="coerce")
+        if pd.isna(v):
+            return default
+        return float(v)
+    except Exception:
+        return default
+
+def _series_max(df: pd.DataFrame, col: str):
+    if col in df.columns:
+        return pd.to_numeric(df[col], errors="coerce").max(skipna=True)
+    return None
 
 # =========================
 # Data loading (CSV only)
@@ -198,7 +236,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.3-hotfix1 (no performance math)")
+    st.caption("UI skeleton • v1.1.3-hotfix2 (no performance math)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -316,11 +354,21 @@ with st.expander("2) Runway", expanded=True):
         rwy_rows = sub
         ends = rwy_rows.get("runway_end", pd.Series(dtype=str)).dropna().astype(str).unique().tolist()
         rwy_end = st.selectbox("Runway End / Intersection", sorted(ends) if ends else ["Full Length"], key="rw_end")
-        tora_series = rwy_rows.loc[rwy_rows["runway_end"].astype(str) == str(rwy_end), "tora_ft"] if "runway_end" in rwy_rows.columns else pd.Series()
-        tora = int((tora_series.max() if not tora_series.empty else rwy_rows.get("length_ft", pd.Series([0.0])).max()) or 0)
-        elev = int((rwy_rows.get("threshold_elev_ft", pd.Series([0.0])).max()) or 0)
-        hdg = float((rwy_rows.get("heading_deg", pd.Series([0.0])).max()) or 0.0)
-        # Try LDA if present; otherwise filled later per destination
+
+        # TORA: prefer specific end; else length_ft; else 0
+        if "runway_end" in rwy_rows.columns:
+            mask = rwy_rows["runway_end"].astype(str) == str(rwy_end)
+            tora_candidate = _series_max(rwy_rows.loc[mask], "tora_ft")
+        else:
+            mask = None
+            tora_candidate = None
+        if tora_candidate is None or pd.isna(tora_candidate):
+            tora_candidate = _series_max(rwy_rows, "length_ft")
+        tora = _s_int(tora_candidate, 0)
+
+        elev = _s_int(_series_max(rwy_rows, "threshold_elev_ft"), 0)
+        hdg  = _s_float(_series_max(rwy_rows, "heading_deg"), 0.0)
+
         st.metric("Takeoff Run Available (ft)", f"{tora:,}")
         st.metric("Field Elevation (ft)", f"{elev:,}")
         st.metric("Runway Heading (°T)", f"{hdg:.0f}")
@@ -330,13 +378,13 @@ with st.expander("2) Runway", expanded=True):
         if st.session_state["rw_manual"]:
             mr_len = st.text_input("Runway length (ft or NM)", placeholder="8500 or 1.4 NM")
             len_ft, unit_label = detect_length_unit(mr_len)
-            st.caption(f"Detected: {unit_label or '—'} → {f'{int(len_ft):,} ft' if len_ft else ''}")
-            mr_elev = st.number_input("Elevation (ft)", value=elev or 0, step=50, min_value=0, format="%d")
-            mr_hdg = st.number_input("Heading (°T)", value=int(hdg or 0), step=1, min_value=0, max_value=359, format="%d")
-            mr_tora = st.number_input("TORA (ft)", value=int(len_ft or tora or 0), step=100, min_value=0, format="%d")
+            st.caption(f"Detected: {unit_label or '—'} → {f'{_s_int(len_ft):,} ft' if len_ft else ''}")
+            mr_elev = st.number_input("Elevation (ft)", value=_s_int(elev, 0), step=50, min_value=0, format="%d")
+            mr_hdg = st.number_input("Heading (°T)", value=_s_int(hdg, 0), step=1, min_value=0, max_value=359, format="%d")
+            mr_tora = st.number_input("TORA (ft)", value=_s_int(len_ft if len_ft else tora, 0), step=100, min_value=0, format="%d")
             if len_ft:
-                tora = int(len_ft)
-            elev, hdg = int(mr_elev), float(mr_hdg)
+                tora = _s_int(len_ft, tora)
+            elev, hdg = _s_int(mr_elev, 0), float(_s_int(mr_hdg, 0))
             st.info("Manual values override database for calculations.")
 
 # =========================
@@ -376,9 +424,9 @@ with st.expander("3) Environment", expanded=True):
             w = parse_wind(wind_text)
             st.caption(f"Detected: {w['unit']}")
         with c3:
-            field_temp = temp_at_elevation(temp_sl, int(locals().get("elev", 0)), ISA_LAPSE_C_PER_1000FT)
+            field_temp = temp_at_elevation(temp_sl, _s_int(locals().get("elev", 0)), ISA_LAPSE_C_PER_1000FT)
             st.metric("Estimated Temperature at Field (°C)", f"{field_temp:.1f}" if field_temp is not None else "—")
-            hw, xw = hw_xw_components(w.get("dir_deg"), w.get("spd_kts"), float(locals().get("hdg", 0.0)))
+            hw, xw = hw_xw_components(w.get("dir_deg"), w.get("spd_kts"), _s_float(locals().get("hdg", 0.0)))
             st.metric("Head/Tailwind Component (kt)", f"{hw:+.0f}" if hw is not None else "—")
             st.metric("Crosswind Component (kt)", f"{xw:.0f}" if xw is not None else "—")
 
@@ -414,7 +462,7 @@ with st.expander("4) Weight & Balance", expanded=True):
         else:
             fuel_percent = st.number_input("Total Fuel (%)", value=int(st.session_state.get("fuel_percent", 80)), min_value=0, max_value=100, step=1, format="%d", key="fuel_percent")
             computed_total = compute_total_fuel_lb(float(fuel_percent), ext_left_full, ext_right_full)
-            st.metric("Computed Total Fuel (lb)", f"{int(computed_total):,}" if computed_total is not None else "—")
+            st.metric("Computed Total Fuel (lb)", f"{_s_int(computed_total):,}" if computed_total is not None else "—")
             st.session_state["fuel_total_lb"] = computed_total
 
         # Import stubs
@@ -451,7 +499,7 @@ with st.expander("4) Weight & Balance", expanded=True):
 
                 auto_qty = AUTO_QTY_BY_STORE.get(st.session_state[store_key], 0)
                 st.number_input(f"Qty {sta}", value=int(auto_qty),
-                                 min_value=0, max_value=2, step=1, key=qty_key, disabled=True, format="%d")
+                                min_value=0, max_value=2, step=1, key=qty_key, disabled=True, format="%d")
 
                 st.checkbox("Remove pylon", value=bool(st.session_state.get(pylon_key, False)), key=pylon_key)
 
@@ -509,13 +557,13 @@ with col2:
 with col3:
     st.subheader("Runway Distances (mock)")
     st.metric("Required (RTO/TOR)", "8,200 ft")
-    st.metric("Available (TORA)", f"{int(locals().get('tora', 0)):,} ft")
+    st.metric("Available (TORA)", f"{_s_int(locals().get('tora', 0)):,} ft")
     st.metric("Accelerate-Stop", "8,600 ft")
     st.metric("Accelerate-Go", "9,100 ft")
 
 with col4:
     st.subheader("Dispatchability")
-    available = int(locals().get("tora", 0))
+    available = _s_int(locals().get("tora", 0))
     required = 8600  # limiter (mock)
     if available >= required:
         st.success("Dispatchable")
@@ -573,12 +621,8 @@ st.markdown("---")
 # Section 7 — Landing Setup (auto-seeds Dest 1 from departure; up to 4)
 # =========================
 with st.expander("7) Landing Setup", expanded=True):
-    def _series_or_empty(df: pd.DataFrame, col: str) -> pd.Series:
-        """Return column as series if present, else empty series."""
-        return df[col] if (col in df.columns) else pd.Series(dtype=float)
-
     def pick_destination(slot_idx: int, default_map: Optional[str], default_airport: Optional[str], default_end: Optional[str]) -> Dict[str, Any]:
-        """Render selectors for one destination slot and return info dict."""
+        """Render selectors for one destination slot and return info dict with safe fallbacks."""
         maps = sorted(airports["map"].dropna().unique().tolist())
         map_key = f"ldg_map_{slot_idx}"
         apt_key = f"ldg_airport_{slot_idx}"
@@ -597,32 +641,31 @@ with st.expander("7) Landing Setup", expanded=True):
         end_idx = ends.index(default_end) if (default_end in ends) else 0
         sel_end = st.selectbox(f"[{slot_idx}] Runway End", ends, index=end_idx, key=end_key)
 
-        # Masks and series with full guards
+        # Build mask if we have runway_end
         if "runway_end" in rows.columns:
             mask = rows["runway_end"].astype(str) == str(sel_end)
-            tora_series = rows.loc[mask, "tora_ft"] if "tora_ft" in rows.columns else pd.Series(dtype=float)
-            lda_series  = rows.loc[mask, "lda_ft"]  if "lda_ft"  in rows.columns else pd.Series(dtype=float)
+            rows_masked = rows.loc[mask]
         else:
-            mask = None
-            tora_series = pd.Series(dtype=float)
-            lda_series  = pd.Series(dtype=float)
+            rows_masked = rows
 
-        length_series = _series_or_empty(rows, "length_ft")
+        tora_candidate = _series_max(rows_masked, "tora_ft")
+        if tora_candidate is None or pd.isna(tora_candidate):
+            tora_candidate = _series_max(rows, "length_ft")
+        tora_ft = _s_int(tora_candidate, 0)
 
-        tora_ft = int((tora_series.max() if not tora_series.empty else (length_series.max() if not length_series.empty else 0)) or 0)
-        # Robust LDA fallback: lda_ft → length_ft → tora_ft → 0
-        if not lda_series.empty and pd.notna(lda_series.max()):
-            lda_ft = int(lda_series.max())
-        elif not length_series.empty and pd.notna(length_series.max()):
-            lda_ft = int(length_series.max())
-        else:
-            lda_ft = int(tora_ft)
+        lda_candidate = _series_max(rows_masked, "lda_ft")
+        if lda_candidate is None or pd.isna(lda_candidate):
+            lda_candidate = _series_max(rows, "length_ft")
+        if lda_candidate is None or pd.isna(lda_candidate):
+            lda_candidate = tora_ft
+        lda_ft = _s_int(lda_candidate, 0)
 
         m1, m2 = st.columns(2)
         m1.metric("Available Takeoff (TORA)", f"{tora_ft:,} ft")
         m2.metric("Available Landing (LDA)", f"{lda_ft:,} ft")
         if "lda_ft" not in rows.columns:
             st.caption("ℹ️ LDA not in database for this runway; using runway length (or TORA) as proxy.")
+
         return {"map": sel_map, "airport": sel_apt, "end": sel_end, "tora_ft": tora_ft, "lda_ft": lda_ft}
 
     num_dest = st.number_input("Number of landing candidates", min_value=1, max_value=4, value=1, step=1, format="%d")
@@ -660,7 +703,7 @@ UNFACTORED_LDR_B = 4200
 if 'dests' in locals():
     rows_out = []
     for i, d in enumerate(dests, start=1):
-        lda_ft = int(d.get("lda_ft", 0))
+        lda_ft = _s_int(d.get("lda_ft", 0), 0)
         base_unfactored = UNFACTORED_LDR_A  # placeholder choice
         f_ldr = factored_distance(base_unfactored, st.session_state.get("ldg_cond", "DRY"))
         mlw_est = int(min(60000, max(0, (60000 * (lda_ft / f_ldr)) if f_ldr > 0 else 0)))
@@ -693,7 +736,7 @@ st.metric("Required Landing Distance from 50 ft (unfactored)", f"{UNFACTORED_LDR
 if 'dests' in locals() and len(dests) > 0:
     cmp_df = pd.DataFrame({
         "Destination": [f"{i}: {d['airport']} ({d['map']})" for i, d in enumerate(dests, start=1)],
-        "Available LDA (ft)": [int(d.get("lda_ft", 0)) for d in dests],
+        "Available LDA (ft)": [_s_int(d.get("lda_ft", 0), 0) for d in dests],
         "Factored LDR A (ft)": [factored_distance(UNFACTORED_LDR_A, st.session_state.get("ldg_cond", "DRY")) for _ in dests],
         "Factored LDR B (ft)": [factored_distance(UNFACTORED_LDR_B, st.session_state.get("ldg_cond", "DRY")) for _ in dests],
     }).set_index("Destination")
@@ -754,4 +797,4 @@ if 'show_debug' in locals() and show_debug:
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
 
-st.caption("UI-only v1.1.3-hotfix1. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
+st.caption("UI-only v1.1.3-hotfix2. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
