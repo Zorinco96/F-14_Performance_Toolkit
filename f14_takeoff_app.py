@@ -1,22 +1,18 @@
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.3-hotfix3 (2025-09-17)
+# Version: v1.1.3-hotfix4 (2025-09-17)
 #
-# Hotfix3:
-# - Landing Setup: removed "number of candidates"; added optional
-#   "Select Alternate Airfields" (up to 3 alternates, total 4).
-# - Landing Results: for each destination, show Unfactored LDR,
-#   Factored LDR, LDA, and Calculated Max Landing Weight per runway.
+# Hotfix4:
+# - Landing Setup: slider removed; added "Add Alternate" button.
+#   Alternates inherit departure theatre (no map selector), up to 3.
+# - Climb Profile: "Climb Schedule" made prominent (styled callout at top).
 #
-# Prior hotfixes retained:
+# Prior changes retained (hotfix2/3):
 # - Robust NaN-safe runway pulls (tora/elev/hdg/lda).
 # - LDA fallbacks when column missing: lda_ft → length_ft → tora_ft → 0.
-#
-# v1.1.3 core summary (unchanged):
-# - Clear break before "DCS Expected Performance".
-# - Landing 1 auto-seeds from departure; alternates optional.
-# - Environment defaults to Manual; W&B Simple defaults & notes updated.
+# - Landing Results per-destination: Unfactored LDR, Factored LDR, LDA, Calc MLW.
+# - Environment defaults to Manual; W&B Simple defaults & notes updated; integer lb inputs.
 # ============================================================
 # 🚨 Bogged Down Protocol (BDP) 🚨
 # 1) STOP  2) REVERT to last good tag  3) RESET chat if needed  4) SCOPE small
@@ -241,7 +237,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.3-hotfix3 (no performance math)")
+    st.caption("UI skeleton • v1.1.3-hotfix4 (no performance math)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -585,9 +581,25 @@ p2.metric("Distance to Liftoff (35 ft)", "5,100 ft")
 st.divider()
 
 # =========================
-# Section 6 — Climb Profile
+# Section 6 — Climb Profile (Climb Schedule prominent)
 # =========================
 with st.expander("6) Climb Profile", expanded=True):
+    # Prominent schedule callout first
+    st.markdown(
+        """
+        <div style="border:1px solid rgba(255,255,255,0.15); padding:16px; border-radius:12px; background:rgba(255,255,255,0.03);">
+          <h3 style="margin-top:0">Climb Schedule (placeholder)</h3>
+          <ul style="line-height:1.6; font-size:1.05rem;">
+            <li><strong>1,000 ft AGL</strong>: RPM/FF — / —, Target: V2 + 15 kt</li>
+            <li><strong>Up to 10,000 ft</strong>: RPM/FF — / —, Target IAS — kt</li>
+            <li><strong>10k → Mach transition</strong>: RPM/FF — / —, Target IAS — kt</li>
+            <li><strong>Mach transition → Cruise</strong>: RPM/FF — / —, Target Mach —</li>
+          </ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     c1, c2, c3 = st.columns(3)
     with c1:
         cruise_alt = st.number_input("Cruise Altitude (MSL ft)", value=28000, step=1000, min_value=0, format="%d")
@@ -611,38 +623,36 @@ with st.expander("6) Climb Profile", expanded=True):
     }).set_index("Time_min")
     st.line_chart(climb_overlay)
 
-    st.markdown("**Climb schedule (placeholders)**")
-    s1, s2 = st.columns(2)
-    with s1:
-        st.write("• **1,000 ft AGL:** RPM/FF — / —, Target: V2 + 15 kt")
-        st.write("• **Up to 10,000 ft:** RPM/FF — / —, Target IAS — kt")
-    with s2:
-        st.write("• **10k → Mach transition:** RPM/FF — / —, Target IAS — kt")
-        st.write("• **Mach transition → Cruise:** RPM/FF — / —, Target Mach —")
-
 st.markdown("---")
 
 # =========================
-# Section 7 — Landing Setup (Dest 1 seeded; optional alternates)
+# Section 7 — Landing Setup (Dest 1 seeded; "Add Alternate" button)
 # =========================
 with st.expander("7) Landing Setup", expanded=True):
-    def pick_destination(slot_idx: int, default_map: Optional[str], default_airport: Optional[str], default_end: Optional[str]) -> Dict[str, Any]:
-        """Render selectors for one destination slot and return info dict with safe fallbacks."""
-        maps = sorted(airports["map"].dropna().unique().tolist())
-        map_key = f"ldg_map_{slot_idx}"
-        apt_key = f"ldg_airport_{slot_idx}"
-        end_key = f"ldg_end_{slot_idx}"
-
-        map_idx = maps.index(default_map) if (default_map in maps) else 0
-        sel_map = st.selectbox(f"[{slot_idx}] Map", maps, index=map_idx, key=map_key)
+    def pick_destination(slot_idx: int, fixed_map: Optional[str] = None,
+                         default_airport: Optional[str] = None, default_end: Optional[str] = None) -> Dict[str, Any]:
+        """Render selectors for one destination slot and return info dict with safe fallbacks.
+           If fixed_map is provided, theatre selection is hidden and that map is used.
+        """
+        # Map handling
+        if fixed_map:
+            sel_map = fixed_map
+            st.caption(f"[{slot_idx}] Theatre: **{sel_map}** (from departure)")
+        else:
+            maps = sorted(airports["map"].dropna().unique().tolist())
+            map_key = f"ldg_map_{slot_idx}"
+            map_idx = maps.index(default_airport) if (default_airport in maps) else 0  # (unused path kept for completeness)
+            sel_map = st.selectbox(f"[{slot_idx}] Map", maps, index=(maps.index(fixed_map) if (fixed_map in maps) else 0), key=map_key)
 
         sub = airports[airports["map"] == sel_map]
         apts = sorted(sub["airport_name"].dropna().unique().tolist())
+        apt_key = f"ldg_airport_{slot_idx}"
         apt_idx = apts.index(default_airport) if (default_airport in apts) else (0 if apts else 0)
         sel_apt = st.selectbox(f"[{slot_idx}] Airport", apts, index=apt_idx, key=apt_key)
 
         rows = sub[sub["airport_name"] == sel_apt]
         ends = sorted(rows.get("runway_end", pd.Series(dtype=str)).dropna().astype(str).unique().tolist()) or ["Full Length"]
+        end_key = f"ldg_end_{slot_idx}"
         end_idx = ends.index(default_end) if (default_end in ends) else 0
         sel_end = st.selectbox(f"[{slot_idx}] Runway End", ends, index=end_idx, key=end_key)
 
@@ -673,21 +683,30 @@ with st.expander("7) Landing Setup", expanded=True):
 
         return {"map": sel_map, "airport": sel_apt, "end": sel_end, "tora_ft": tora_ft, "lda_ft": lda_ft}
 
-    dests: List[Dict[str, Any]] = []
-
-    # Destination 1 seeded from departure selection in Section 2
+    # Destination 1 seeded from departure selection in Section 2 (user can still edit)
     dep_map = locals().get("map_sel")
     dep_airport = locals().get("apt")
     dep_end = locals().get("rwy_end")
-    st.markdown("**Destination 1 (seeded from departure selection)**")
-    dests.append(pick_destination(1, dep_map, dep_airport, dep_end))
 
-    # Optional alternates (up to 3 more → total 4)
-    with st.expander("Select Alternate Airfields (optional)", expanded=False):
-        alt_count = st.select_slider("How many alternates?", options=[0,1,2,3], value=0)
-        for slot in range(2, 2 + alt_count):
-            st.markdown(f"**Alternate {slot - 1}**")
-            dests.append(pick_destination(slot, None, None, None))
+    st.markdown("**Destination 1 (seeded from departure selection)**")
+    dest1 = pick_destination(1, fixed_map=None, default_airport=dep_airport, default_end=dep_end)
+
+    # Manage alternates in session_state
+    st.session_state.setdefault("alt_slots", [])
+    add_alt = st.button("➕ Add Alternate")
+    if add_alt and len(st.session_state["alt_slots"]) < 3:
+        # Generate next slot index (2..4)
+        next_slot = 2
+        while next_slot in st.session_state["alt_slots"] or next_slot == 1:
+            next_slot += 1
+        st.session_state["alt_slots"].append(next_slot)
+
+    dests: List[Dict[str, Any]] = [dest1]
+
+    # Render each alternate (map fixed to departure)
+    for slot in sorted(st.session_state["alt_slots"]):
+        st.markdown(f"**Alternate {slot - 1}**")
+        dests.append(pick_destination(slot, fixed_map=dep_map, default_airport=None, default_end=None))
 
     cond = st.radio("Runway condition (applies to all candidates below)", ["DRY", "WET"], horizontal=True, key="ldg_cond")
     st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel is assumed EMPTY on landing.")
@@ -695,7 +714,7 @@ with st.expander("7) Landing Setup", expanded=True):
 st.markdown("---")
 
 # =========================
-# Landing Results
+# (8) Landing Results
 # =========================
 st.header("Landing Results")
 
@@ -799,4 +818,4 @@ if 'show_debug' in locals() and show_debug:
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
 
-st.caption("UI-only v1.1.3-hotfix3. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
+st.caption("UI-only v1.1.3-hotfix4. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
