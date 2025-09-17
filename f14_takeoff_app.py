@@ -1,17 +1,22 @@
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.3-hotfix2 (2025-09-17)
+# Version: v1.1.3-hotfix3 (2025-09-17)
 #
-# Hotfix2:
-# - Guard all runway numeric pulls against NaN/None (elev/tora/lda/heading),
-#   preventing ValueError when casting to int/float.
-# - Same guards for manual overrides’ defaults.
+# Hotfix3:
+# - Landing Setup: removed "number of candidates"; added optional
+#   "Select Alternate Airfields" (up to 3 alternates, total 4).
+# - Landing Results: for each destination, show Unfactored LDR,
+#   Factored LDR, LDA, and Calculated Max Landing Weight per runway.
 #
-# v1.1.3 summary (unchanged):
-# 1) Clear break before "DCS Expected Performance".
-# 2) Landing Setup auto-seeds Destination 1 from departure; up to 4 candidates.
-# 3) Landing Results show Factored LDR, Available LDA, and Calc Max Landing Wt (placeholders).
+# Prior hotfixes retained:
+# - Robust NaN-safe runway pulls (tora/elev/hdg/lda).
+# - LDA fallbacks when column missing: lda_ft → length_ft → tora_ft → 0.
+#
+# v1.1.3 core summary (unchanged):
+# - Clear break before "DCS Expected Performance".
+# - Landing 1 auto-seeds from departure; alternates optional.
+# - Environment defaults to Manual; W&B Simple defaults & notes updated.
 # ============================================================
 # 🚨 Bogged Down Protocol (BDP) 🚨
 # 1) STOP  2) REVERT to last good tag  3) RESET chat if needed  4) SCOPE small
@@ -67,7 +72,7 @@ STORES_CATALOG: Dict[str, str] = {
     "LANTIRN": "PODS",
 }
 
-# Auto-quantity mapping used in Detailed W&B
+# Auto-quantity mapping used in Detailed W&B and Landing Scenario C
 AUTO_QTY_BY_STORE = {
     "—": 0,
     "AIM-9M": 1,
@@ -236,7 +241,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.3-hotfix2 (no performance math)")
+    st.caption("UI skeleton • v1.1.3-hotfix3 (no performance math)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -388,7 +393,7 @@ with st.expander("2) Runway", expanded=True):
             st.info("Manual values override database for calculations.")
 
 # =========================
-# Section 3 — Environment (paste parser + manual)
+# Section 3 — Environment (paste parser + manual) — defaults to Manual
 # =========================
 with st.expander("3) Environment", expanded=True):
     mode_env = st.radio("Input mode", ["Paste from DCS briefing", "Manual"], horizontal=True, index=1)
@@ -618,7 +623,7 @@ with st.expander("6) Climb Profile", expanded=True):
 st.markdown("---")
 
 # =========================
-# Section 7 — Landing Setup (auto-seeds Dest 1 from departure; up to 4)
+# Section 7 — Landing Setup (Dest 1 seeded; optional alternates)
 # =========================
 with st.expander("7) Landing Setup", expanded=True):
     def pick_destination(slot_idx: int, default_map: Optional[str], default_airport: Optional[str], default_end: Optional[str]) -> Dict[str, Any]:
@@ -668,8 +673,6 @@ with st.expander("7) Landing Setup", expanded=True):
 
         return {"map": sel_map, "airport": sel_apt, "end": sel_end, "tora_ft": tora_ft, "lda_ft": lda_ft}
 
-    num_dest = st.number_input("Number of landing candidates", min_value=1, max_value=4, value=1, step=1, format="%d")
-
     dests: List[Dict[str, Any]] = []
 
     # Destination 1 seeded from departure selection in Section 2
@@ -679,9 +682,12 @@ with st.expander("7) Landing Setup", expanded=True):
     st.markdown("**Destination 1 (seeded from departure selection)**")
     dests.append(pick_destination(1, dep_map, dep_airport, dep_end))
 
-    for slot in range(2, num_dest + 1):
-        st.markdown(f"**Destination {slot}**")
-        dests.append(pick_destination(slot, None, None, None))
+    # Optional alternates (up to 3 more → total 4)
+    with st.expander("Select Alternate Airfields (optional)", expanded=False):
+        alt_count = st.select_slider("How many alternates?", options=[0,1,2,3], value=0)
+        for slot in range(2, 2 + alt_count):
+            st.markdown(f"**Alternate {slot - 1}**")
+            dests.append(pick_destination(slot, None, None, None))
 
     cond = st.radio("Runway condition (applies to all candidates below)", ["DRY", "WET"], horizontal=True, key="ldg_cond")
     st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel is assumed EMPTY on landing.")
@@ -697,50 +703,46 @@ def factored_distance(unfactored_ft: int, condition: str) -> int:
     factor = 1.67 if condition == "DRY" else 1.92   # placeholder factors
     return int(round(unfactored_ft * factor))
 
-UNFACTORED_LDR_A = 4600
-UNFACTORED_LDR_B = 4200
+# Placeholder unfactored distances per scenario
+UNFACTORED = {
+    "A": 4600,  # Scenario A
+    "B": 4200,  # Scenario B
+}
 
-if 'dests' in locals():
-    rows_out = []
+if 'dests' in locals() and dests:
     for i, d in enumerate(dests, start=1):
+        st.subheader(f"Runway {i}: {d['airport']} ({d['map']}) — RWY {d['end']}")
         lda_ft = _s_int(d.get("lda_ft", 0), 0)
-        base_unfactored = UNFACTORED_LDR_A  # placeholder choice
-        f_ldr = factored_distance(base_unfactored, st.session_state.get("ldg_cond", "DRY"))
-        mlw_est = int(min(60000, max(0, (60000 * (lda_ft / f_ldr)) if f_ldr > 0 else 0)))
-        rows_out.append({
-            "Dest": f"{i}: {d['airport']} ({d['map']}) — RWY {d['end']}",
-            "Available LDA (ft)": lda_ft,
-            "Factored LDR (ft)": f_ldr,
-            "Calc Max Landing Wt (lb)": mlw_est,
-        })
-    st.dataframe(pd.DataFrame(rows_out))
 
-st.subheader("Scenario A — 3,000 lb fuel, stores retained")
-la1, la2, la3, la4, la5 = st.columns(5)
-la1.metric("Stall Speed (Vs)", "121 kt")
-la2.metric("Reference Speed (Vref)", "157 kt")
-la3.metric("Approach Speed (Vapp)", "165 kt")
-la4.metric("Go-Around Speed (Vac)", "167 kt")
-la5.metric("Final Segment Speed (Vfs)", "177 kt")
-st.metric("Required Landing Distance from 50 ft (unfactored)", f"{UNFACTORED_LDR_A:,} ft")
+        # Per-scenario blocks
+        for label, unfact in UNFACTORED.items():
+            fact = factored_distance(unfact, st.session_state.get("ldg_cond", "DRY"))
+            # crude placeholder MLW estimate scaled by LDA/factored (capped at 60k for now)
+            mlw_est = int(min(60000, max(0, (60000 * (lda_ft / fact)) if fact > 0 else 0)))
 
-st.subheader("Scenario B — 3,000 lb fuel, weapons expended (pods/tanks kept)")
-lb1, lb2, lb3, lb4, lb5 = st.columns(5)
-lb1.metric("Stall Speed (Vs)", "118 kt")
-lb2.metric("Reference Speed (Vref)", "153 kt")
-lb3.metric("Approach Speed (Vapp)", "161 kt")
-lb4.metric("Go-Around Speed (Vac)", "164 kt")
-lb5.metric("Final Segment Speed (Vfs)", "174 kt")
-st.metric("Required Landing Distance from 50 ft (unfactored)", f"{UNFACTORED_LDR_B:,} ft")
+            c1, c2, c3, c4 = st.columns([1,1,1,1])
+            with c1:
+                st.metric(f"Scenario {label} — Unfactored LDR", f"{unfact:,} ft")
+            with c2:
+                st.metric("Factored Landing Distance", f"{fact:,} ft")
+            with c3:
+                st.metric("Landing Distance Available (LDA)", f"{lda_ft:,} ft")
+            with c4:
+                st.metric("Calculated Max Landing Wt", f"{mlw_est:,} lb")
 
-if 'dests' in locals() and len(dests) > 0:
+        st.divider()
+
+    # Comparison chart/table
     cmp_df = pd.DataFrame({
         "Destination": [f"{i}: {d['airport']} ({d['map']})" for i, d in enumerate(dests, start=1)],
         "Available LDA (ft)": [_s_int(d.get("lda_ft", 0), 0) for d in dests],
-        "Factored LDR A (ft)": [factored_distance(UNFACTORED_LDR_A, st.session_state.get("ldg_cond", "DRY")) for _ in dests],
-        "Factored LDR B (ft)": [factored_distance(UNFACTORED_LDR_B, st.session_state.get("ldg_cond", "DRY")) for _ in dests],
+        "Factored LDR A (ft)": [factored_distance(UNFACTORED["A"], st.session_state.get("ldg_cond", "DRY")) for _ in dests],
+        "Factored LDR B (ft)": [factored_distance(UNFACTORED["B"], st.session_state.get("ldg_cond", "DRY")) for _ in dests],
     }).set_index("Destination")
     st.bar_chart(cmp_df[["Available LDA (ft)", "Factored LDR A (ft)"]])
+
+else:
+    st.info("Set at least one destination in the Landing Setup above to see landing results.")
 
 st.markdown("---")
 
@@ -797,4 +799,4 @@ if 'show_debug' in locals() and show_debug:
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
 
-st.caption("UI-only v1.1.3-hotfix2. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
+st.caption("UI-only v1.1.3-hotfix3. Next: wire f14_takeoff_core.py for W&B totals/CG/trim → takeoff → climb → landing.")
