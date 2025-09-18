@@ -1,10 +1,17 @@
 Config,WingSweep_deg,CLmax,CD0,k,Notes
-CLEAN,20,1.28,0.0175,0.042,Baseline clean polar across sweep
-CLEAN,25,1.2725,0.01785,0.0424,Baseline clean polar across sweep
-CLEAN,35,1.2575,0.01855,0.0432,Baseline clean polar across sweep
-CLEAN,45,1.2425,0.019250000000000003,0.044000000000000004,Baseline clean polar across sweep
-CLEAN,55,1.2275,0.019950000000000002,0.044800000000000006,Baseline clean polar across sweep
-CLEAN,68,1.208,0.02086,0.045840000000000006,Baseline clean polar across sweep
-TO_FLAPS,20,2.1,0.026,0.045,TO flaps/slats deployed
-LDG_FLAPS,20,2.6,0.032,0.046,Landing flaps/slats deployed
-GEAR_DOWN_DELTA,0,-0.05,0.01,0.0,"Additive: CLmax delta -0.05, CD0 +0.010"
+CLEAN,20,1.3,0.017,0.041,Clean polar vs sweep
+CLEAN,25,1.292,0.017400000000000002,0.04145,Clean polar vs sweep
+CLEAN,35,1.276,0.0182,0.04235,Clean polar vs sweep
+CLEAN,45,1.26,0.019000000000000003,0.043250000000000004,Clean polar vs sweep
+CLEAN,55,1.244,0.0198,0.04415,Clean polar vs sweep
+CLEAN,60,1.236,0.020200000000000003,0.0446,Clean polar vs sweep
+CLEAN,68,1.2232,0.02084,0.04532,Clean polar vs sweep
+TO_FLAPS,20,2.15,0.026,0.045,TO flaps/slats
+TO_PARTIAL,20,1.85,0.024,0.044,Partial flaps/slats
+LDG_FLAPS,20,2.65,0.033,0.046,LDG flaps/slats
+GEAR_DOWN_DELTA,0,-0.05,0.01,0.0,Additive delta
+STORE_DELTA_PylonPair,0,-0.02,0.002,0.0,One pylon pair fitted
+STORE_DELTA_2xSidewinders,0,-0.01,0.001,0.0,Two AIM-9
+STORE_DELTA_2xSparrows,0,-0.02,0.0018,0.0,Two AIM-7
+STORE_DELTA_2xPhoenix,0,-0.03,0.0035,0.0,Two AIM-54
+STORE_DELTA_FuelTank2x,0,-0.03,0.004,0.0,Two 267-gal tanks (empty for landing)
