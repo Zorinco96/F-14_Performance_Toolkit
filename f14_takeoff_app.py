@@ -28,6 +28,8 @@ from typing import Dict, Any, Optional, Tuple, List
 
 import pandas as pd
 import streamlit as st
+import f14_takeoff_core as core
+
 
 # =========================
 # Page + global settings
@@ -513,12 +515,54 @@ with st.expander("4) Weight & Balance", expanded=True):
                     st.session_state[f"qty_{sym}"] = AUTO_QTY_BY_STORE.get(st.session_state[store_key], 0)
                     st.session_state[f"pylon_{sym}"] = st.session_state[pylon_key]
 
-        st.markdown("### Totals (mock)")
-        t1, t2, t3 = st.columns(3)
-        t1.metric("Gross Weight (lb)", "70,500")
-        t2.metric("Center of Gravity (%MAC)", "23.5")
-        t3.metric("Stabilizer Trim (units)", "+2.0")
-        st.caption("Weights/CG/trim are placeholders until the performance core is wired.")
+        st.markdown("### Totals")
+
+# --- Build minimal inputs for the core ---
+# NOTE: In Simple mode we trust your typed GTOW. In Detailed mode,
+# we don’t have real store weights yet, so stations default to 0 lb (for now).
+# That’s OK for M1 — we’re proving the wiring.
+
+# External tanks FULL/EMPTY flags might not exist if you’re in Simple mode; default to False.
+ext_left_full  = bool(st.session_state.get("ext_left_full", False))
+ext_right_full = bool(st.session_state.get("ext_right_full", False))
+
+# Total fuel (lb): may be None if you haven’t used the Detailed fuel inputs yet.
+fuel_total_lb = float(st.session_state.get("fuel_total_lb") or 0)
+
+# Build a minimal stations dict (weights=0 for now; qty comes from UI so shape is correct)
+stations_dict = {}
+for sta in STATIONS:
+    stations_dict[sta] = {
+        "store_weight_lb": 0.0,                               # TODO (M2+): fill with real store weights
+        "pylon_weight_lb": 0.0,                               # TODO (M2+): add per-station pylon weight
+        "qty": int(st.session_state.get(f"qty_{sta}", 0) or 0)
+    }
+
+# If Simple mode is selected, gw_tow is defined above; otherwise leave None
+simple_gw = gw_tow if wb_mode.startswith("Simple") else None
+
+# Atmos: compute pressure altitude safely even if QNH is not set yet
+press_alt = core.pressure_altitude_ft(locals().get("elev", 0), locals().get("qnh_inhg", None))
+# Optional density ratio (not used in M1, handy later)
+sigma = core.density_ratio_sigma(press_alt, locals().get("field_temp", 15))
+
+# --- Call the core ---
+wb = core.build_loadout_totals(
+    stations=stations_dict,
+    fuel_lb=fuel_total_lb,
+    ext_tanks=(ext_left_full, ext_right_full),
+    mode_simple_gw=simple_gw
+)
+
+# --- Show results from the core ---
+t1, t2, t3 = st.columns(3)
+t1.metric("Gross Weight (lb)", f"{wb['gw_tow_lb']:.0f}")
+t2.metric("Center of Gravity (%MAC)", f"{wb['cg_percent_mac']:.1f}")
+t3.metric("Stabilizer Trim (units)", f"{wb['stab_trim_units']:+.1f}")
+
+# (Optional) quick debug line so you can see the pressure altitude is computed
+st.caption(f"PA: {int(press_alt):,} ft • Fuel TOW: {wb['fuel_tow_lb']:.0f} lb • Fuel LDG: {wb['fuel_ldg_lb']:.0f} lb")
+
 
 # =========================
 # Section 5 — Takeoff Configuration
