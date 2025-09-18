@@ -28,7 +28,21 @@ from typing import Dict, Any, Optional, Tuple, List
 
 import pandas as pd
 import streamlit as st
-import f14_takeoff_core as core
+# Robust import for Streamlit Cloud
+try:
+    import f14_takeoff_core as core
+except Exception:
+    import sys, os, importlib
+    # Ensure the app's folder (this file's directory) is on sys.path
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    core = importlib.import_module("f14_takeoff_core")
+
+# (Optional) show where Python loaded the core from for quick sanity-check
+try:
+    _core_path = getattr(core, "__file__", "?")
+except Exception:
+    _core_path = "?"
+
 
 
 # =========================
