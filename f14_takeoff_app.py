@@ -99,6 +99,51 @@ AUTO_QTY_BY_STORE = {
     "Drop Tank 267 gal": 1,
     "LANTIRN": 1,
 }
+# --- Stores → drag-deltas helper ---------------------------------------------
+def get_stores_drag_list() -> list[str]:
+    """
+    Reads session_state stations/quantities and external tank toggles,
+    then returns aero 'store deltas' understood by the performance model:
+      ["PylonPair", "2xSidewinders", "2xSparrows", "2xPhoenix", "FuelTank2x"]
+    These map to STORE_DELTA_* rows in f14_aero_expanded.csv.
+    """
+    totals = {"AIM-9M": 0, "AIM-7M": 0, "AIM-54C": 0, "Drop Tank 267 gal": 0}
+    pylon_pair = False
+
+    for sta in STATIONS:
+        store = st.session_state.get(f"store_{sta}", "—")
+        qty_default = AUTO_QTY_BY_STORE.get(store, 0)
+        try:
+            qty = int(st.session_state.get(f"qty_{sta}", qty_default))
+        except Exception:
+            qty = qty_default
+
+        if store in totals:
+            totals[store] += max(0, qty)
+
+        if bool(st.session_state.get(f"pylon_{sta}", False)):
+            pylon_pair = True
+
+    # External tanks behave like stores; count how many are FULL
+    if bool(st.session_state.get("ext_left_full", False)):
+        totals["Drop Tank 267 gal"] += 1
+    if bool(st.session_state.get("ext_right_full", False)):
+        totals["Drop Tank 267 gal"] += 1
+
+    deltas: list[str] = []
+    if pylon_pair: deltas.append("PylonPair")
+    if totals["AIM-9M"]   >= 2: deltas.append("2xSidewinders")
+    if totals["AIM-7M"]   >= 2: deltas.append("2xSparrows")
+    if totals["AIM-54C"]  >= 2: deltas.append("2xPhoenix")
+    if totals["Drop Tank 267 gal"] >= 2: deltas.append("FuelTank2x")
+
+    # unique, stable order
+    seen = set(); out = []
+    for d in deltas:
+        if d not in seen:
+            out.append(d); seen.add(d)
+    return out
+# ----------------------------------------------------------------------------- 
 
 # =========================
 # Robust numeric helpers
@@ -599,75 +644,113 @@ with st.expander("5) Takeoff Configuration", expanded=True):
 # =========================
 st.header("Takeoff Results")
 
-# --- helper to create mock engine table tied to thrust/derate ---
+# Keep your mock N1/FF guidance table for now (unchanged)
 def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
-    """
-    Returns a small N1/FF(pph/engine) table keyed by selected thrust and derate.
-    Placeholder logic (not real F-14B data):
-      - BASE profiles (approx): MIL ~96% / 7000 pph per engine; AB ~102% / 19000 pph per engine;
-        AUTO ~95% / 6500 pph per engine.
-      - DERATE uses derate_pct for TO/IC, then reduces for climb segments.
-    """
+    """ (unchanged helper) """
     def rows(n1_to, ff_to, n1_ic, ff_ic, n1_cl, ff_cl):
         return [
-            {"Phase": "Takeoff",        "Target N1 (%)": int(round(n1_to)), "FF (pph/engine)": int(round(ff_to))},
-            {"Phase": "Initial Climb",  "Target N1 (%)": int(round(n1_ic)), "FF (pph/engine)": int(round(ff_ic))},
-            {"Phase": "Climb Segment",  "Target N1 (%)": int(round(n1_cl)), "FF (pph/engine)": int(round(ff_cl))},
+            {"Phase": "Takeoff",       "Target N1 (%)": int(round(n1_to)), "FF (pph/engine)": int(round(ff_to))},
+            {"Phase": "Initial Climb", "Target N1 (%)": int(round(n1_ic)), "FF (pph/engine)": int(round(ff_ic))},
+            {"Phase": "Climb Segment", "Target N1 (%)": int(round(n1_cl)), "FF (pph/engine)": int(round(ff_cl))},
         ]
-
-    if thrust_sel == "MILITARY":
+    if thrust == "MILITARY":
         data = rows(96, 7000, 95, 6500, 93, 6000)
-    elif thrust_sel == "AFTERBURNER":
+    elif thrust == "AFTERBURNER":
         data = rows(102, 19000, 98, 10000, 95, 7500)
-    elif thrust_sel == "DERATE (Manual)":
-        n1_to = max(85, min(100, derate_pct))
-        n1_ic = max(85, n1_to - 2)
-        n1_cl = max(85, n1_ic - 2)
-        # crude FF scaling vs MIL baseline (96% ~ 7000 pph per engine)
+    elif thrust == "DERATE (Manual)":
+        n1_to = max(85, min(100, int(derate if 'derate' in locals() else 95)))
+        n1_ic = max(85, n1_to - 2); n1_cl = max(85, n1_ic - 2)
         scale = (n1_to / 96.0)
-        data = rows(n1_to, 7000 * scale, n1_ic, 6500 * scale, n1_cl, 6000 * scale)
-    else:  # AUTO
+        data = rows(n1_to, 7000*scale, n1_ic, 6500*scale, n1_cl, 6000*scale)
+    else:
         data = rows(95, 6500, 94, 6250, 92, 5750)
-
     return pd.DataFrame(data)
+
+# === NEW: physics-backed computation (uses your core wrappers) ===
+perf_takeoff = getattr(core, "perf_compute_takeoff", None)
+
+# Inputs pulled from prior sections / locals
+gw_lb         = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
+field_elev_ft = float(locals().get("elev", 0.0))
+oat_c         = float(locals().get("field_temp", 15.0))
+headwind_kts  = float(locals().get("hw", 0.0) or 0.0)
+runway_slope  = 0.0  # if you add slope later, wire it here (+uphill / -downhill)
+thrust_mode   = "MAX" if locals().get("thrust") == "AFTERBURNER" else "MIL"
+stores_list   = get_stores_drag_list()
+mode_flag     = "DCS"
+config_to     = "TO_FLAPS" if locals().get("flaps") in ("AUTO","FULL","MANEUVER") else "TO_FLAPS"  # keep TO flaps for now
+
+# Safe call
+t_res = None
+if callable(perf_takeoff):
+    try:
+        t_res = perf_takeoff(
+            gw_lb=gw_lb,
+            field_elev_ft=field_elev_ft,
+            oat_c=oat_c,
+            headwind_kts=headwind_kts,
+            runway_slope=runway_slope,
+            thrust_mode=thrust_mode,
+            mode=mode_flag,
+            config=config_to,
+            sweep_deg=20.0,
+            stores=stores_list,
+        )
+    except Exception as e:
+        st.warning(f"Perf engine error: {e}")
 
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.subheader("V-Speeds")
-    st.metric("V1", "145 kt")
-    st.metric("Vr", "150 kt")
-    st.metric("V2", "160 kt")
-    st.metric("Vfs", "180 kt")
+    if t_res:
+        st.metric("V1",   f"{t_res['VR_kts']:.1f}")  # using Vr for V1 proxy until accel-stop modeled
+        st.metric("Vr",   f"{t_res['VR_kts']:.1f}")
+        st.metric("V2",   f"{t_res['V2_kts']:.1f}")
+        st.metric("Vfs",  f"{max(t_res['V2_kts']*1.1, t_res['VLOF_kts']*1.15):.1f}")
+    else:
+        st.metric("V1", "—"); st.metric("Vr", "—"); st.metric("V2", "—"); st.metric("Vfs", "—")
 
 with col2:
     st.subheader("Configuration")
-    st.metric("Flaps", flaps if 'flaps' in locals() else "—")
-    st.metric("Thrust", thrust if 'thrust' in locals() else "—")
+    st.metric("Flaps", locals().get("flaps", "—"))
+    st.metric("Thrust", locals().get("thrust", "—"))
     st.metric("Stabilizer Trim", "+2.0 units")
-    st.caption("N1% / FF(pph/engine) — mock guidance")
-    engine_df = build_engine_table(thrust if 'thrust' in locals() else "AUTO", int(derate if 'derate' in locals() else 95))
+    st.caption("N1% / FF(pph/engine) — guidance (table)")
+    engine_df = build_engine_table(locals().get("thrust","AUTO"), int(locals().get("derate",95)))
     st.dataframe(engine_df, hide_index=True, use_container_width=True)
 
 with col3:
-    st.subheader("Runway Distances (mock)")
-    st.metric("Required (RTO/TOR)", "8,200 ft")
-    st.metric("Available (TORA)", f"{_s_int(locals().get('tora', 0)):,} ft")
-    st.metric("Accelerate-Stop", "8,600 ft")
-    st.metric("Accelerate-Go", "9,100 ft")
+    st.subheader("Runway Distances")
+    tora_ft = _s_int(locals().get("tora", 0))
+    if t_res:
+        st.metric("Ground roll (ft)", f"{t_res['GroundRoll_ft']:.0f}")
+        st.metric("Dist to 35 ft (ft)", f"{t_res['DistanceTo35ft_ft']:.0f}")
+        st.metric("Available (TORA)", f"{tora_ft:,} ft")
+        # Simple conservative limiter: require Dist to 35ft ≤ TORA
+        req = int(round(t_res["DistanceTo35ft_ft"]))
+        st.metric("Required (≤TORA)", f"{req:,} ft")
+    else:
+        st.metric("Ground roll (ft)", "—")
+        st.metric("Dist to 35 ft (ft)", "—")
+        st.metric("Available (TORA)", f"{tora_ft:,} ft")
+        st.metric("Required (≤TORA)", "—")
 
 with col4:
     st.subheader("Dispatchability")
-    available = _s_int(locals().get("tora", 0))
-    required = 8600  # limiter (mock)
-    if available >= required:
-        st.success("Dispatchable")
-        st.caption("Limiting: None (mock)")
+    if t_res:
+        req = int(round(t_res["DistanceTo35ft_ft"]))
+        available = _s_int(locals().get("tora", 0))
+        if available >= req:
+            st.success("Dispatchable")
+            st.caption("Limiting: None")
+        else:
+            st.error("NOT Dispatchable")
+            st.caption("Limiting: TORA vs Dist to 35 ft")
+        st.metric("Expected Climb Gradient (AEO)", "— ft/NM")  # (hook upcoming)
     else:
-        st.error("NOT Dispatchable")
-        st.caption("Limiting: Accelerate-Stop distance (mock)")
-    # Moved here: Expected Climb Gradient (AEO)
-    st.metric("Expected Climb Gradient (AEO)", "350 ft/NM")  # placeholder
+        st.info("Perf model not available.")
+        st.metric("Expected Climb Gradient (AEO)", "— ft/NM")
 
 st.divider()
 st.subheader("DCS Expected Performance (mock)")
@@ -721,13 +804,61 @@ with st.expander("6) Climb Profile", expanded=True):
     with c3:
         ignore_reg = st.checkbox("Ignore regulatory speed restrictions (≤250 KIAS <10k)")
 
-    r1, r2, r3, r4, r5, r6 = st.columns(6)
-    r1.metric("Time to 10,000 ft", "02:40")
-    r2.metric("Time to Cruise Altitude", "07:50")
-    r3.metric("Fuel to Top of Climb", "2,100 lb")
-    r4.metric("TOC Distance", "37 NM")
-    r5.metric("Time to TO + 100 NM", "09:45")   # placeholder
-    r6.metric("Fuel to TO + 100 NM", "2,650 lb")# placeholder
+# === NEW: physics-backed climb ===
+perf_climb = getattr(core, "perf_compute_climb", None)
+
+gw_lb = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
+alt0  = float(locals().get("elev", 0.0))
+alt1  = float(locals().get("cruise_alt", 28000))
+sched = "NAVY" if (locals().get("climb_profile","Most efficient climb").startswith("Most")) else "DISPATCH"
+
+cres_10k = cres_full = None
+if callable(perf_climb):
+    try:
+        cres_10k = perf_climb(
+            gw_lb=gw_lb, alt_start_ft=alt0, alt_end_ft=max(10000, alt0+1),
+            oat_dev_c=0.0, schedule=sched, mode="DCS", power="MIL",
+            sweep_deg=20.0, config="CLEAN",
+        )
+        cres_full = perf_climb(
+            gw_lb=gw_lb, alt_start_ft=alt0, alt_end_ft=alt1,
+            oat_dev_c=0.0, schedule=sched, mode="DCS", power="MIL",
+            sweep_deg=20.0, config="CLEAN",
+        )
+    except Exception as e:
+        st.warning(f"Climb model error: {e}")
+
+r1, r2, r3, r4, r5, r6 = st.columns(6)
+if cres_10k:
+    r1.metric("Time to 10,000 ft", f"{cres_10k['Time_s']/60.0:02.0f}:{cres_10k['Time_s']%60:02.0f}")
+else:
+    r1.metric("Time to 10,000 ft", "—:—")
+
+if cres_full:
+    r2.metric("Time to Cruise Altitude", f"{cres_full['Time_s']/60.0:02.0f}:{cres_full['Time_s']%60:02.0f}")
+    r3.metric("Fuel to Top of Climb", f"{cres_full['Fuel_lb']:.0f} lb")
+    r4.metric("TOC Distance", f"{cres_full['Distance_nm']:.1f} NM")
+else:
+    r2.metric("Time to Cruise Altitude", "—:—")
+    r3.metric("Fuel to Top of Climb", "—")
+    r4.metric("TOC Distance", "—")
+
+# Keep placeholders for +100 NM planning until cruise model is wired here
+r5.metric("Time to TO + 100 NM", "—:—")
+r6.metric("Fuel to TO + 100 NM", "—")
+
+# Optional overlay chart (simple linearized to show ascent)
+if cres_full:
+    # toy overlay from 0 → TOC based on avg ROC; keep your chart style
+    import numpy as np, pandas as pd
+    tmin = cres_full['Time_s']/60.0
+    xs = np.linspace(0.0, max(1.0,tmin), 6)
+    ys = np.linspace(alt0, alt1, 6)
+    climb_overlay = pd.DataFrame({"Time_min": xs, "Alt_ft": ys}).set_index("Time_min")
+    st.line_chart(climb_overlay)
+else:
+    st.caption("No climb overlay (perf model unavailable).")
+
 
     climb_overlay = pd.DataFrame({
         "Time_min": [0, 2, 4, 6, 8],
@@ -833,48 +964,53 @@ st.markdown("---")
 # =========================
 st.header("Landing Results")
 
+# === NEW: physics-backed landing ===
+perf_landing = getattr(core, "perf_compute_landing", None)
+
+# 14 CFR placeholder factors (keep your values)
 def factored_distance(unfactored_ft: int, condition: str) -> int:
-    factor = 1.67 if condition == "DRY" else 1.92   # placeholder factors
+    factor = 1.67 if condition == "DRY" else 1.92
     return int(round(unfactored_ft * factor))
 
-# Placeholder unfactored distances per scenario
-UNFACTORED = {
-    "A": 4600,  # Scenario A
-    "B": 4200,  # Scenario B
-}
-
 if 'dests' in locals() and dests:
+    # Planned landing weight from Simple mode or default
+    gw_ldg_plan = _s_int(locals().get("gw_ldg_plan", DEFAULT_LDW), DEFAULT_LDW)
+
     for i, d in enumerate(dests, start=1):
         st.subheader(f"Runway {i}: {d['airport']} ({d['map']}) — RWY {d['end']}")
         lda_ft = _s_int(d.get("lda_ft", 0), 0)
 
-        # Per-scenario blocks
-        for label, unfact in UNFACTORED.items():
-            fact = factored_distance(unfact, st.session_state.get("ldg_cond", "DRY"))
-            # crude placeholder MLW estimate scaled by LDA/factored (capped at 60k for now)
+        lres = None
+        if callable(perf_landing):
+            try:
+                lres = perf_landing(
+                    gw_lb=float(gw_ldg_plan),
+                    field_elev_ft=float(d.get("tora_ft", 0) * 0 + 0.0),  # unknown elev → assume 0; can wire airport elev later
+                    oat_c=float(locals().get("field_temp", 15.0)),
+                    headwind_kts=float(locals().get("hw", 0.0) or 0.0),
+                    mode="DCS",
+                    config="LDG_FLAPS",
+                    sweep_deg=20.0,
+                )
+            except Exception as e:
+                st.warning(f"Landing model error: {e}")
+
+        if lres:
+            unfact = int(round(lres["Total_ft"]))       # airborne + ground from model
+            fact  = factored_distance(unfact, st.session_state.get("ldg_cond", "DRY"))
+            # crude MLW check using available LDA vs factored distance
             mlw_est = int(min(60000, max(0, (60000 * (lda_ft / fact)) if fact > 0 else 0)))
 
             c1, c2, c3, c4 = st.columns([1,1,1,1])
-            with c1:
-                st.metric(f"Scenario {label} — Unfactored LDR", f"{unfact:,} ft")
-            with c2:
-                st.metric("Factored Landing Distance", f"{fact:,} ft")
-            with c3:
-                st.metric("Landing Distance Available (LDA)", f"{lda_ft:,} ft")
-            with c4:
-                st.metric("Calculated Max Landing Wt", f"{mlw_est:,} lb")
-
-        st.divider()
-
-    # Comparison chart/table
-    cmp_df = pd.DataFrame({
-        "Destination": [f"{i}: {d['airport']} ({d['map']})" for i, d in enumerate(dests, start=1)],
-        "Available LDA (ft)": [_s_int(d.get("lda_ft", 0), 0) for d in dests],
-        "Factored LDR A (ft)": [factored_distance(UNFACTORED["A"], st.session_state.get("ldg_cond", "DRY")) for _ in dests],
-        "Factored LDR B (ft)": [factored_distance(UNFACTORED["B"], st.session_state.get("ldg_cond", "DRY")) for _ in dests],
-    }).set_index("Destination")
-    st.bar_chart(cmp_df[["Available LDA (ft)", "Factored LDR A (ft)"]])
-
+            c1.metric("Vref (kt)", f"{lres['Vref_kts']:.1f}")
+            c2.metric("Unfactored Landing Distance", f"{unfact:,} ft")
+            c3.metric("Factored Landing Distance", f"{fact:,} ft")
+            c4.metric("LDA Available", f"{lda_ft:,} ft")
+            st.caption(f"Airborne: {lres['Airborne_ft']:.0f} ft • Ground Roll: {lres['GroundRoll_ft']:.0f} ft")
+            st.caption(f"Calc Max Landing Wt (simple proxy): {mlw_est:,} lb")
+            st.divider()
+        else:
+            st.info("Perf model not available for landing.")
 else:
     st.info("Set at least one destination in the Landing Setup above to see landing results.")
 
