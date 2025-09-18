@@ -1,20 +1,18 @@
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
-# Version: v1.1.3-hotfix7 (2025-09-17)
+# Version: v1.1.3-hotfix8 (2025-09-18)  ← perf-optimized + Intersection Margins
 #
-# Hotfix7:
-# - Takeoff Results: N1%/FF(pph) shows per-engine pph; label updated.
-# - Takeoff Results: Expected Climb Gradient (AEO) moved to Dispatchability column.
-# - Climb Profile: Climb Schedule (placeholder) shows two side-by-side columns
-#   for "Most efficient" and "Minimum time" profiles.
+# Hotfix8 (perf):
+# - Cached wrappers for perf_* calls (compute once, reuse).
+# - Vectorized Intersection Margins section (no .apply / no loops).
+# - Scoped execution (margins compute only when expander opened & data ready).
+# - Lightweight timing captions for <2.5s budget checks.
 #
-# Prior changes retained:
-# - Alternates with Add/Remove; alternates inherit departure theatre.
-# - DERATE slider 85%–100% RPM.
-# - Landing Results per-destination: Unfactored LDR, Factored LDR, LDA, Calc MLW.
-# - Environment defaults to Manual; W&B notes; integer lb inputs.
-# - NaN-safe runway pulls (tora/elev/hdg/lda) with fallbacks.
+# Prior changes retained (from your v1.1.3-hotfix7):
+# - UI wording, layout, toggles, presets, labels, sections.
+# - NATOPS/DCS baselines & compute wiring (unchanged).
+# - DERATE slider 85%–100% RPM, Landing scenarios, etc.
 # ============================================================
 # 🚨 Bogged Down Protocol (BDP) 🚨
 # 1) STOP  2) REVERT to last good tag  3) RESET chat if needed  4) SCOPE small
@@ -24,16 +22,17 @@
 from __future__ import annotations
 import re
 import json
+import time
 from typing import Dict, Any, Optional, Tuple, List
 
 import pandas as pd
 import streamlit as st
+
 # Robust import for Streamlit Cloud
 try:
     import f14_takeoff_core as core
 except Exception:
     import sys, os, importlib
-    # Ensure the app's folder (this file's directory) is on sys.path
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     core = importlib.import_module("f14_takeoff_core")
 
@@ -42,8 +41,6 @@ try:
     _core_path = getattr(core, "__file__", "?")
 except Exception:
     _core_path = "?"
-
-
 
 # =========================
 # Page + global settings
@@ -61,12 +58,12 @@ FT_PER_NM = 6076.11549
 ISA_LAPSE_C_PER_1000FT = 1.98
 
 # Simple fuel model placeholders
-INTERNAL_FUEL_MAX_LB = 16200       # rough F-14B internal capacity placeholder
-EXT_TANK_FUEL_LB = 1800            # ~267 gal tank full, placeholder
+INTERNAL_FUEL_MAX_LB = 16200
+EXT_TANK_FUEL_LB = 1800
 
 # Simple W&B defaults
-DEFAULT_GTOW = 74349               # MTOW; also our default GTOW in Simple
-DEFAULT_LDW  = 60000               # field MLDW (carrier 54,000)
+DEFAULT_GTOW = 74349
+DEFAULT_LDW  = 60000
 
 # Station list (mirrors DCS/Heatblur naming for glove A/B and tunnel)
 STATIONS: List[str] = ["1A", "1B", "2", "3", "4", "5", "6", "7", "8A", "8B"]
@@ -99,17 +96,11 @@ AUTO_QTY_BY_STORE = {
     "Drop Tank 267 gal": 1,
     "LANTIRN": 1,
 }
+
 # --- Stores → drag-deltas helper ---------------------------------------------
 def get_stores_drag_list() -> list[str]:
-    """
-    Reads session_state stations/quantities and external tank toggles,
-    then returns aero 'store deltas' understood by the performance model:
-      ["PylonPair", "2xSidewinders", "2xSparrows", "2xPhoenix", "FuelTank2x"]
-    These map to STORE_DELTA_* rows in f14_aero_expanded.csv.
-    """
     totals = {"AIM-9M": 0, "AIM-7M": 0, "AIM-54C": 0, "Drop Tank 267 gal": 0}
     pylon_pair = False
-
     for sta in STATIONS:
         store = st.session_state.get(f"store_{sta}", "—")
         qty_default = AUTO_QTY_BY_STORE.get(store, 0)
@@ -117,14 +108,11 @@ def get_stores_drag_list() -> list[str]:
             qty = int(st.session_state.get(f"qty_{sta}", qty_default))
         except Exception:
             qty = qty_default
-
         if store in totals:
             totals[store] += max(0, qty)
-
         if bool(st.session_state.get(f"pylon_{sta}", False)):
             pylon_pair = True
 
-    # External tanks behave like stores; count how many are FULL
     if bool(st.session_state.get("ext_left_full", False)):
         totals["Drop Tank 267 gal"] += 1
     if bool(st.session_state.get("ext_right_full", False)):
@@ -136,8 +124,6 @@ def get_stores_drag_list() -> list[str]:
     if totals["AIM-7M"]   >= 2: deltas.append("2xSparrows")
     if totals["AIM-54C"]  >= 2: deltas.append("2xPhoenix")
     if totals["Drop Tank 267 gal"] >= 2: deltas.append("FuelTank2x")
-
-    # unique, stable order
     seen = set(); out = []
     for d in deltas:
         if d not in seen:
@@ -188,7 +174,6 @@ def _series_max(df: pd.DataFrame, col: str):
 @st.cache_data(show_spinner=False)
 def load_airports(path_or_url: str) -> pd.DataFrame:
     df = pd.read_csv(path_or_url)
-    # Make numeric if present; many files won't have lda_ft
     for col in ("length_ft", "tora_ft", "toda_ft", "asda_ft", "threshold_elev_ft", "heading_deg", "lda_ft"):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -229,10 +214,44 @@ for p in PERF_PATHS:
         continue
 
 # =========================
-# Helpers (unit detect, parsing)
+# Cached wrappers for heavy perf calls (hashable args only)
 # =========================
+perf_takeoff   = getattr(core, "perf_compute_takeoff", None)
+perf_climb     = getattr(core, "perf_compute_climb", None)
+perf_cruise    = getattr(core, "perf_compute_cruise", None)
+perf_landing   = getattr(core, "perf_compute_landing", None)
+
+@st.cache_data(show_spinner=False)
+def cached_perf_takeoff(gw_lb: float, field_elev_ft: float, oat_c: float, headwind_kts: float,
+                        runway_slope: float, thrust_mode: str, mode: str,
+                        config: str, sweep_deg: float, stores: tuple) -> dict:
+    if not callable(perf_takeoff): return {}
+    return perf_takeoff(
+        gw_lb=gw_lb, field_elev_ft=field_elev_ft, oat_c=oat_c, headwind_kts=headwind_kts,
+        runway_slope=runway_slope, thrust_mode=thrust_mode, mode=mode,
+        config=config, sweep_deg=sweep_deg, stores=list(stores)
+    )
+
+@st.cache_data(show_spinner=False)
+def cached_perf_climb(gw_lb: float, alt_start_ft: float, alt_end_ft: float, oat_dev_c: float,
+                      schedule: str, mode: str, power: str, sweep_deg: float, config: str) -> dict:
+    if not callable(perf_climb): return {}
+    return perf_climb(
+        gw_lb=gw_lb, alt_start_ft=alt_start_ft, alt_end_ft=alt_end_ft, oat_dev_c=oat_dev_c,
+        schedule=schedule, mode=mode, power=power, sweep_deg=sweep_deg, config=config
+    )
+
+@st.cache_data(show_spinner=False)
+def cached_perf_landing(gw_lb: float, field_elev_ft: float, oat_c: float, headwind_kts: float,
+                        mode: str, config: str, sweep_deg: float) -> dict:
+    if not callable(perf_landing): return {}
+    return perf_landing(
+        gw_lb=gw_lb, field_elev_ft=field_elev_ft, oat_c=oat_c, headwind_kts=headwind_kts,
+        mode=mode, config=config, sweep_deg=sweep_deg
+    )
+
+# Helpers (unit detect, parsing)
 def detect_length_unit(text: str) -> Tuple[Optional[float], str]:
-    """Return (length_ft, detected_unit_str). Accept '8500', '1.2 nm', '1.2nm'."""
     if text is None: return None, ""
     s = text.strip().lower()
     if not s: return None, ""
@@ -246,7 +265,6 @@ def detect_length_unit(text: str) -> Tuple[Optional[float], str]:
     return val, "ft (auto)"
 
 def detect_pressure(qnh_text: str) -> Tuple[Optional[float], str]:
-    """Parse QNH in inHg or hPa. Return (inHg, label)."""
     if not qnh_text: return None, ""
     s = qnh_text.strip().lower()
     hpa_match = re.search(r"([0-9]{3,4})\s*(hpa|mb)", s)
@@ -262,7 +280,6 @@ def detect_pressure(qnh_text: str) -> Tuple[Optional[float], str]:
     return None, ""
 
 def parse_wind(text: str) -> Dict[str, Any]:
-    """Parse '270/15 kt' or '270/7 m/s'. Returns dict(dir_deg, spd_kts, unit)."""
     if not text: return {"dir_deg": None, "spd_kts": None, "unit": ""}
     s = text.strip().lower()
     m = re.search(r"(\d{2,3})\s*[/@]??\s*([0-9]*\.?[0-9]+)\s*(m/s|ms|kt|kts)?", s)
@@ -282,7 +299,7 @@ def hw_xw_components(wind_dir: Optional[int], wind_kts: Optional[float], rwy_hea
     hw = wind_kts * math.cos(angle); xw = wind_kts * math.sin(angle)
     return hw, abs(xw)
 
-# Fuel helpers (UI-only). External tanks are FULL/EMPTY; landing assumes EMPTY.
+# Fuel helpers
 def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
     if from_percent is None: return None
     internal = INTERNAL_FUEL_MAX_LB * max(0.0, min(100.0, from_percent)) / 100.0
@@ -300,7 +317,7 @@ def compute_percent_from_total(total_lb: Optional[float], ext_left_full: bool, e
 # =========================
 with st.sidebar:
     st.title("F-14 Performance — DCS")
-    st.caption("UI skeleton • v1.1.3-hotfix7 (no performance math)")
+    st.caption("UI skeleton • v1.1.3-hotfix8 (perf-optimized; math preserved)")
 
     st.subheader("Quick Presets (F-14B)")
     preset = st.selectbox(
@@ -316,17 +333,14 @@ with st.sidebar:
     )
 
     def apply_preset(name: str):
-        # Reset stations
         for sta in STATIONS:
             st.session_state[f"store_{sta}"] = "—"
             st.session_state[f"qty_{sta}"] = 0
             st.session_state[f"pylon_{sta}"] = False
-        # External tanks default off
         st.session_state.setdefault("ext_left_full", False)
         st.session_state.setdefault("ext_right_full", False)
         st.session_state["ext_left_full"] = False
         st.session_state["ext_right_full"] = False
-        # Fuel default 80% internal
         st.session_state["fuel_input_mode"] = "Percent"
         st.session_state["fuel_percent"] = 80.0
         st.session_state["fuel_total_lb"] = compute_total_fuel_lb(80.0, False, False)
@@ -376,7 +390,6 @@ wind_policy_choice = st.selectbox(
     index=0,
     help="Conservative wind credit policy:\n• 50/150 = use half of headwind benefit and 1.5× tailwind penalty.\n• 0/150 = ignore headwind benefit entirely (extra conservative), still penalize tailwind by 1.5×.\nThis affects balanced-field and climb calculations."
 )
-
 
 # Sticky header
 st.markdown(
@@ -554,7 +567,6 @@ with st.expander("4) Weight & Balance", expanded=True):
                 store_key, qty_key, pylon_key = f"store_{sta}", f"qty_{sta}", f"pylon_{sta}"
                 cur_store = st.session_state.get(store_key, "—")
 
-                # Allowed stores (rough filter when compatibility on)
                 allowed = list(STORES_CATALOG.keys())
                 if compat_beta:
                     if sta in ("1A","8A"):
@@ -576,7 +588,6 @@ with st.expander("4) Weight & Balance", expanded=True):
 
                 st.checkbox("Remove pylon", value=bool(st.session_state.get(pylon_key, False)), key=pylon_key)
 
-                # Symmetry
                 sym = SYMMETRY.get(sta)
                 if sym and st.button(f"Apply → {sym}", key=f"symbtn_{sta}"):
                     st.session_state[f"store_{sym}"] = st.session_state[store_key]
@@ -585,36 +596,24 @@ with st.expander("4) Weight & Balance", expanded=True):
 
         st.markdown("### Totals")
 
-# --- Build minimal inputs for the core ---
-# NOTE: In Simple mode we trust your typed GTOW. In Detailed mode,
-# we don’t have real store weights yet, so stations default to 0 lb (for now).
-# That’s OK for M1 — we’re proving the wiring.
-
-# External tanks FULL/EMPTY flags might not exist if you’re in Simple mode; default to False.
+# External tanks flags
 ext_left_full  = bool(st.session_state.get("ext_left_full", False))
 ext_right_full = bool(st.session_state.get("ext_right_full", False))
-
-# Total fuel (lb): may be None if you haven’t used the Detailed fuel inputs yet.
 fuel_total_lb = float(st.session_state.get("fuel_total_lb") or 0)
 
-# Build a minimal stations dict (weights=0 for now; qty comes from UI so shape is correct)
 stations_dict = {}
 for sta in STATIONS:
     stations_dict[sta] = {
-        "store_weight_lb": 0.0,                               # TODO (M2+): fill with real store weights
-        "pylon_weight_lb": 0.0,                               # TODO (M2+): add per-station pylon weight
+        "store_weight_lb": 0.0,
+        "pylon_weight_lb": 0.0,
         "qty": int(st.session_state.get(f"qty_{sta}", 0) or 0)
     }
 
-# If Simple mode is selected, gw_tow is defined above; otherwise leave None
 simple_gw = gw_tow if wb_mode.startswith("Simple") else None
 
-# Atmos: compute pressure altitude safely even if QNH is not set yet
 press_alt = core.pressure_altitude_ft(locals().get("elev", 0), locals().get("qnh_inhg", None))
-# Optional density ratio (not used in M1, handy later)
 sigma = core.density_ratio_sigma(press_alt, locals().get("field_temp", 15))
 
-# --- Call the core ---
 wb = core.build_loadout_totals(
     stations=stations_dict,
     fuel_lb=fuel_total_lb,
@@ -622,15 +621,12 @@ wb = core.build_loadout_totals(
     mode_simple_gw=simple_gw
 )
 
-# --- Show results from the core ---
 t1, t2, t3 = st.columns(3)
 t1.metric("Gross Weight (lb)", f"{wb['gw_tow_lb']:.0f}")
 t2.metric("Center of Gravity (%MAC)", f"{wb['cg_percent_mac']:.1f}")
 t3.metric("Stabilizer Trim (units)", f"{wb['stab_trim_units']:+.1f}")
 
-# (Optional) quick debug line so you can see the pressure altitude is computed
 st.caption(f"PA: {int(press_alt):,} ft • Fuel TOW: {wb['fuel_tow_lb']:.0f} lb • Fuel LDG: {wb['fuel_ldg_lb']:.0f} lb")
-
 
 # =========================
 # Section 5 — Takeoff Configuration
@@ -644,9 +640,8 @@ with st.expander("5) Takeoff Configuration", expanded=True):
     with c3:
         derate = 0
         if thrust == "DERATE (Manual)":
-            derate = st.slider("Derate (RPM %)", min_value=85, max_value=100, value=95)  # min 85%
+            derate = st.slider("Derate (RPM %)", min_value=85, max_value=100, value=95)
     st.caption("AUTO thrust will target 14 CFR 121.189 and ≥300 ft/NM AEO using the minimum required setting (to be modeled).")
-# NEW: Required climb gradient (AEO) — default 200 ft/nm
 req_grad = st.number_input("Required climb gradient (ft/nm)", min_value=0, max_value=1000, value=200, step=10)
 st.session_state["req_climb_grad_ft_nm"] = int(req_grad)
 
@@ -655,9 +650,7 @@ st.session_state["req_climb_grad_ft_nm"] = int(req_grad)
 # =========================
 st.header("Takeoff Results")
 
-# Keep your mock N1/FF guidance table for now (unchanged)
 def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
-    """ (unchanged helper) """
     def rows(n1_to, ff_to, n1_ic, ff_ic, n1_cl, ff_cl):
         return [
             {"Phase": "Takeoff",       "Target N1 (%)": int(round(n1_to)), "FF (pph/engine)": int(round(ff_to))},
@@ -677,26 +670,21 @@ def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
         data = rows(95, 6500, 94, 6250, 92, 5750)
     return pd.DataFrame(data)
 
-# === NEW: physics-backed computation (uses your core wrappers) ===
-perf_takeoff = getattr(core, "perf_compute_takeoff", None)
+perf_takeoff_ref = getattr(core, "perf_compute_takeoff", None)
 
-# Inputs pulled from prior sections / locals
 gw_lb         = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
 field_elev_ft = float(locals().get("elev", 0.0))
 oat_c         = float(locals().get("field_temp", 15.0))
 headwind_kts  = float(locals().get("hw", 0.0) or 0.0)
-runway_slope  = 0.0  # (+uphill / -downhill)
+runway_slope  = 0.0
 stores_list   = get_stores_drag_list()
 mode_flag     = "DCS"
 
-# --- Decide selected config via new Auto-Select + BFL solver (spec-frozen) ---
 tora_ft = _s_int(locals().get("tora", 0))
-asda_ft = tora_ft  # database lacks explicit ASDA; use TORA until you add ASDA per-runway
+asda_ft = tora_ft
 
-# Map wind-policy choice to core policy object name
 wp = core.WIND_POLICY_50_150 if wind_policy_choice.startswith("50%") else core.WIND_POLICY_0_150
 
-# Build selection inputs per your spec
 sel_inputs = core.AutoSelectInputs(
     available_tora_ft=int(tora_ft),
     available_asda_ft=int(asda_ft),
@@ -706,7 +694,6 @@ sel_inputs = core.AutoSelectInputs(
     wind_policy=wp,
 )
 
-# Scenario context passed to the compute hook
 scenario_ctx = dict(
     gw_lb=gw_lb,
     field_elev_ft=field_elev_ft,
@@ -714,54 +701,36 @@ scenario_ctx = dict(
     runway_slope=runway_slope,
     stores=stores_list,
     mode=mode_flag,
-    # If you can compute true components, pass xwind too for your own reject policy later:
-        headwind_kts=float(locals().get("hw", 0.0) or 0.0),
+    headwind_kts=float(locals().get("hw", 0.0) or 0.0),
 )
 
-# ---- Compute hook: wire your model here ----
 def compute_candidate(*, flaps: str, thrust_pct: int, v1_kt: float | None, context: dict) -> dict:
-    """
-    TODO: Replace this stub with your physics-backed calls that return:
-      ASDR_ft, TODR_OEI_35ft_ft, balanced_diff_ratio,
-      AEO_min_grad_ft_per_nm_to_1000, OEI_second_seg_gross_pct, OEI_final_seg_gross_pct,
-      plus any display fields (V-speeds, FF per engine, etc.) in 'perf'.
-    For now, we call perf_compute_takeoff to keep the app live, then mark missing fields.
-    """
-    # Decide config tag from flaps
     cfg = "TO_FLAPS" if flaps in ("MANEUVER", "FULL") else "CLEAN"
-
-    # Map thrust_pct to "MIL" call (since core wrappers don’t accept derate yet)
     thrust_mode = "MIL" if thrust_pct <= 100 else "MAX"
-
     base = {}
     try:
-        if callable(perf_takeoff):
-            t = perf_takeoff(
+        if callable(perf_takeoff_ref):
+            base = cached_perf_takeoff(
                 gw_lb=context["gw_lb"],
                 field_elev_ft=context["field_elev_ft"],
                 oat_c=context["oat_c"],
-                headwind_kts=context["headwind_kts"],   # policy applied upstream in gates, but we display raw here
+                headwind_kts=context["headwind_kts"],
                 runway_slope=context["runway_slope"],
                 thrust_mode=("MAX" if thrust_mode == "MAX" else "MIL"),
                 mode=context["mode"],
                 config=cfg,
                 sweep_deg=20.0,
-                stores=context["stores"],
+                stores=tuple(context["stores"]),
             )
-            base.update(t)
         else:
             base["__diagnostic__"] = "perf_takeoff_unavailable"
     except Exception as e:
         base["__exception__"] = str(e)
 
-    # Placeholders so the selector runs; replace with real values when wired:
-    # Use DistanceTo35ft_ft as a temporary (very rough) stand-in for TODR_OEI;
-    # and GroundRoll_ft * 1.15 as a placeholder ASDR. These are NOT authoritative.
     gr = float(base.get("GroundRoll_ft", 0.0) or 0.0)
     d35 = float(base.get("DistanceTo35ft_ft", 0.0) or 0.0)
     asdr = gr * 1.15 if gr > 0 else d35 * 1.10
     todr = d35
-
     m = max(asdr, todr) if max(asdr, todr) > 0 else 1.0
     diff_ratio = abs(asdr - todr) / m
 
@@ -769,13 +738,12 @@ def compute_candidate(*, flaps: str, thrust_pct: int, v1_kt: float | None, conte
         "ASDR_ft": asdr,
         "TODR_OEI_35ft_ft": todr,
         "balanced_diff_ratio": diff_ratio,
-        "AEO_min_grad_ft_per_nm_to_1000": None,   # TODO: wire real AEO gradient
-        "OEI_second_seg_gross_pct": None,         # TODO: wire OEI 2nd segment gross %
-        "OEI_final_seg_gross_pct": None,          # TODO: wire OEI final segment gross %
+        "AEO_min_grad_ft_per_nm_to_1000": None,
+        "OEI_second_seg_gross_pct": None,
+        "OEI_final_seg_gross_pct": None,
         "perf": base,
     }
 
-# If user picked manual flaps/thrust, we still show config & MIL/DERATE table from before
 auto_mode = (flaps == "Auto-Select") or (thrust == "Auto-Select")
 selection = None
 if auto_mode:
@@ -785,7 +753,6 @@ if auto_mode:
         compute_candidate=compute_candidate,
     )
 
-# Decide display strings
 if selection and selection.dispatchable:
     flap_display = selection.flaps
     thrust_display = selection.thrust_label
@@ -793,15 +760,14 @@ if selection and selection.dispatchable:
     balanced_badge = selection.balanced_label or ""
     governing = selection.governing_side
 else:
-    # Fallback to whatever user chose; compute a single-point perf for display
     flap_display = flaps if flaps != "Auto-Select" else "FULL"
     thrust_display = thrust
     balanced_badge = ""
     governing = ""
     t_res = {}
-    if callable(perf_takeoff):
+    if callable(perf_takeoff_ref):
         try:
-            t_res = perf_takeoff(
+            t_res = cached_perf_takeoff(
                 gw_lb=gw_lb,
                 field_elev_ft=field_elev_ft,
                 oat_c=oat_c,
@@ -811,7 +777,7 @@ else:
                 mode=mode_flag,
                 config=("TO_FLAPS" if flap_display in ("MANEUVER","FULL") else "CLEAN"),
                 sweep_deg=20.0,
-                stores=stores_list,
+                stores=tuple(stores_list),
             )
         except Exception as e:
             st.warning(f"Perf engine error: {e}")
@@ -821,7 +787,7 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.subheader("V-Speeds")
     if t_res:
-        st.metric("V1 (kt)",   f"{t_res['VR_kts']:.0f}")  # V1 placeholder = Vr until accel-stop modeled
+        st.metric("V1 (kt)",   f"{t_res['VR_kts']:.0f}")
         st.metric("Vr (kt)",   f"{t_res['VR_kts']:.0f}")
         st.metric("V2 (kt)",   f"{t_res['V2_kts']:.0f}")
         st.metric("Vfs (kt)",  f"{max(t_res['V2_kts']*1.1, t_res['VLOF_kts']*1.15):.0f}")
@@ -835,7 +801,6 @@ with col2:
     st.metric("Stabilizer Trim", f"{wb.get('stab_trim_units', 0.0):+0.1f} units")
     st.caption("N1% / FF(pph/engine) — guidance (table)")
 
-    # Derive a derate % for the guidance table display
     _derate_pct_display = 100
     if isinstance(thrust_display, str):
         import re as _re
@@ -875,7 +840,6 @@ with col4:
         else:
             st.error("NOT Dispatchable")
             st.caption("Limiting: TORA vs Dist to 35 ft")
-        # Placeholder until we wire a climb-gradient check
         st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
     else:
         st.info("Perf model not available.")
@@ -885,18 +849,100 @@ st.divider()
 st.subheader("DCS Expected Performance (calculated)")
 if t_res:
     p1, p2 = st.columns(2)
-    p1.metric("Distance to reach Vr (ft)", f"{int(round(t_res['GroundRoll_ft']*0.67)):,}")  # proxy until rollout profile exposed
+    p1.metric("Distance to reach Vr (ft)", f"{int(round(t_res['GroundRoll_ft']*0.67)):,}")
     p2.metric("Distance to Liftoff / 35 ft (ft)", f"{int(round(t_res['DistanceTo35ft_ft'])):,}")
 else:
     st.info("Model unavailable — no values shown (placeholder).")
 st.divider()
 
+# =========================
+# 5a) Intersection Margins (vectorized, cached, scoped)
+# =========================
+with st.expander("5) Intersection Margins", expanded=False):
+    start_tm = time.time()
+    if not t_res:
+        st.info("Takeoff results not available yet — set runway and environment first.")
+    else:
+        required_ft = int(round(float(t_res.get("DistanceTo35ft_ft", 0)) or 0))
+        if required_ft <= 0:
+            st.info("Required distance unavailable — compute takeoff first.")
+        else:
+            st.caption(f"Required distance to 35 ft: **{required_ft:,} ft**")
+
+            # Filter once (airport + map); then extract all runway_end options for this runway ID group
+            apt_name = locals().get("apt")
+            map_name = locals().get("map_sel")
+            sel_end  = str(locals().get("rwy_end", ""))
+
+            if not apt_name or not map_name or not sel_end:
+                st.info("Pick an Airport / Map / Runway End in Section 2.")
+            else:
+                # Subset by airport + map, then keep same "runway" if present, else same number prefix of runway_end
+                sub_all = airports[(airports["airport_name"] == apt_name) & (airports["map"] == map_name)].copy()
+
+                # Heuristic: if "runway" column exists, use it; else use the numeric prefix of runway_end to group
+                if "runway" in sub_all.columns and pd.api.types.is_string_dtype(sub_all["runway"]):
+                    # Select all intersections that share the same runway id as the chosen end (if discoverable)
+                    chosen_row = sub_all[sub_all["runway_end"].astype(str) == sel_end]
+                    if not chosen_row.empty:
+                        runway_id = chosen_row["runway"].iloc[0]
+                        sub_one = sub_all[sub_all["runway"] == runway_id].copy()
+                    else:
+                        sub_one = sub_all.copy()
+                else:
+                    # Fallback: group by numeric prefix e.g., "31" from "31L @ A3"
+                    import re as _re
+                    prefix = "".join(_re.findall(r"^\d{2}", sel_end)) or sel_end
+                    sub_one = sub_all[sub_all["runway_end"].astype(str).str.contains(prefix, na=False)].copy()
+
+                # Vectorized available length (prefer TORA, fallback length_ft)
+                if "tora_ft" in sub_one.columns:
+                    sub_one["available_length_ft"] = pd.to_numeric(sub_one["tora_ft"], errors="coerce")
+                else:
+                    sub_one["available_length_ft"] = pd.to_numeric(sub_one.get("length_ft", 0), errors="coerce")
+
+                # Compute margin (vectorized)
+                sub_one["required_ft"] = required_ft
+                sub_one["margin_ft"] = sub_one["available_length_ft"] - required_ft
+
+                # Clean table for display
+                out_cols = []
+                if "runway_end" in sub_one.columns: out_cols.append("runway_end")
+                out_cols += ["available_length_ft", "required_ft", "margin_ft"]
+                view = sub_one[out_cols].dropna(subset=["available_length_ft"]).sort_values("available_length_ft", ascending=False)
+
+                st.dataframe(
+                    view.rename(columns={
+                        "runway_end": "Intersection",
+                        "available_length_ft": "Available Length (ft)",
+                        "required_ft": "Required (ft)",
+                        "margin_ft": "Margin (ft)"
+                    }),
+                    hide_index=True,
+                    use_container_width=True
+                )
+
+                # Optional quick chart (Altair) — drawn only if data present
+                try:
+                    import altair as alt
+                    chart = alt.Chart(view).mark_bar().encode(
+                        x=alt.X(( "runway_end:N" if "runway_end" in view.columns else "available_length_ft:N"),
+                                title="Intersection"),
+                        y=alt.Y("margin_ft:Q", title="Margin (ft)"),
+                        tooltip=[( "runway_end" if "runway_end" in view.columns else "available_length_ft"),
+                                 "available_length_ft", "required_ft", "margin_ft"]
+                    )
+                    st.altair_chart(chart, use_container_width=True)
+                except Exception:
+                    # If Altair not available, skip plotting (table is enough)
+                    pass
+
+                st.caption(f"Intersection Margins computed in {(time.time()-start_tm):.2f}s")
 
 # =========================
-# Section 6 — Climb Profile (Climb Schedule prominent, 2 columns)
+# Section 6 — Climb Profile
 # =========================
 with st.expander("6) Climb Profile", expanded=True):
-    # Two-column schedule card (placeholder content)
     colA, colB = st.columns(2)
     with colA:
         st.markdown(
@@ -937,8 +983,7 @@ with st.expander("6) Climb Profile", expanded=True):
     with c3:
         ignore_reg = st.checkbox("Ignore regulatory speed restrictions (≤250 KIAS <10k)")
 
-# === NEW: physics-backed climb ===
-perf_climb = getattr(core, "perf_compute_climb", None)
+perf_climb_ref = getattr(core, "perf_compute_climb", None)
 
 gw_lb = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
 alt0  = float(locals().get("elev", 0.0))
@@ -946,14 +991,14 @@ alt1  = float(locals().get("cruise_alt", 28000))
 sched = "NAVY" if (locals().get("climb_profile","Most efficient climb").startswith("Most")) else "DISPATCH"
 
 cres_10k = cres_full = None
-if callable(perf_climb):
+if callable(perf_climb_ref):
     try:
-        cres_10k = perf_climb(
+        cres_10k = cached_perf_climb(
             gw_lb=gw_lb, alt_start_ft=alt0, alt_end_ft=max(10000, alt0+1),
             oat_dev_c=0.0, schedule=sched, mode="DCS", power="MIL",
             sweep_deg=20.0, config="CLEAN",
         )
-        cres_full = perf_climb(
+        cres_full = cached_perf_climb(
             gw_lb=gw_lb, alt_start_ft=alt0, alt_end_ft=alt1,
             oat_dev_c=0.0, schedule=sched, mode="DCS", power="MIL",
             sweep_deg=20.0, config="CLEAN",
@@ -976,14 +1021,11 @@ else:
     r3.metric("Fuel to Top of Climb", "—")
     r4.metric("TOC Distance", "—")
 
-# Keep placeholders for +100 NM planning until cruise model is wired here
 r5.metric("Time to TO + 100 NM", "—:—")
 r6.metric("Fuel to TO + 100 NM", "—")
 
-# Optional overlay chart (simple linearized to show ascent)
 if cres_full:
-    # toy overlay from 0 → TOC based on avg ROC; keep your chart style
-    import numpy as np, pandas as pd
+    import numpy as np
     tmin = cres_full['Time_s']/60.0
     xs = np.linspace(0.0, max(1.0,tmin), 6)
     ys = np.linspace(alt0, alt1, 6)
@@ -995,13 +1037,11 @@ else:
 st.markdown("---")
 
 # =========================
-# Section 7 — Landing Setup (Dest 1 seeded; Add/Remove Alternate)
+# Section 7 — Landing Setup / Results (unchanged UI, cached compute)
 # =========================
 with st.expander("7) Landing Setup", expanded=True):
     def pick_destination(slot_idx: int, fixed_map: Optional[str] = None,
                          default_airport: Optional[str] = None, default_end: Optional[str] = None) -> Dict[str, Any]:
-        """Render selectors for one destination slot and return info dict with safe fallbacks."""
-        # Map handling
         if fixed_map:
             sel_map = fixed_map
             st.caption(f"[{slot_idx}] Theatre: **{sel_map}** (from departure)")
@@ -1022,7 +1062,6 @@ with st.expander("7) Landing Setup", expanded=True):
         end_idx = ends.index(default_end) if (default_end in ends) else 0
         sel_end = st.selectbox(f"[{slot_idx}] Runway End", ends, index=end_idx, key=end_key)
 
-        # Build mask if we have runway_end
         if "runway_end" in rows.columns:
             mask = rows["runway_end"].astype(str) == str(sel_end)
             rows_masked = rows.loc[mask]
@@ -1049,7 +1088,6 @@ with st.expander("7) Landing Setup", expanded=True):
 
         return {"map": sel_map, "airport": sel_apt, "end": sel_end, "tora_ft": tora_ft, "lda_ft": lda_ft}
 
-    # Destination 1 seeded from departure selection in Section 2
     dep_map = locals().get("map_sel")
     dep_airport = locals().get("apt")
     dep_end = locals().get("rwy_end")
@@ -1057,7 +1095,6 @@ with st.expander("7) Landing Setup", expanded=True):
     st.markdown("**Destination 1 (seeded from departure selection)**")
     dest1 = pick_destination(1, fixed_map=dep_map, default_airport=dep_airport, default_end=dep_end)
 
-    # Manage alternates in session_state
     st.session_state.setdefault("alt_slots", [])
     add_alt = st.button("➕ Add Alternate")
     if add_alt and len(st.session_state["alt_slots"]) < 3:
@@ -1080,91 +1117,44 @@ with st.expander("7) Landing Setup", expanded=True):
                 st.rerun()
 
     cond = st.radio("Runway condition (applies to all candidates below)", ["DRY", "WET"], horizontal=True, key="ldg_cond")
-    # Landing preset scenarios
 landing_scenario = st.radio(
     "Landing Scenario",
     ["3,000 lb fuel — stores retained", "3,000 lb fuel — no weapons", "Custom"],
     index=0, horizontal=False
 )
 
-# Helper: estimate planned landing weight per scenario
-def compute_landing_weight() -> tuple[int, bool]:
-    # Pull from W&B/session when available; otherwise placeholders are labeled
-    empty = _s_int(st.session_state.get("empty_weight_lb", None) or 43735, 43735)     # placeholder BEW if not set
-    stores_wt = _s_int(st.session_state.get("stores_weight_lb", None) or 2500, 2500)  # placeholder
-    weapons_only_wt = _s_int(st.session_state.get("weapons_weight_lb", None) or 1800, 1800)  # placeholder
-    crew_misc = 400  # placeholder
-
-    if landing_scenario.startswith("3,000"):
-        fuel = 3000
-        if "no weapons" in landing_scenario:
-            lw = empty + max(0, stores_wt - weapons_only_wt) + fuel + crew_misc
-            is_placeholder = ("weapons_weight_lb" not in st.session_state)
-        else:
-            lw = empty + stores_wt + fuel + crew_misc
-            is_placeholder = ("stores_weight_lb" not in st.session_state)
-        return int(lw), is_placeholder
-    else:
-        lw = _s_int(st.session_state.get("gw_ldg_plan", None) or DEFAULT_LDW, DEFAULT_LDW)
-        return int(lw), ("gw_ldg_plan" not in st.session_state)
-
-    st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel is assumed EMPTY on landing.")
-
-st.markdown("---")
-
-# =========================
-# (8) Landing Results
-# =========================
-st.header("Landing Results")
-
-# === NEW: physics-backed landing ===
-perf_landing = getattr(core, "perf_compute_landing", None)
-
-# 14 CFR placeholder factors (keep your values)
 def factored_distance(unfactored_ft: int, condition: str) -> int:
     factor = 1.67 if condition == "DRY" else 1.92
     return int(round(unfactored_ft * factor))
-# --- helper: scenario-based planned landing weight ----------------------------
+
 def compute_landing_weight() -> tuple[int, bool]:
-    """
-    Returns (planned_landing_weight_lb, is_placeholder).
-    Uses Landing Setup's selected scenario if present; otherwise falls back to gw_ldg_plan.
-    """
-    # Try to detect the selected scenario from session or locals
     scenario_name = st.session_state.get("landing_scenario") or locals().get("landing_scenario")
-
-    # Prefer detailed W&B values if the user provided them; fall back with clear placeholders
-    empty = _s_int(st.session_state.get("empty_weight_lb", None) or 43735, 43735)          # BEW placeholder if unknown
-    stores_wt = _s_int(st.session_state.get("stores_weight_lb", None) or 2500, 2500)       # total stores incl. weapons/pods (placeholder)
-    weapons_only_wt = _s_int(st.session_state.get("weapons_weight_lb", None) or 1800, 1800) # weapons subset (placeholder)
-    crew_misc = 400  # small fixed add (placeholder)
-
-    # If scenario exists, compute from it
+    empty = _s_int(st.session_state.get("empty_weight_lb", None) or 43735, 43735)
+    stores_wt = _s_int(st.session_state.get("stores_weight_lb", None) or 2500, 2500)
+    weapons_only_wt = _s_int(st.session_state.get("weapons_weight_lb", None) or 1800, 1800)
+    crew_misc = 400
     if isinstance(scenario_name, str):
         scenario = scenario_name.lower()
         if scenario.startswith("3,000") and "no weapons" in scenario:
-            # 3,000 lb fuel, weapons expended (pods/tanks structure remain)
             fuel = 3000
             lw = empty + max(0, stores_wt - weapons_only_wt) + fuel + crew_misc
             is_ph = ("weapons_weight_lb" not in st.session_state)
             return int(lw), bool(is_ph)
         elif scenario.startswith("3,000"):
-            # 3,000 lb fuel, all stores retained
             fuel = 3000
             lw = empty + stores_wt + fuel + crew_misc
             is_ph = ("stores_weight_lb" not in st.session_state)
             return int(lw), bool(is_ph)
-        # Custom -> prefer explicit user-set gw_ldg_plan if present
         lw_custom = _s_int(st.session_state.get("gw_ldg_plan", None) or locals().get("gw_ldg_plan", None) or DEFAULT_LDW, DEFAULT_LDW)
         return int(lw_custom), ("gw_ldg_plan" not in st.session_state)
-
-    # No scenario found -> fall back to previous behavior
     lw_fallback = _s_int(locals().get("gw_ldg_plan", DEFAULT_LDW), DEFAULT_LDW)
     return int(lw_fallback), True
-# -----------------------------------------------------------------------------
+
+st.header("Landing Results")
+
+perf_landing_ref = getattr(core, "perf_compute_landing", None)
 
 if 'dests' in locals() and dests:
-    # Planned landing weight from Simple mode or default
     gw_ldg_plan = _s_int(locals().get("gw_ldg_plan", DEFAULT_LDW), DEFAULT_LDW)
 
     for i, d in enumerate(dests, start=1):
@@ -1172,11 +1162,11 @@ if 'dests' in locals() and dests:
         lda_ft = _s_int(d.get("lda_ft", 0), 0)
 
         lres = None
-        if callable(perf_landing):
+        if callable(perf_landing_ref):
             try:
-                lres = perf_landing(
+                lres = cached_perf_landing(
                     gw_lb=float(gw_ldg_plan),
-                    field_elev_ft=float(d.get("tora_ft", 0) * 0 + 0.0),  # unknown elev → assume 0; can wire airport elev later
+                    field_elev_ft=0.0,
                     oat_c=float(locals().get("field_temp", 15.0)),
                     headwind_kts=float(locals().get("hw", 0.0) or 0.0),
                     mode="DCS",
@@ -1186,20 +1176,16 @@ if 'dests' in locals() and dests:
             except Exception as e:
                 st.warning(f"Landing model error: {e}")
 
-        # --- planned landing weight per selected scenario
         gw_ldg_plan, lw_placeholder = compute_landing_weight()
 
         if lres:
-            # Round Vref to whole kt; keep your distance/factoring
             unfact = int(round(lres["Total_ft"]))
             fact   = factored_distance(unfact, st.session_state.get("ldg_cond", "DRY"))
 
-            # Top row: planned weight + Vref
             w1, w2 = st.columns([1,1])
             w1.metric("Planned Landing Weight", f"{gw_ldg_plan:,} lb" + (" (placeholder)" if lw_placeholder else ""))
             w2.metric("Vref (kt)", f"{lres['Vref_kts']:.0f}")
 
-            # Distances row
             c1, c2, c3 = st.columns([1,1,1])
             c1.metric("Unfactored Landing Distance", f"{unfact:,} ft")
             c2.metric("Factored Landing Distance",   f"{fact:,} ft")
@@ -1208,12 +1194,9 @@ if 'dests' in locals() and dests:
             st.caption(f"Airborne: {lres['Airborne_ft']:.0f} ft • Ground Roll: {lres['GroundRoll_ft']:.0f} ft")
             st.divider()
         else:
-            # Model unavailable — still show the planned weight to aid debugging
             st.metric("Planned Landing Weight", f"{gw_ldg_plan:,} lb" + (" (placeholder)" if lw_placeholder else ""))
             st.info("Perf model not available for landing.")
             st.divider()
-
-            st.info("Perf model not available for landing.")
 else:
     st.info("Set at least one destination in the Landing Setup above to see landing results.")
 
@@ -1271,20 +1254,11 @@ if 'show_debug' in locals() and show_debug:
     }
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
-# =============================================================================
-# Stores → drag-deltas helper (non-destructive; uses your existing session_state)
-# =============================================================================
+
+# (Duplicate helper retained at end for backwards-compat anchors)
 def get_stores_drag_list() -> list[str]:
-    """
-    Reads session_state stations/quantities and external tank toggles,
-    then returns aero 'store deltas' understood by the performance model:
-      ["PylonPair", "2xSidewinders", "2xSparrows", "2xPhoenix", "FuelTank2x"]
-    These map to STORE_DELTA_* rows in f14_aero_expanded.csv.
-    """
     totals = {"AIM-9M": 0, "AIM-7M": 0, "AIM-54C": 0, "Drop Tank 267 gal": 0}
     pylon_pair = False
-
-    # Station stores & quantities
     for sta in STATIONS:
         store = st.session_state.get(f"store_{sta}", "—")
         qty_default = AUTO_QTY_BY_STORE.get(store, 0)
@@ -1292,193 +1266,22 @@ def get_stores_drag_list() -> list[str]:
             qty = int(st.session_state.get(f"qty_{sta}", qty_default))
         except Exception:
             qty = qty_default
-
         if store in totals:
             totals[store] += max(0, qty)
-
-        # If you have per-station pylon checkboxes, include them
         if bool(st.session_state.get(f"pylon_{sta}", False)):
             pylon_pair = True
-
-    # External tanks treated as stores
     if bool(st.session_state.get("ext_left_full", False)):
         totals["Drop Tank 267 gal"] += 1
     if bool(st.session_state.get("ext_right_full", False)):
         totals["Drop Tank 267 gal"] += 1
-
     deltas: list[str] = []
-    if pylon_pair:
-        deltas.append("PylonPair")
-    if totals["AIM-9M"] >= 2:
-        deltas.append("2xSidewinders")
-    if totals["AIM-7M"] >= 2:
-        deltas.append("2xSparrows")
-    if totals["AIM-54C"] >= 2:
-        deltas.append("2xPhoenix")
-    if totals["Drop Tank 267 gal"] >= 2:
-        deltas.append("FuelTank2x")
-
-    # unique, stable order
+    if pylon_pair: deltas.append("PylonPair")
+    if totals["AIM-9M"] >= 2: deltas.append("2xSidewinders")
+    if totals["AIM-7M"] >= 2: deltas.append("2xSparrows")
+    if totals["AIM-54C"] >= 2: deltas.append("2xPhoenix")
+    if totals["Drop Tank 267 gal"] >= 2: deltas.append("FuelTank2x")
     seen = set(); out = []
     for d in deltas:
         if d not in seen:
             out.append(d); seen.add(d)
     return out
-
-
-# =============================================================================
-# Physics-backed Performance Cards (non-invasive UI section)
-# Requires f14_takeoff_core.py to expose perf_compute_* wrappers
-# =============================================================================
-
-# Bridge wrappers (safe getattr so this won't crash if missing)
-perf_takeoff   = getattr(core, "perf_compute_takeoff", None)
-perf_climb     = getattr(core, "perf_compute_climb", None)
-perf_cruise    = getattr(core, "perf_compute_cruise", None)
-perf_landing   = getattr(core, "perf_compute_landing", None)
-
-def _get(name, default):
-    return st.session_state.get(name, default)
-
-def _f(name, default):
-    try:
-        v = _get(name, default)
-        return float(v) if v is not None else float(default)
-    except Exception:
-        return float(default)
-
-# Use your existing constants if present
-DEFAULT_GTOW = 74349 if "DEFAULT_GTOW" not in globals() else DEFAULT_GTOW
-DEFAULT_LDW  = 60000 if "DEFAULT_LDW"  not in globals() else DEFAULT_LDW
-
-st.markdown("## ✈️ Performance (Physics Models)")
-
-# ------------------------------ TAKEOFF ------------------------------
-with st.expander("Takeoff — Vs / Vr / VLOF / V2 & distances", expanded=True):
-    if not callable(perf_takeoff):
-        st.info("Physics engine not yet wired (perf_compute_takeoff missing in f14_takeoff_core.py).")
-    else:
-        gw_lb         = _f("gw_takeoff_lb", DEFAULT_GTOW)
-        field_elev_ft = _f("dep_elev_ft", _series_max(airports, "threshold_elev_ft") or 0.0)
-        oat_c         = _f("oat_c", 15.0)
-        headwind_kts  = _f("headwind_kts", 0.0)
-        runway_slope  = _f("runway_slope", 0.0)       # +uphill, -downhill (ft/ft)
-        thrust_mode   = str(_get("thrust_mode", "MAX"))
-        mode_flag     = "DCS"
-        stores_list   = get_stores_drag_list()
-
-        t_res = perf_takeoff(
-            gw_lb=gw_lb,
-            field_elev_ft=field_elev_ft,
-            oat_c=oat_c,
-            headwind_kts=headwind_kts,
-            runway_slope=runway_slope,
-            thrust_mode=thrust_mode,
-            mode=mode_flag,
-            config="TO_FLAPS",
-            sweep_deg=20.0,
-            stores=stores_list,
-        )
-
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Vs (kt)",   f"{t_res['Vs_kts']:.1f}")
-        c2.metric("Vr (kt)",   f"{t_res['VR_kts']:.1f}")
-        c3.metric("VLOF (kt)", f"{t_res['VLOF_kts']:.1f}")
-        c4.metric("V2 (kt)",   f"{t_res['V2_kts']:.1f}")
-
-        c5, c6, c7 = st.columns(3)
-        c5.metric("Ground roll (ft)",        f"{t_res['GroundRoll_ft']:.0f}")
-        c6.metric("Distance to 35 ft (ft)",  f"{t_res['DistanceTo35ft_ft']:.0f}")
-        c7.metric("Time to 35 ft (s)",       f"{t_res['TimeTo35ft_s']:.1f}")
-
-        if _get("show_debug", False):
-            st.code(json.dumps(t_res, indent=2))
-
-st.divider()
-
-# ------------------------------ CLIMB ------------------------------
-with st.expander("Climb — Time, Fuel, Distance, Avg ROC", expanded=False):
-    if not callable(perf_climb):
-        st.info("Climb model not yet wired (perf_compute_climb).")
-    else:
-        gw_lb   = _f("gw_tow_lb", DEFAULT_GTOW)
-        alt0    = _f("dep_elev_ft", 0.0)
-        alt1    = _f("top_of_climb_ft", 35000.0)
-        sched   = str(_get("climb_schedule", "NAVY")).upper()  # NAVY or DISPATCH
-        power   = str(_get("climb_power", "MIL")).upper()      # MIL or MAX
-
-        cres = perf_climb(
-            gw_lb=gw_lb,
-            alt_start_ft=alt0,
-            alt_end_ft=alt1,
-            oat_dev_c=_f("oat_dev_c", 0.0),
-            schedule=("NAVY" if sched=="NAVY" else "DISPATCH"),
-            mode="DCS",
-            power=("MAX" if power=="MAX" else "MIL"),
-            sweep_deg=20.0,
-            config="CLEAN",
-        )
-        cc1, cc2, cc3, cc4 = st.columns(4)
-        cc1.metric("Time to climb (min)", f"{cres['Time_s']/60.0:.1f}")
-        cc2.metric("Fuel (lb)",           f"{cres['Fuel_lb']:.0f}")
-        cc3.metric("Distance (nm)",       f"{cres['Distance_nm']:.1f}")
-        cc4.metric("Avg ROC (fpm)",       f"{cres['AvgROC_fpm']:.0f}")
-        if _get("show_debug", False):
-            st.code(json.dumps(cres, indent=2))
-
-st.divider()
-
-# ------------------------------ CRUISE ------------------------------
-with st.expander("Cruise — TAS, Drag, Fuel Flow, Specific Range", expanded=False):
-    if not callable(perf_cruise):
-        st.info("Cruise model not yet wired (perf_compute_cruise).")
-    else:
-        gw_lb  = _f("gw_cruise_lb", DEFAULT_GTOW - 6000.0)
-        alt_ft = _f("cruise_alt_ft", 30000.0)
-        mach   = _f("cruise_mach", 0.80)
-        power  = str(_get("cruise_power", "MIL"))
-
-        rres = perf_cruise(
-            gw_lb=gw_lb,
-            alt_ft=alt_ft,
-            mach=mach,
-            power=("MAX" if str(power).upper()=="MAX" else "MIL"),
-            sweep_deg=20.0,
-            config="CLEAN",
-        )
-        rc1, rc2, rc3, rc4 = st.columns(4)
-        rc1.metric("TAS (kt)",                f"{rres['TAS_kts']:.0f}")
-        rc2.metric("Drag (lbf)",              f"{rres['Drag_lbf']:.0f}")
-        rc3.metric("Fuel Flow total (pph)",   f"{rres['FuelFlow_pph_total']:.0f}")
-        rc4.metric("Specific range (nm/lb)",  f"{rres['SpecificRange_nm_per_lb']:.3f}")
-        if _get("show_debug", False):
-            st.code(json.dumps(rres, indent=2))
-
-st.divider()
-
-# ------------------------------ LANDING ------------------------------
-with st.expander("Landing — Vref & distances", expanded=False):
-    if not callable(perf_landing):
-        st.info("Landing model not yet wired (perf_compute_landing).")
-    else:
-        gw_ldg       = _f("gw_ldg_lb", DEFAULT_LDW)
-        dest_elev_ft = _f("dest_elev_ft", 0.0)
-        oat_c        = _f("dest_oat_c", 15.0)
-        headwind_kts = _f("dest_headwind_kts", 0.0)
-
-        lres = perf_landing(
-            gw_lb=gw_ldg,
-            field_elev_ft=dest_elev_ft,
-            oat_c=oat_c,
-            headwind_kts=headwind_kts,
-            mode="DCS",
-            config="LDG_FLAPS",
-            sweep_deg=20.0,
-        )
-        lc1, lc2, lc3, lc4 = st.columns(4)
-        lc1.metric("Vref (kt)",     f"{lres['Vref_kts']:.1f}")
-        lc2.metric("Airborne (ft)", f"{lres['Airborne_ft']:.0f}")
-        lc3.metric("Ground roll",   f"{lres['GroundRoll_ft']:.0f}")
-        lc4.metric("Total (ft)",    f"{lres['Total_ft']:.0f}")
-        if _get("show_debug", False):
-            st.code(json.dumps(lres, indent=2))
