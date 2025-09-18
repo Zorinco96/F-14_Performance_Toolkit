@@ -1052,8 +1052,8 @@ if 'dests' in locals() and dests:
             c4.metric("LDA Available",           f"{lda_ft:,} ft")
 
         st.divider()
-    else:
-        st.info("Perf model not available for landing.")
+else:
+    st.info("Perf model not available for landing.")
 else:
     st.info("Set at least one destination in the Landing Setup above to see landing results.")
 
