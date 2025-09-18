@@ -394,7 +394,7 @@ def auto_select_flaps_thrust(
     # Helper to test one (flaps, pct) across BFL + climb gates
     def try_candidate(flaps: str, pct: int) -> tuple[bool, dict, float, str]:
         # Discrete V1 grid (you can refine once the model is wired)
-        v1_grid = list(range(80, 181, 2))  # 80..180 kt, 2-kt step
+        v1_grid = list(range(90, 171, 5))  # TEMP: 90..170 kt, 5-kt step for speed until physics are wired
         v1, r, govern, diff_ratio = _bfl_solve_minimax_v1(
             flaps=flaps, thrust_pct=pct, context=ctx, compute_candidate=compute_candidate, v1_grid=v1_grid
         )
