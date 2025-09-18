@@ -932,3 +932,214 @@ if 'show_debug' in locals() and show_debug:
     }
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
+# =============================================================================
+# Stores → drag-deltas helper (non-destructive; uses your existing session_state)
+# =============================================================================
+def get_stores_drag_list() -> list[str]:
+    """
+    Reads session_state stations/quantities and external tank toggles,
+    then returns aero 'store deltas' understood by the performance model:
+      ["PylonPair", "2xSidewinders", "2xSparrows", "2xPhoenix", "FuelTank2x"]
+    These map to STORE_DELTA_* rows in f14_aero_expanded.csv.
+    """
+    totals = {"AIM-9M": 0, "AIM-7M": 0, "AIM-54C": 0, "Drop Tank 267 gal": 0}
+    pylon_pair = False
+
+    # Station stores & quantities
+    for sta in STATIONS:
+        store = st.session_state.get(f"store_{sta}", "—")
+        qty_default = AUTO_QTY_BY_STORE.get(store, 0)
+        try:
+            qty = int(st.session_state.get(f"qty_{sta}", qty_default))
+        except Exception:
+            qty = qty_default
+
+        if store in totals:
+            totals[store] += max(0, qty)
+
+        # If you have per-station pylon checkboxes, include them
+        if bool(st.session_state.get(f"pylon_{sta}", False)):
+            pylon_pair = True
+
+    # External tanks treated as stores
+    if bool(st.session_state.get("ext_left_full", False)):
+        totals["Drop Tank 267 gal"] += 1
+    if bool(st.session_state.get("ext_right_full", False)):
+        totals["Drop Tank 267 gal"] += 1
+
+    deltas: list[str] = []
+    if pylon_pair:
+        deltas.append("PylonPair")
+    if totals["AIM-9M"] >= 2:
+        deltas.append("2xSidewinders")
+    if totals["AIM-7M"] >= 2:
+        deltas.append("2xSparrows")
+    if totals["AIM-54C"] >= 2:
+        deltas.append("2xPhoenix")
+    if totals["Drop Tank 267 gal"] >= 2:
+        deltas.append("FuelTank2x")
+
+    # unique, stable order
+    seen = set(); out = []
+    for d in deltas:
+        if d not in seen:
+            out.append(d); seen.add(d)
+    return out
+
+
+# =============================================================================
+# Physics-backed Performance Cards (non-invasive UI section)
+# Requires f14_takeoff_core.py to expose perf_compute_* wrappers
+# =============================================================================
+
+# Bridge wrappers (safe getattr so this won't crash if missing)
+perf_takeoff   = getattr(core, "perf_compute_takeoff", None)
+perf_climb     = getattr(core, "perf_compute_climb", None)
+perf_cruise    = getattr(core, "perf_compute_cruise", None)
+perf_landing   = getattr(core, "perf_compute_landing", None)
+
+def _get(name, default):
+    return st.session_state.get(name, default)
+
+def _f(name, default):
+    try:
+        v = _get(name, default)
+        return float(v) if v is not None else float(default)
+    except Exception:
+        return float(default)
+
+# Use your existing constants if present
+DEFAULT_GTOW = 74349 if "DEFAULT_GTOW" not in globals() else DEFAULT_GTOW
+DEFAULT_LDW  = 60000 if "DEFAULT_LDW"  not in globals() else DEFAULT_LDW
+
+st.markdown("## ✈️ Performance (Physics Models)")
+
+# ------------------------------ TAKEOFF ------------------------------
+with st.expander("Takeoff — Vs / Vr / VLOF / V2 & distances", expanded=True):
+    if not callable(perf_takeoff):
+        st.info("Physics engine not yet wired (perf_compute_takeoff missing in f14_takeoff_core.py).")
+    else:
+        gw_lb         = _f("gw_takeoff_lb", DEFAULT_GTOW)
+        field_elev_ft = _f("dep_elev_ft", _series_max(airports, "threshold_elev_ft") or 0.0)
+        oat_c         = _f("oat_c", 15.0)
+        headwind_kts  = _f("headwind_kts", 0.0)
+        runway_slope  = _f("runway_slope", 0.0)       # +uphill, -downhill (ft/ft)
+        thrust_mode   = str(_get("thrust_mode", "MAX"))
+        mode_flag     = "DCS"
+        stores_list   = get_stores_drag_list()
+
+        t_res = perf_takeoff(
+            gw_lb=gw_lb,
+            field_elev_ft=field_elev_ft,
+            oat_c=oat_c,
+            headwind_kts=headwind_kts,
+            runway_slope=runway_slope,
+            thrust_mode=thrust_mode,
+            mode=mode_flag,
+            config="TO_FLAPS",
+            sweep_deg=20.0,
+            stores=stores_list,
+        )
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Vs (kt)",   f"{t_res['Vs_kts']:.1f}")
+        c2.metric("Vr (kt)",   f"{t_res['VR_kts']:.1f}")
+        c3.metric("VLOF (kt)", f"{t_res['VLOF_kts']:.1f}")
+        c4.metric("V2 (kt)",   f"{t_res['V2_kts']:.1f}")
+
+        c5, c6, c7 = st.columns(3)
+        c5.metric("Ground roll (ft)",        f"{t_res['GroundRoll_ft']:.0f}")
+        c6.metric("Distance to 35 ft (ft)",  f"{t_res['DistanceTo35ft_ft']:.0f}")
+        c7.metric("Time to 35 ft (s)",       f"{t_res['TimeTo35ft_s']:.1f}")
+
+        if _get("show_debug", False):
+            st.code(json.dumps(t_res, indent=2))
+
+st.divider()
+
+# ------------------------------ CLIMB ------------------------------
+with st.expander("Climb — Time, Fuel, Distance, Avg ROC", expanded=False):
+    if not callable(perf_climb):
+        st.info("Climb model not yet wired (perf_compute_climb).")
+    else:
+        gw_lb   = _f("gw_tow_lb", DEFAULT_GTOW)
+        alt0    = _f("dep_elev_ft", 0.0)
+        alt1    = _f("top_of_climb_ft", 35000.0)
+        sched   = str(_get("climb_schedule", "NAVY")).upper()  # NAVY or DISPATCH
+        power   = str(_get("climb_power", "MIL")).upper()      # MIL or MAX
+
+        cres = perf_climb(
+            gw_lb=gw_lb,
+            alt_start_ft=alt0,
+            alt_end_ft=alt1,
+            oat_dev_c=_f("oat_dev_c", 0.0),
+            schedule=("NAVY" if sched=="NAVY" else "DISPATCH"),
+            mode="DCS",
+            power=("MAX" if power=="MAX" else "MIL"),
+            sweep_deg=20.0,
+            config="CLEAN",
+        )
+        cc1, cc2, cc3, cc4 = st.columns(4)
+        cc1.metric("Time to climb (min)", f"{cres['Time_s']/60.0:.1f}")
+        cc2.metric("Fuel (lb)",           f"{cres['Fuel_lb']:.0f}")
+        cc3.metric("Distance (nm)",       f"{cres['Distance_nm']:.1f}")
+        cc4.metric("Avg ROC (fpm)",       f"{cres['AvgROC_fpm']:.0f}")
+        if _get("show_debug", False):
+            st.code(json.dumps(cres, indent=2))
+
+st.divider()
+
+# ------------------------------ CRUISE ------------------------------
+with st.expander("Cruise — TAS, Drag, Fuel Flow, Specific Range", expanded=False):
+    if not callable(perf_cruise):
+        st.info("Cruise model not yet wired (perf_compute_cruise).")
+    else:
+        gw_lb  = _f("gw_cruise_lb", DEFAULT_GTOW - 6000.0)
+        alt_ft = _f("cruise_alt_ft", 30000.0)
+        mach   = _f("cruise_mach", 0.80)
+        power  = str(_get("cruise_power", "MIL"))
+
+        rres = perf_cruise(
+            gw_lb=gw_lb,
+            alt_ft=alt_ft,
+            mach=mach,
+            power=("MAX" if str(power).upper()=="MAX" else "MIL"),
+            sweep_deg=20.0,
+            config="CLEAN",
+        )
+        rc1, rc2, rc3, rc4 = st.columns(4)
+        rc1.metric("TAS (kt)",                f"{rres['TAS_kts']:.0f}")
+        rc2.metric("Drag (lbf)",              f"{rres['Drag_lbf']:.0f}")
+        rc3.metric("Fuel Flow total (pph)",   f"{rres['FuelFlow_pph_total']:.0f}")
+        rc4.metric("Specific range (nm/lb)",  f"{rres['SpecificRange_nm_per_lb']:.3f}")
+        if _get("show_debug", False):
+            st.code(json.dumps(rres, indent=2))
+
+st.divider()
+
+# ------------------------------ LANDING ------------------------------
+with st.expander("Landing — Vref & distances", expanded=False):
+    if not callable(perf_landing):
+        st.info("Landing model not yet wired (perf_compute_landing).")
+    else:
+        gw_ldg       = _f("gw_ldg_lb", DEFAULT_LDW)
+        dest_elev_ft = _f("dest_elev_ft", 0.0)
+        oat_c        = _f("dest_oat_c", 15.0)
+        headwind_kts = _f("dest_headwind_kts", 0.0)
+
+        lres = perf_landing(
+            gw_lb=gw_ldg,
+            field_elev_ft=dest_elev_ft,
+            oat_c=oat_c,
+            headwind_kts=headwind_kts,
+            mode="DCS",
+            config="LDG_FLAPS",
+            sweep_deg=20.0,
+        )
+        lc1, lc2, lc3, lc4 = st.columns(4)
+        lc1.metric("Vref (kt)",     f"{lres['Vref_kts']:.1f}")
+        lc2.metric("Airborne (ft)", f"{lres['Airborne_ft']:.0f}")
+        lc3.metric("Ground roll",   f"{lres['GroundRoll_ft']:.0f}")
+        lc4.metric("Total (ft)",    f"{lres['Total_ft']:.0f}")
+        if _get("show_debug", False):
+            st.code(json.dumps(lres, indent=2))
