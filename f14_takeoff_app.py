@@ -629,7 +629,7 @@ st.caption(f"PA: {int(press_alt):,} ft • Fuel TOW: {wb['fuel_tow_lb']:.0f} lb 
 with st.expander("5) Takeoff Configuration", expanded=True):
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        flaps = st.radio("Flaps", ["Atuo-Select", "UP", "MANEUVER", "FULL"], index=0, horizontal=False)
+        flaps = st.radio("Flaps", ["Auto-Select", "UP", "MANEUVER", "FULL"], index=0, horizontal=False)
     with c2:
         thrust = st.radio("Thrust", ["Auto-Select", "MILITARY", "AFTERBURNER", "DERATE (Manual)"], index=0, horizontal=False)
     with c3:
