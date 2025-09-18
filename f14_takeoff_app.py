@@ -715,7 +715,7 @@ scenario_ctx = dict(
     stores=stores_list,
     mode=mode_flag,
     # If you can compute true components, pass xwind too for your own reject policy later:
-    headwind_kts=headwind_kts,
+        headwind_kts=float(locals().get("hw", 0.0) or 0.0),
 )
 
 # ---- Compute hook: wire your model here ----
