@@ -689,46 +689,132 @@ runway_slope  = 0.0  # (+uphill / -downhill)
 stores_list   = get_stores_drag_list()
 mode_flag     = "DCS"
 
-# --- Decide selected config if user chose Auto-Select ---
-# Flaps: keep takeoff flaps; display as FULL when in auto for now
-flap_display = flaps if flaps != "Auto-Select" else "FULL"
-config_to = "TO_FLAPS"  # (refine to MANEUVER/UP later with NATOPS gates)
-
-# Thrust: if Auto-Select, try MIL first; if Dist to 35ft > TORA, switch to AB
+# --- Decide selected config via new Auto-Select + BFL solver (spec-frozen) ---
 tora_ft = _s_int(locals().get("tora", 0))
-sel_thrust_mode = thrust
-if thrust == "Auto-Select" and callable(perf_takeoff):
-    try:
-        t_mil = perf_takeoff(
-            gw_lb=gw_lb, field_elev_ft=field_elev_ft, oat_c=oat_c,
-            headwind_kts=headwind_kts, runway_slope=runway_slope,
-            thrust_mode="MIL", mode=mode_flag, config=config_to,
-            sweep_deg=20.0, stores=stores_list,
-        )
-        sel_thrust_mode = "MILITARY" if t_mil["DistanceTo35ft_ft"] <= max(0, tora_ft) else "AFTERBURNER"
-    except Exception:
-        sel_thrust_mode = "AFTERBURNER"
-elif thrust != "Auto-Select":
-    sel_thrust_mode = thrust
+asda_ft = tora_ft  # database lacks explicit ASDA; use TORA until you add ASDA per-runway
 
-# Primary computation using selected thrust
-t_res = None
-if callable(perf_takeoff):
+# Map wind-policy choice to core policy object name
+wp = core.WIND_POLICY_50_150 if wind_policy_choice.startswith("50%") else core.WIND_POLICY_0_150
+
+# Build selection inputs per your spec
+sel_inputs = core.AutoSelectInputs(
+    available_tora_ft=int(tora_ft),
+    available_asda_ft=int(asda_ft),
+    runway_heading_deg=float(locals().get("hdg", 0.0) or 0.0),
+    headwind_kts_raw=float(locals().get("hw", 0.0) or 0.0),
+    aeo_required_ft_per_nm=float(st.session_state.get("req_climb_grad_ft_nm", 200)),
+    wind_policy=wp,
+)
+
+# Scenario context passed to the compute hook
+scenario_ctx = dict(
+    gw_lb=gw_lb,
+    field_elev_ft=field_elev_ft,
+    oat_c=oat_c,
+    runway_slope=runway_slope,
+    stores=stores_list,
+    mode=mode_flag,
+    # If you can compute true components, pass xwind too for your own reject policy later:
+    headwind_kts=headwind_kts,
+)
+
+# ---- Compute hook: wire your model here ----
+def compute_candidate(*, flaps: str, thrust_pct: int, v1_kt: float | None, context: dict) -> dict:
+    """
+    TODO: Replace this stub with your physics-backed calls that return:
+      ASDR_ft, TODR_OEI_35ft_ft, balanced_diff_ratio,
+      AEO_min_grad_ft_per_nm_to_1000, OEI_second_seg_gross_pct, OEI_final_seg_gross_pct,
+      plus any display fields (V-speeds, FF per engine, etc.) in 'perf'.
+    For now, we call perf_compute_takeoff to keep the app live, then mark missing fields.
+    """
+    # Decide config tag from flaps
+    cfg = "TO_FLAPS" if flaps in ("MANEUVER", "FULL") else "CLEAN"
+
+    # Map thrust_pct to "MIL" call (since core wrappers don’t accept derate yet)
+    thrust_mode = "MIL" if thrust_pct <= 100 else "MAX"
+
+    base = {}
     try:
-        t_res = perf_takeoff(
-            gw_lb=gw_lb,
-            field_elev_ft=field_elev_ft,
-            oat_c=oat_c,
-            headwind_kts=headwind_kts,
-            runway_slope=runway_slope,
-            thrust_mode=("MAX" if sel_thrust_mode == "AFTERBURNER" else "MIL"),
-            mode=mode_flag,
-            config=config_to,
-            sweep_deg=20.0,
-            stores=stores_list,
-        )
+        if callable(perf_takeoff):
+            t = perf_takeoff(
+                gw_lb=context["gw_lb"],
+                field_elev_ft=context["field_elev_ft"],
+                oat_c=context["oat_c"],
+                headwind_kts=context["headwind_kts"],   # policy applied upstream in gates, but we display raw here
+                runway_slope=context["runway_slope"],
+                thrust_mode=("MAX" if thrust_mode == "MAX" else "MIL"),
+                mode=context["mode"],
+                config=cfg,
+                sweep_deg=20.0,
+                stores=context["stores"],
+            )
+            base.update(t)
+        else:
+            base["__diagnostic__"] = "perf_takeoff_unavailable"
     except Exception as e:
-        st.warning(f"Perf engine error: {e}")
+        base["__exception__"] = str(e)
+
+    # Placeholders so the selector runs; replace with real values when wired:
+    # Use DistanceTo35ft_ft as a temporary (very rough) stand-in for TODR_OEI;
+    # and GroundRoll_ft * 1.15 as a placeholder ASDR. These are NOT authoritative.
+    gr = float(base.get("GroundRoll_ft", 0.0) or 0.0)
+    d35 = float(base.get("DistanceTo35ft_ft", 0.0) or 0.0)
+    asdr = gr * 1.15 if gr > 0 else d35 * 1.10
+    todr = d35
+
+    m = max(asdr, todr) if max(asdr, todr) > 0 else 1.0
+    diff_ratio = abs(asdr - todr) / m
+
+    return {
+        "ASDR_ft": asdr,
+        "TODR_OEI_35ft_ft": todr,
+        "balanced_diff_ratio": diff_ratio,
+        "AEO_min_grad_ft_per_nm_to_1000": None,   # TODO: wire real AEO gradient
+        "OEI_second_seg_gross_pct": None,         # TODO: wire OEI 2nd segment gross %
+        "OEI_final_seg_gross_pct": None,          # TODO: wire OEI final segment gross %
+        "perf": base,
+    }
+
+# If user picked manual flaps/thrust, we still show config & MIL/DERATE table from before
+auto_mode = (flaps == "Auto-Select") or (thrust == "Auto-Select")
+selection = None
+if auto_mode:
+    selection = core.auto_select_flaps_thrust(
+        sel=sel_inputs,
+        scenario_context=scenario_ctx,
+        compute_candidate=compute_candidate,
+    )
+
+# Decide display strings
+if selection and selection.dispatchable:
+    flap_display = selection.flaps
+    thrust_display = selection.thrust_label
+    t_res = selection.perf or {}
+    balanced_badge = selection.balanced_label or ""
+    governing = selection.governing_side
+else:
+    # Fallback to whatever user chose; compute a single-point perf for display
+    flap_display = flaps if flaps != "Auto-Select" else "FULL"
+    thrust_display = thrust
+    balanced_badge = ""
+    governing = ""
+    t_res = {}
+    if callable(perf_takeoff):
+        try:
+            t_res = perf_takeoff(
+                gw_lb=gw_lb,
+                field_elev_ft=field_elev_ft,
+                oat_c=oat_c,
+                headwind_kts=headwind_kts,
+                runway_slope=runway_slope,
+                thrust_mode=("MAX" if thrust == "AFTERBURNER" else "MIL"),
+                mode=mode_flag,
+                config=("TO_FLAPS" if flap_display in ("MANEUVER","FULL") else "CLEAN"),
+                sweep_deg=20.0,
+                stores=stores_list,
+            )
+        except Exception as e:
+            st.warning(f"Perf engine error: {e}")
 
 col1, col2, col3, col4 = st.columns(4)
 
