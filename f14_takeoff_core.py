@@ -3,6 +3,116 @@ from __future__ import annotations
 
 from typing import Dict, Tuple, Optional
 import math
+# ============ BEGIN: physics bridge wrappers (safe add) ============
+
+# These wrappers call the small, calibrated modules we built:
+# takeoff_model, climb_model, cruise_model, landing_model + calibration loader.
+
+from data_loaders import load_calibration_csv
+from takeoff_model import takeoff_run
+from climb_model import climb_profile
+from cruise_model import cruise_point
+from landing_model import landing_performance
+
+def perf_compute_takeoff(
+    *,
+    gw_lb: float,
+    field_elev_ft: float,
+    oat_c: float,
+    headwind_kts: float,
+    runway_slope: float,
+    thrust_mode: str,             # "MIL" or "MAX"
+    mode: str = "DCS",            # "DCS" or "FAA"
+    config: str = "TO_FLAPS",     # "TO_FLAPS" or "CLEAN"
+    sweep_deg: float = 20.0,
+    stores: list[str] | None = None,
+) -> dict:
+    """Return dict with Vs/VR/VLOF/V2, ground roll, 35 ft, time."""
+    calib = load_calibration_csv("calibration.csv")
+    return takeoff_run(
+        weight_lbf=gw_lb,
+        alt_ft=field_elev_ft,
+        oat_c=oat_c,
+        headwind_kts=headwind_kts,
+        runway_slope=runway_slope,
+        config=config,
+        sweep_deg=sweep_deg,
+        power=("MAX" if thrust_mode.upper().startswith("AB") or thrust_mode.upper()=="MAX" else "MIL"),
+        mode=("DCS" if mode.upper()=="DCS" else "FAA"),
+        calib=calib,
+        stores=stores or [],
+        dt=0.05,
+    )
+
+def perf_compute_climb(
+    *,
+    gw_lb: float,
+    alt_start_ft: float,
+    alt_end_ft: float,
+    oat_dev_c: float = 0.0,
+    schedule: str = "NAVY",       # "NAVY" or "DISPATCH"
+    mode: str = "DCS",
+    power: str = "MIL",
+    sweep_deg: float = 20.0,
+    config: str = "CLEAN",
+) -> dict:
+    """Return dict with time, fuel, distance, avg ROC."""
+    return climb_profile(
+        weight_lbf=gw_lb,
+        alt_start_ft=alt_start_ft,
+        alt_end_ft=alt_end_ft,
+        oat_dev_c=oat_dev_c,
+        schedule=("NAVY" if schedule.upper()=="NAVY" else "DISPATCH"),
+        mode=("DCS" if mode.upper()=="DCS" else "FAA"),
+        power=("MAX" if power.upper()=="MAX" else "MIL"),
+        sweep_deg=sweep_deg,
+        config=config,
+        dt=1.0,
+    )
+
+def perf_compute_cruise(
+    *,
+    gw_lb: float,
+    alt_ft: float,
+    mach: float,
+    power: str = "MIL",
+    sweep_deg: float = 20.0,
+    config: str = "CLEAN",
+) -> dict:
+    """Return dict with drag, FF total, TAS, specific range."""
+    return cruise_point(
+        weight_lbf=gw_lb,
+        alt_ft=alt_ft,
+        mach=mach,
+        power=("MAX" if power.upper()=="MAX" else "MIL"),
+        sweep_deg=sweep_deg,
+        config=config,
+    )
+
+def perf_compute_landing(
+    *,
+    gw_lb: float,
+    field_elev_ft: float,
+    oat_c: float,
+    headwind_kts: float,
+    mode: str = "DCS",
+    config: str = "LDG_FLAPS",
+    sweep_deg: float = 20.0,
+) -> dict:
+    """Return dict with Vref, airborne, ground roll, total."""
+    calib = load_calibration_csv("calibration.csv")
+    return landing_performance(
+        weight_lbf=gw_lb,
+        alt_ft=field_elev_ft,
+        oat_c=oat_c,
+        headwind_kts=headwind_kts,
+        mode=("DCS" if mode.upper()=="DCS" else "FAA"),
+        calib=calib,
+        config=config,
+        sweep_deg=sweep_deg,
+    )
+
+# ============ END: physics bridge wrappers ============ 
 
 # -----------------------------
 # Constants (placeholder values)
