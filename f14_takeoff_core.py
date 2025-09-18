@@ -237,3 +237,235 @@ def build_loadout_totals(
         "cg_percent_mac": cg_percent_mac,
         "stab_trim_units": stab_trim_units,
     }
+# ======================================================================
+# Auto-Select & Balanced-Field (BFL) selection pipeline — v1.0 (spec-frozen)
+# ======================================================================
+
+from dataclasses import dataclass
+from typing import Any, Callable, List
+
+# ----------------------------
+# Policy: Wind credit settings
+# ----------------------------
+@dataclass(frozen=True)
+class WindPolicy:
+    use_headwind_fraction: float  # e.g., 0.5 for "50% headwind credit"
+    tailwind_multiplier: float    # e.g., 1.5 for "150% tailwind penalty"
+
+WIND_POLICY_50_150 = WindPolicy(0.5, 1.5)
+WIND_POLICY_0_150  = WindPolicy(0.0, 1.5)
+
+# ----------------------------
+# Inputs for auto-selection
+# ----------------------------
+@dataclass(frozen=True)
+class AutoSelectInputs:
+    available_tora_ft: int
+    available_asda_ft: int
+    runway_heading_deg: float
+    headwind_kts_raw: float           # prior to policy (e.g., component along rwy)
+    aeo_required_ft_per_nm: float = 200.0
+    wind_policy: WindPolicy = WIND_POLICY_50_150
+
+    # Derate caps by flap, 1% steps
+    up_min_pct: int = 85
+    man_min_pct: int = 90
+    full_min_pct: int = 98
+    pct_step: int = 1
+
+# ----------------------------
+# Result shape
+# ----------------------------
+@dataclass
+class AutoSelectResult:
+    dispatchable: bool
+    reason: str = ""
+    flaps: str = ""
+    thrust_label: str = ""         # "DERATE (xx%)" or "MILITARY (100% RPM)"
+    derate_pct: int | None = None  # None when MIL
+    balanced_label: str = ""       # "Balanced" or "Governing: ASDR/TODR"
+    governing_side: str = ""       # "ASDR" or "TODR" (when not balanced)
+    notes: List[str] = None
+    perf: dict = None              # pass-through from compute function
+
+# --------------------------------------------------------
+# Helper: apply conservative wind credit to headwind value
+# --------------------------------------------------------
+def _apply_wind_policy(headwind_kts_raw: float, pol: WindPolicy) -> float:
+    if headwind_kts_raw >= 0.0:
+        return headwind_kts_raw * pol.use_headwind_fraction
+    else:
+        return headwind_kts_raw * pol.tailwind_multiplier  # more negative
+
+# --------------------------------------------------------
+# Candidate compute callback contract (wire your model here)
+# --------------------------------------------------------
+"""
+You will provide `compute_candidate` to `auto_select_flaps_thrust`.
+Signature:
+
+compute_candidate(
+    *,
+    flaps: str,                 # "UP" | "MANEUVER" | "FULL"
+    thrust_pct: int,            # 85..99 for derate; 100 for MIL
+    v1_kt: float | None,        # for BFL sweep; pass None to let the model guess
+    context: dict               # scenario inputs
+) -> dict with keys:
+    - "ASDR_ft"               : accelerate-stop distance at that V1
+    - "TODR_OEI_35ft_ft"      : accelerate-go (OEI) distance to 35 ft at that V1
+    - "balanced_diff_ratio"   : abs(ASDR-TODR)/max(ASDR,TODR)  (for the 1% test)
+    - "AEO_min_grad_ft_per_nm_to_1000" : min AEO gradient to 1000 AFE at selected thrust
+    - "OEI_second_seg_gross_pct"       : second-segment gross gradient (%)
+    - "OEI_final_seg_gross_pct"        : final-segment gross gradient (%)
+    - (optional) any V-speeds/FF/etc for display; pass back in "perf"
+If you don't have these yet, return placeholders and mark as not computed.
+"""
+
+# --------------------------------------------------------
+# BFL V1-sweep (minimize max(ASDR, TODR_OEI)) over discrete grid
+# --------------------------------------------------------
+def _bfl_solve_minimax_v1(
+    *, flaps: str, thrust_pct: int, context: dict,
+    compute_candidate: Callable[..., dict],
+    v1_grid: List[float]
+) -> tuple[float, dict, str, float]:
+    """
+    Returns: (best_v1, best_result_dict, governing_side, diff_ratio)
+      - governing_side: "ASDR" or "TODR"
+      - diff_ratio: abs(ASDR-TODR)/max(ASDR,TODR)
+    """
+    best_v1 = None
+    best = None
+    best_govern = ""
+    best_max = float("inf")
+    best_diff_ratio = 1.0
+
+    for v1 in v1_grid:
+        r = compute_candidate(flaps=flaps, thrust_pct=thrust_pct, v1_kt=float(v1), context=context)
+        if ("ASDR_ft" not in r) or ("TODR_OEI_35ft_ft" not in r):
+            # model not wired → skip
+            continue
+        asdr = float(r["ASDR_ft"]); todr = float(r["TODR_OEI_35ft_ft"])
+        m = max(asdr, todr)
+        if m < best_max:
+            best_max = m
+            best_v1 = v1
+            best = r
+            best_govern = "ASDR" if asdr > todr else "TODR"
+            # recompute diff ratio for the "Balanced" badge
+            if m > 0:
+                best_diff_ratio = abs(asdr - todr) / m
+
+    return best_v1, best, best_govern, best_diff_ratio
+
+# --------------------------------------------------------
+# Main selector implementing your frozen spec
+# --------------------------------------------------------
+def auto_select_flaps_thrust(
+    *,
+    sel: AutoSelectInputs,
+    scenario_context: dict,
+    compute_candidate: Callable[..., dict],
+) -> AutoSelectResult:
+    """
+    Implements:
+      - Prefer derate over MIL
+      - Flap priority UP → MANEUVER → FULL
+      - Flap caps: UP ≥85, MAN ≥90, FULL ≥98; 1% steps
+      - Special tie-breaker: prefer MAN DERATE over UP MIL if both pass
+      - Afterburner: evaluated only to report "would pass (prohibited)" → ND
+      - Pass gates: BFL ≤ ASDA/TORA, AEO ≥ 200 ft/NM to 1000 AFE, OEI segments (gross; report net)
+      - Balanced label if within 1%
+    """
+    notes: List[str] = []
+
+    # Apply wind policy to the already-computed headwind component
+    hw_policy_kts = _apply_wind_policy(sel.headwind_kts_raw, sel.wind_policy)
+    ctx = dict(scenario_context)
+    ctx["headwind_kts_policy"] = hw_policy_kts
+
+    # Build the per-flap derate ranges (descending thrust from min→99, then 100 MIL last)
+    flap_bands = [
+        ("UP",       sel.up_min_pct,   99),
+        ("MANEUVER", sel.man_min_pct,  99),
+        ("FULL",     sel.full_min_pct, 99),
+    ]
+
+    # Helper to test one (flaps, pct) across BFL + climb gates
+    def try_candidate(flaps: str, pct: int) -> tuple[bool, dict, float, str]:
+        # Discrete V1 grid (you can refine once the model is wired)
+        v1_grid = list(range(80, 181, 2))  # 80..180 kt, 2-kt step
+        v1, r, govern, diff_ratio = _bfl_solve_minimax_v1(
+            flaps=flaps, thrust_pct=pct, context=ctx, compute_candidate=compute_candidate, v1_grid=v1_grid
+        )
+        if r is None:
+            return False, {"__diagnostic__": "model_not_wired"}, 1.0, "ASDR"
+        # Field-length gate: compare balanced minimal max(ASDR,TODR) to available limits
+        balanced_req_ft = max(float(r["ASDR_ft"]), float(r["TODR_OEI_35ft_ft"]))
+        r["balanced_v1_kt"] = v1
+        r["balanced_required_ft"] = balanced_req_ft
+        if balanced_req_ft > max(sel.available_asda_ft, sel.available_tora_ft):
+            return False, r, diff_ratio, govern
+
+        # AEO 200 ft/NM to 1000 ft AFE
+        aeo_min = r.get("AEO_min_grad_ft_per_nm_to_1000", None)
+        if aeo_min is None:
+            # Model not wired yet
+            return False, {**r, "__diagnostic__": "AEO_not_wired"}, diff_ratio, govern
+        if aeo_min < sel.aeo_required_ft_per_nm:
+            return False, r, diff_ratio, govern
+
+        # OEI segments (gross); you’ll also display net = gross − 0.8
+        seg2 = r.get("OEI_second_seg_gross_pct", None)
+        seg4 = r.get("OEI_final_seg_gross_pct", None)
+        if (seg2 is None) or (seg4 is None):
+            return False, {**r, "__diagnostic__": "OEI_not_wired"}, diff_ratio, govern
+        if (seg2 < 2.4) or (seg4 < 1.2):
+            return False, r, diff_ratio, govern
+
+        return True, r, diff_ratio, govern
+
+    # 1) DERATE search by flap band (lowest flap wins)
+    for flap_name, pmin, pmax in flap_bands:
+        for pct in range(pmin, pmax + 1, sel.pct_step):
+            ok, r, diff_ratio, govern = try_candidate(flap_name, pct)
+            if ok:
+                bal_label = "Balanced" if diff_ratio <= 0.01 else (f"Governing: {govern}")
+                return AutoSelectResult(
+                    dispatchable=True,
+                    flaps=flap_name,
+                    thrust_label=f"DERATE ({pct}%)",
+                    derate_pct=pct,
+                    balanced_label=bal_label,
+                    governing_side=("" if diff_ratio <= 0.01 else govern),
+                    notes=notes,
+                    perf=r
+                )
+
+    # 2) Special tie-breaker vs UP MIL:
+    # If UP-MIL would pass but a MAN/FULL derate could pass, we already would have returned above.
+    # Now check MIL across flaps (lowest flap that passes).
+    for flap_name in ["UP", "MANEUVER", "FULL"]:
+        ok, r, diff_ratio, govern = try_candidate(flap_name, 100)
+        if ok:
+            bal_label = "Balanced" if diff_ratio <= 0.01 else (f"Governing: {govern}")
+            return AutoSelectResult(
+                dispatchable=True,
+                flaps=flap_name,
+                thrust_label="MILITARY (100% RPM)",
+                derate_pct=None,
+                balanced_label=bal_label,
+                governing_side=("" if diff_ratio <= 0.01 else govern),
+                notes=notes,
+                perf=r
+            )
+
+    # 3) AB evaluated only to report prohibition (informational)
+    # Optional: if your model supports AB, you can compute here and attach a note.
+
+    return AutoSelectResult(
+        dispatchable=False,
+        reason="Not Dispatchable — Would pass with Afterburner (Prohibited)",
+        notes=notes or ["Auto-select evaluated: all DERATE and MIL options failed the BFL + AEO + OEI gates."],
+        perf={}
+    )
