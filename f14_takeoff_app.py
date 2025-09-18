@@ -636,7 +636,7 @@ with st.expander("5) Takeoff Configuration", expanded=True):
         derate = 0
         if thrust == "DERATE (Manual)":
             derate = st.slider("Derate (RPM %)", min_value=85, max_value=100, value=95)  # min 85%
-     with c4:
+    with c4:
         req_grad = st.number_input("Required climb gradient (ft/nm)", min_value=200, max_value=1000, value-200, step=10)
         st.session_state["req_climb_grad_ft_nm"] = req_grad 
 
