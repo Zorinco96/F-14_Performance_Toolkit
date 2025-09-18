@@ -1015,6 +1015,44 @@ perf_landing = getattr(core, "perf_compute_landing", None)
 def factored_distance(unfactored_ft: int, condition: str) -> int:
     factor = 1.67 if condition == "DRY" else 1.92
     return int(round(unfactored_ft * factor))
+# --- helper: scenario-based planned landing weight ----------------------------
+def compute_landing_weight() -> tuple[int, bool]:
+    """
+    Returns (planned_landing_weight_lb, is_placeholder).
+    Uses Landing Setup's selected scenario if present; otherwise falls back to gw_ldg_plan.
+    """
+    # Try to detect the selected scenario from session or locals
+    scenario_name = st.session_state.get("landing_scenario") or locals().get("landing_scenario")
+
+    # Prefer detailed W&B values if the user provided them; fall back with clear placeholders
+    empty = _s_int(st.session_state.get("empty_weight_lb", None) or 43735, 43735)          # BEW placeholder if unknown
+    stores_wt = _s_int(st.session_state.get("stores_weight_lb", None) or 2500, 2500)       # total stores incl. weapons/pods (placeholder)
+    weapons_only_wt = _s_int(st.session_state.get("weapons_weight_lb", None) or 1800, 1800) # weapons subset (placeholder)
+    crew_misc = 400  # small fixed add (placeholder)
+
+    # If scenario exists, compute from it
+    if isinstance(scenario_name, str):
+        scenario = scenario_name.lower()
+        if scenario.startswith("3,000") and "no weapons" in scenario:
+            # 3,000 lb fuel, weapons expended (pods/tanks structure remain)
+            fuel = 3000
+            lw = empty + max(0, stores_wt - weapons_only_wt) + fuel + crew_misc
+            is_ph = ("weapons_weight_lb" not in st.session_state)
+            return int(lw), bool(is_ph)
+        elif scenario.startswith("3,000"):
+            # 3,000 lb fuel, all stores retained
+            fuel = 3000
+            lw = empty + stores_wt + fuel + crew_misc
+            is_ph = ("stores_weight_lb" not in st.session_state)
+            return int(lw), bool(is_ph)
+        # Custom -> prefer explicit user-set gw_ldg_plan if present
+        lw_custom = _s_int(st.session_state.get("gw_ldg_plan", None) or locals().get("gw_ldg_plan", None) or DEFAULT_LDW, DEFAULT_LDW)
+        return int(lw_custom), ("gw_ldg_plan" not in st.session_state)
+
+    # No scenario found -> fall back to previous behavior
+    lw_fallback = _s_int(locals().get("gw_ldg_plan", DEFAULT_LDW), DEFAULT_LDW)
+    return int(lw_fallback), True
+# -----------------------------------------------------------------------------
 
 if 'dests' in locals() and dests:
     # Planned landing weight from Simple mode or default
@@ -1039,21 +1077,33 @@ if 'dests' in locals() and dests:
             except Exception as e:
                 st.warning(f"Landing model error: {e}")
 
-        if lres:
-            unfact = int(round(lres["Total_ft"]))       # airborne + ground from model
-            fact  = factored_distance(unfact, st.session_state.get("ldg_cond", "DRY"))
-            # crude MLW check using available LDA vs factored distance
-            mlw_est = int(min(60000, max(0, (60000 * (lda_ft / fact)) if fact > 0 else 0)))
+        # --- planned landing weight per selected scenario
+        gw_ldg_plan, lw_placeholder = compute_landing_weight()
 
-            c1, c2, c3, c4 = st.columns([1,1,1,1])
-            c1.metric("Vref (kt)", f"{lres['Vref_kts']:.1f}")
-            c2.metric("Unfactored Landing Distance", f"{unfact:,} ft")
-            c3.metric("Factored Landing Distance", f"{fact:,} ft")
-            c4.metric("LDA Available", f"{lda_ft:,} ft")
+        if lres:
+            # Round Vref to whole kt; keep your distance/factoring
+            unfact = int(round(lres["Total_ft"]))
+            fact   = factored_distance(unfact, st.session_state.get("ldg_cond", "DRY"))
+
+            # Top row: planned weight + Vref
+            w1, w2 = st.columns([1,1])
+            w1.metric("Planned Landing Weight", f"{gw_ldg_plan:,} lb" + (" (placeholder)" if lw_placeholder else ""))
+            w2.metric("Vref (kt)", f"{lres['Vref_kts']:.0f}")
+
+            # Distances row
+            c1, c2, c3 = st.columns([1,1,1])
+            c1.metric("Unfactored Landing Distance", f"{unfact:,} ft")
+            c2.metric("Factored Landing Distance",   f"{fact:,} ft")
+            c3.metric("LDA Available",               f"{lda_ft:,} ft")
+
             st.caption(f"Airborne: {lres['Airborne_ft']:.0f} ft • Ground Roll: {lres['GroundRoll_ft']:.0f} ft")
-            st.caption(f"Calc Max Landing Wt (simple proxy): {mlw_est:,} lb")
             st.divider()
         else:
+            # Model unavailable — still show the planned weight to aid debugging
+            st.metric("Planned Landing Weight", f"{gw_ldg_plan:,} lb" + (" (placeholder)" if lw_placeholder else ""))
+            st.info("Perf model not available for landing.")
+            st.divider()
+
             st.info("Perf model not available for landing.")
 else:
     st.info("Set at least one destination in the Landing Setup above to see landing results.")
