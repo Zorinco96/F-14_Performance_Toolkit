@@ -13,6 +13,12 @@ from takeoff_model import takeoff_run
 from climb_model import climb_profile
 from cruise_model import cruise_point
 from landing_model import landing_performance
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def get_calib():
+    """LRU-cached calibration to avoid repeated CSV reads during V1 sweeps."""
+    return load_calibration_csv("calibration.csv")
 
 def perf_compute_takeoff(
     *,
@@ -28,7 +34,7 @@ def perf_compute_takeoff(
     stores: list[str] | None = None,
 ) -> dict:
     """Return dict with Vs/VR/VLOF/V2, ground roll, 35 ft, time."""
-    calib = load_calibration_csv("calibration.csv")
+    calib = get_calib()
     return takeoff_run(
         weight_lbf=gw_lb,
         alt_ft=field_elev_ft,
@@ -100,7 +106,7 @@ def perf_compute_landing(
     sweep_deg: float = 20.0,
 ) -> dict:
     """Return dict with Vref, airborne, ground roll, total."""
-    calib = load_calibration_csv("calibration.csv")
+    calib = get_calib()
     return landing_performance(
         weight_lbf=gw_lb,
         alt_ft=field_elev_ft,
