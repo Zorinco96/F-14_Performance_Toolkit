@@ -627,16 +627,19 @@ st.caption(f"PA: {int(press_alt):,} ft • Fuel TOW: {wb['fuel_tow_lb']:.0f} lb 
 # Section 5 — Takeoff Configuration
 # =========================
 with st.expander("5) Takeoff Configuration", expanded=True):
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
-        flaps = st.radio("Flaps", ["AUTO", "UP", "MANEUVER", "FULL"], horizontal=False)
+        flaps = st.radio("Flaps", ["Atuo-Select", "UP", "MANEUVER", "FULL"], index=0, horizontal=False)
     with c2:
-        thrust = st.radio("Thrust", ["AUTO", "MILITARY", "AFTERBURNER", "DERATE (Manual)"], horizontal=False)
+        thrust = st.radio("Thrust", ["Auto-Select", "MILITARY", "AFTERBURNER", "DERATE (Manual)"], index=0, horizontal=False)
     with c3:
         derate = 0
         if thrust == "DERATE (Manual)":
             derate = st.slider("Derate (RPM %)", min_value=85, max_value=100, value=95)  # min 85%
-        st.metric("Required climb gradient (all engines)", "≥ 300 ft/NM")
+     with c4:
+        req_grad = st.number_input("Required climb gradient (ft/nm)", min_value=200, max_value=1000, value-200, step=10)
+        st.session_state["req_climb_grad_ft_nm"] = req_grad 
+
     st.caption("AUTO thrust will target 14 CFR 121.189 and ≥300 ft/NM AEO using the minimum required setting (to be modeled).")
 
 # =========================
