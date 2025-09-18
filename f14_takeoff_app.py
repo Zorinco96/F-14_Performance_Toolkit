@@ -1017,15 +1017,19 @@ def factored_distance(unfactored_ft: int, condition: str) -> int:
     return int(round(unfactored_ft * factor))
 
 if 'dests' in locals() and dests:
-           # Planned landing weight per scenario
-        gw_ldg_plan, lw_placeholder = compute_landing_weight()
+    # Planned landing weight from Simple mode or default
+    gw_ldg_plan = _s_int(locals().get("gw_ldg_plan", DEFAULT_LDW), DEFAULT_LDW)
+
+    for i, d in enumerate(dests, start=1):
+        st.subheader(f"Runway {i}: {d['airport']} ({d['map']}) — RWY {d['end']}")
+        lda_ft = _s_int(d.get("lda_ft", 0), 0)
 
         lres = None
         if callable(perf_landing):
             try:
                 lres = perf_landing(
                     gw_lb=float(gw_ldg_plan),
-                    field_elev_ft=float(d.get("elev_ft", 0.0) or 0.0),  # could wire real field elev later
+                    field_elev_ft=float(d.get("tora_ft", 0) * 0 + 0.0),  # unknown elev → assume 0; can wire airport elev later
                     oat_c=float(locals().get("field_temp", 15.0)),
                     headwind_kts=float(locals().get("hw", 0.0) or 0.0),
                     mode="DCS",
@@ -1035,25 +1039,24 @@ if 'dests' in locals() and dests:
             except Exception as e:
                 st.warning(f"Landing model error: {e}")
 
-        lda_ft = _s_int(d.get("lda_ft", 0), 0)
-        c1, c2, c3, c4 = st.columns([1,1,1,1])
-
-        c1.metric("Planned Landing Weight", f"{gw_ldg_plan:,} lb" + (" (placeholder)" if lw_placeholder else ""))
         if lres:
-            unfact = int(round(lres["Total_ft"]))
+            unfact = int(round(lres["Total_ft"]))       # airborne + ground from model
             fact  = factored_distance(unfact, st.session_state.get("ldg_cond", "DRY"))
-            c2.metric("Unfactored Landing Dist", f"{unfact:,} ft")
-            c3.metric("Factored Landing Dist",   f"{fact:,} ft")
-            c4.metric("LDA Available",           f"{lda_ft:,} ft")
-            st.caption(f"Airborne: {lres['Airborne_ft']:.0f} ft • Ground Roll: {lres['GroundRoll_ft']:.0f} ft")
-        else:
-            c2.metric("Unfactored Landing Dist", "—")
-            c3.metric("Factored Landing Dist",   "—")
-            c4.metric("LDA Available",           f"{lda_ft:,} ft")
+            # crude MLW check using available LDA vs factored distance
+            mlw_est = int(min(60000, max(0, (60000 * (lda_ft / fact)) if fact > 0 else 0)))
 
-        st.divider()
+            c1, c2, c3, c4 = st.columns([1,1,1,1])
+            c1.metric("Vref (kt)", f"{lres['Vref_kts']:.1f}")
+            c2.metric("Unfactored Landing Distance", f"{unfact:,} ft")
+            c3.metric("Factored Landing Distance", f"{fact:,} ft")
+            c4.metric("LDA Available", f"{lda_ft:,} ft")
+            st.caption(f"Airborne: {lres['Airborne_ft']:.0f} ft • Ground Roll: {lres['GroundRoll_ft']:.0f} ft")
+            st.caption(f"Calc Max Landing Wt (simple proxy): {mlw_est:,} lb")
+            st.divider()
+        else:
+            st.info("Perf model not available for landing.")
 else:
-    st.info("Perf model not available for landing.")
+    st.info("Set at least one destination in the Landing Setup above to see landing results.")
 
 st.markdown("---")
 
