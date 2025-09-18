@@ -366,8 +366,17 @@ with st.sidebar:
         st.info(f"Preset applied: {preset} — Stores/Fuel only. Flaps/Thrust remain AUTO.")
 
     st.subheader("Flags")
-    auto_recompute = st.toggle("Auto-recompute", value=True)
-    show_debug = st.toggle("Show scenario JSON", value=False)
+auto_recompute = st.toggle("Auto-recompute", value=True)
+show_debug = st.toggle("Show scenario JSON", value=False)
+
+st.subheader("Policy")
+wind_policy_choice = st.selectbox(
+    "Wind credit (runway & climb calcs)",
+    ["50% headwind / 150% tailwind (default)", "0% headwind / 150% tailwind (more conservative)"],
+    index=0,
+    help="Conservative wind credit policy:\n• 50/150 = use half of headwind benefit and 1.5× tailwind penalty.\n• 0/150 = ignore headwind benefit entirely (extra conservative), still penalize tailwind by 1.5×.\nThis affects balanced-field and climb calculations."
+)
+
 
 # Sticky header
 st.markdown(
