@@ -1,0 +1,18 @@
+Parameter,FAA_Default,DCS_Default,Min,Max,Notes
+RollingResistance,0.02,0.025,0.005,0.06,Ground roll μ_r dry
+RollingResistance_Wet,0.03,0.035,0.01,0.09,Wet runway μ_r
+BrakeCoefficient,0.4,0.3,0.1,0.8,Max braking μ_b dry
+BrakeCoefficient_Wet,0.28,0.22,0.05,0.6,Wet braking μ_b
+ReverseEffFactor,0.0,0.0,0.0,0.2,Reserve thrust factor (if modeled as decel)
+RotationLag_sec,1.5,2.5,0.5,4.0,Pilot/FBW/ground-effect lag to liftoff
+RotationPitchRate_dps,4.0,3.0,1.0,8.0,Nominal pitch rate during rotation
+GearDragDelta_CD0,0.01,0.015,0.004,0.03,Additive CD0 with gear down
+SpoilerBrake_CD0,0.006,0.008,0.0,0.02,Speedbrake additive CD0 (landing)
+ThrustScaleLowAlt,1.0,0.95,0.85,1.1,Low-alt AB thrust scale
+MilThrustScale,1.0,0.98,0.85,1.1,MIL thrust global scale
+IdleThrustScale,1.0,1.05,0.8,1.2,IDLE thrust global scale
+FF_Scale,1.0,1.05,0.85,1.2,Fuel flow scale factor
+GroundLiftFraction,0.2,0.25,0.0,0.4,Lift carried by wing during roll (flaps effect)
+GroundEffectFactor,0.08,0.1,0.0,0.2,CL increment from ground effect near liftoff
+BrakeLag_sec,0.3,0.5,0.0,1.0,Delay from touchdown to effective braking
+AntiSkidEffectiveness,0.95,0.85,0.6,1.0,Fraction of ideal braking achieved

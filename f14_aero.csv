@@ -1,0 +1,10 @@
+Config,WingSweep_deg,CLmax,CD0,k,Notes
+CLEAN,20,1.28,0.0175,0.042,Baseline clean polar across sweep
+CLEAN,25,1.2725,0.01785,0.0424,Baseline clean polar across sweep
+CLEAN,35,1.2575,0.01855,0.0432,Baseline clean polar across sweep
+CLEAN,45,1.2425,0.019250000000000003,0.044000000000000004,Baseline clean polar across sweep
+CLEAN,55,1.2275,0.019950000000000002,0.044800000000000006,Baseline clean polar across sweep
+CLEAN,68,1.208,0.02086,0.045840000000000006,Baseline clean polar across sweep
+TO_FLAPS,20,2.1,0.026,0.045,TO flaps/slats deployed
+LDG_FLAPS,20,2.6,0.032,0.046,Landing flaps/slats deployed
+GEAR_DOWN_DELTA,0,-0.05,0.01,0.0,"Additive: CLmax delta -0.05, CD0 +0.010"
