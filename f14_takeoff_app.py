@@ -676,13 +676,33 @@ gw_lb         = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
 field_elev_ft = float(locals().get("elev", 0.0))
 oat_c         = float(locals().get("field_temp", 15.0))
 headwind_kts  = float(locals().get("hw", 0.0) or 0.0)
-runway_slope  = 0.0  # if you add slope later, wire it here (+uphill / -downhill)
-thrust_mode   = "MAX" if locals().get("thrust") == "AFTERBURNER" else "MIL"
+runway_slope  = 0.0  # (+uphill / -downhill)
 stores_list   = get_stores_drag_list()
 mode_flag     = "DCS"
-config_to     = "TO_FLAPS" if locals().get("flaps") in ("AUTO","FULL","MANEUVER") else "TO_FLAPS"  # keep TO flaps for now
 
-# Safe call
+# --- Decide selected config if user chose Auto-Select ---
+# Flaps: keep takeoff flaps; display as FULL when in auto for now
+flap_display = flaps if flaps != "Auto-Select" else "FULL"
+config_to = "TO_FLAPS"  # (refine to MANEUVER/UP later with NATOPS gates)
+
+# Thrust: if Auto-Select, try MIL first; if Dist to 35ft > TORA, switch to AB
+tora_ft = _s_int(locals().get("tora", 0))
+sel_thrust_mode = thrust
+if thrust == "Auto-Select" and callable(perf_takeoff):
+    try:
+        t_mil = perf_takeoff(
+            gw_lb=gw_lb, field_elev_ft=field_elev_ft, oat_c=oat_c,
+            headwind_kts=headwind_kts, runway_slope=runway_slope,
+            thrust_mode="MIL", mode=mode_flag, config=config_to,
+            sweep_deg=20.0, stores=stores_list,
+        )
+        sel_thrust_mode = "MILITARY" if t_mil["DistanceTo35ft_ft"] <= max(0, tora_ft) else "AFTERBURNER"
+    except Exception:
+        sel_thrust_mode = "AFTERBURNER"
+elif thrust != "Auto-Select":
+    sel_thrust_mode = thrust
+
+# Primary computation using selected thrust
 t_res = None
 if callable(perf_takeoff):
     try:
@@ -692,7 +712,7 @@ if callable(perf_takeoff):
             oat_c=oat_c,
             headwind_kts=headwind_kts,
             runway_slope=runway_slope,
-            thrust_mode=thrust_mode,
+            thrust_mode=("MAX" if sel_thrust_mode == "AFTERBURNER" else "MIL"),
             mode=mode_flag,
             config=config_to,
             sweep_deg=20.0,
@@ -706,32 +726,29 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.subheader("V-Speeds")
     if t_res:
-        st.metric("V1",   f"{t_res['VR_kts']:.1f}")  # using Vr for V1 proxy until accel-stop modeled
-        st.metric("Vr",   f"{t_res['VR_kts']:.1f}")
-        st.metric("V2",   f"{t_res['V2_kts']:.1f}")
-        st.metric("Vfs",  f"{max(t_res['V2_kts']*1.1, t_res['VLOF_kts']*1.15):.1f}")
+        st.metric("V1 (kt)",   f"{t_res['VR_kts']:.0f}")  # V1 placeholder = Vr until accel-stop modeled
+        st.metric("Vr (kt)",   f"{t_res['VR_kts']:.0f}")
+        st.metric("V2 (kt)",   f"{t_res['V2_kts']:.0f}")
+        st.metric("Vfs (kt)",  f"{max(t_res['V2_kts']*1.1, t_res['VLOF_kts']*1.15):.0f}")
     else:
-        st.metric("V1", "—"); st.metric("Vr", "—"); st.metric("V2", "—"); st.metric("Vfs", "—")
+        st.metric("V1 (kt)", "—"); st.metric("Vr (kt)", "—"); st.metric("V2 (kt)", "—"); st.metric("Vfs (kt)", "—")
 
 with col2:
     st.subheader("Configuration")
-    st.metric("Flaps", locals().get("flaps", "—"))
-    st.metric("Thrust", locals().get("thrust", "—"))
-    st.metric("Stabilizer Trim", "+2.0 units")
+    st.metric("Flaps", flap_display)
+    st.metric("Thrust", sel_thrust_mode.replace("(Manual)",""))
+    st.metric("Stabilizer Trim", f"{wb.get('stab_trim_units', 0.0):+0.1f} units")
     st.caption("N1% / FF(pph/engine) — guidance (table)")
-    engine_df = build_engine_table(locals().get("thrust","AUTO"), int(locals().get("derate",95)))
+    engine_df = build_engine_table(sel_thrust_mode, int(locals().get("derate",95)))
     st.dataframe(engine_df, hide_index=True, use_container_width=True)
 
 with col3:
     st.subheader("Runway Distances")
-    tora_ft = _s_int(locals().get("tora", 0))
     if t_res:
-        st.metric("Ground roll (ft)", f"{t_res['GroundRoll_ft']:.0f}")
-        st.metric("Dist to 35 ft (ft)", f"{t_res['DistanceTo35ft_ft']:.0f}")
-        st.metric("Available (TORA)", f"{tora_ft:,} ft")
-        # Simple conservative limiter: require Dist to 35ft ≤ TORA
-        req = int(round(t_res["DistanceTo35ft_ft"]))
-        st.metric("Required (≤TORA)", f"{req:,} ft")
+        st.metric("Ground roll (ft)",       f"{t_res['GroundRoll_ft']:.0f}")
+        st.metric("Dist to 35 ft (ft)",     f"{t_res['DistanceTo35ft_ft']:.0f}")
+        st.metric("Available (TORA)",       f"{tora_ft:,} ft")
+        st.metric("Required (≤TORA)",       f"{int(round(t_res['DistanceTo35ft_ft'])):,} ft")
     else:
         st.metric("Ground roll (ft)", "—")
         st.metric("Dist to 35 ft (ft)", "—")
@@ -741,25 +758,30 @@ with col3:
 with col4:
     st.subheader("Dispatchability")
     if t_res:
-        req = int(round(t_res["DistanceTo35ft_ft"]))
-        available = _s_int(locals().get("tora", 0))
-        if available >= req:
+        required = int(round(t_res["DistanceTo35ft_ft"]))
+        available = tora_ft
+        if available >= required:
             st.success("Dispatchable")
             st.caption("Limiting: None")
         else:
             st.error("NOT Dispatchable")
             st.caption("Limiting: TORA vs Dist to 35 ft")
-        st.metric("Expected Climb Gradient (AEO)", "— ft/NM")  # (hook upcoming)
+        # Placeholder until we wire a climb-gradient check
+        st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
     else:
         st.info("Perf model not available.")
-        st.metric("Expected Climb Gradient (AEO)", "— ft/NM")
+        st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
 
 st.divider()
-st.subheader("DCS Expected Performance (mock)")
-p1, p2 = st.columns(2)
-p1.metric("Distance to reach Vr", "3,400 ft")
-p2.metric("Distance to Liftoff (35 ft)", "5,100 ft")
+st.subheader("DCS Expected Performance (calculated)")
+if t_res:
+    p1, p2 = st.columns(2)
+    p1.metric("Distance to reach Vr (ft)", f"{int(round(t_res['GroundRoll_ft']*0.67)):,}")  # proxy until rollout profile exposed
+    p2.metric("Distance to Liftoff / 35 ft (ft)", f"{int(round(t_res['DistanceTo35ft_ft'])):,}")
+else:
+    st.info("Model unavailable — no values shown (placeholder).")
 st.divider()
+
 
 # =========================
 # Section 6 — Climb Profile (Climb Schedule prominent, 2 columns)
@@ -861,14 +883,6 @@ if cres_full:
 else:
     st.caption("No climb overlay (perf model unavailable).")
 
-
-    climb_overlay = pd.DataFrame({
-        "Time_min": [0, 2, 4, 6, 8],
-        "MostEff_ft": [0, 6000, 12000, 20000, 28000],
-        "MinTime_ft": [0, 7000, 13000, 20500, 28000],
-    }).set_index("Time_min")
-    st.line_chart(climb_overlay)
-
 st.markdown("---")
 
 # =========================
@@ -932,7 +946,7 @@ with st.expander("7) Landing Setup", expanded=True):
     dep_end = locals().get("rwy_end")
 
     st.markdown("**Destination 1 (seeded from departure selection)**")
-    dest1 = pick_destination(1, fixed_map=None, default_airport=dep_airport, default_end=dep_end)
+    dest1 = pick_destination(1, fixed_map=dep_map, default_airport=dep_airport, default_end=dep_end)
 
     # Manage alternates in session_state
     st.session_state.setdefault("alt_slots", [])
@@ -957,6 +971,34 @@ with st.expander("7) Landing Setup", expanded=True):
                 st.rerun()
 
     cond = st.radio("Runway condition (applies to all candidates below)", ["DRY", "WET"], horizontal=True, key="ldg_cond")
+    # Landing preset scenarios
+landing_scenario = st.radio(
+    "Landing Scenario",
+    ["3,000 lb fuel — stores retained", "3,000 lb fuel — no weapons", "Custom"],
+    index=0, horizontal=False
+)
+
+# Helper: estimate planned landing weight per scenario
+def compute_landing_weight() -> tuple[int, bool]:
+    # Pull from W&B/session when available; otherwise placeholders are labeled
+    empty = _s_int(st.session_state.get("empty_weight_lb", None) or 43735, 43735)     # placeholder BEW if not set
+    stores_wt = _s_int(st.session_state.get("stores_weight_lb", None) or 2500, 2500)  # placeholder
+    weapons_only_wt = _s_int(st.session_state.get("weapons_weight_lb", None) or 1800, 1800)  # placeholder
+    crew_misc = 400  # placeholder
+
+    if landing_scenario.startswith("3,000"):
+        fuel = 3000
+        if "no weapons" in landing_scenario:
+            lw = empty + max(0, stores_wt - weapons_only_wt) + fuel + crew_misc
+            is_placeholder = ("weapons_weight_lb" not in st.session_state)
+        else:
+            lw = empty + stores_wt + fuel + crew_misc
+            is_placeholder = ("stores_weight_lb" not in st.session_state)
+        return int(lw), is_placeholder
+    else:
+        lw = _s_int(st.session_state.get("gw_ldg_plan", None) or DEFAULT_LDW, DEFAULT_LDW)
+        return int(lw), ("gw_ldg_plan" not in st.session_state)
+
     st.caption("14 CFR 121.195 factors will apply (to be modeled). External tank fuel is assumed EMPTY on landing.")
 
 st.markdown("---")
