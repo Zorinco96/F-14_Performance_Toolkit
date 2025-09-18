@@ -831,10 +831,24 @@ with col1:
 with col2:
     st.subheader("Configuration")
     st.metric("Flaps", flap_display)
-    st.metric("Thrust", sel_thrust_mode.replace("(Manual)",""))
+    st.metric("Thrust", (thrust_display or "—").replace("(Manual)",""))
     st.metric("Stabilizer Trim", f"{wb.get('stab_trim_units', 0.0):+0.1f} units")
     st.caption("N1% / FF(pph/engine) — guidance (table)")
-    engine_df = build_engine_table(sel_thrust_mode, int(locals().get("derate",95)))
+
+    # Derive a derate % for the guidance table display
+    _derate_pct_display = 100
+    if isinstance(thrust_display, str):
+        import re as _re
+        m = _re.search(r"DERATE\s*\((\d+)%\)", thrust_display.upper())
+        if m:
+            _derate_pct_display = int(m.group(1))
+        elif thrust_display.upper().startswith("MILITARY"):
+            _derate_pct_display = 100
+        elif thrust_display.upper().startswith("DERATE") and 'derate' in locals():
+            _derate_pct_display = int(locals().get("derate", 95))
+
+    engine_df = build_engine_table(thrust_display or (thrust if 'thrust' in locals() else "MILITARY"),
+                               int(_derate_pct_display))
     st.dataframe(engine_df, hide_index=True, use_container_width=True)
 
 with col3:
