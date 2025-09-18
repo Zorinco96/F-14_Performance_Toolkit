@@ -637,6 +637,9 @@ with st.expander("5) Takeoff Configuration", expanded=True):
         if thrust == "DERATE (Manual)":
             derate = st.slider("Derate (RPM %)", min_value=85, max_value=100, value=95)  # min 85%
     st.caption("AUTO thrust will target 14 CFR 121.189 and ≥300 ft/NM AEO using the minimum required setting (to be modeled).")
+# NEW: Required climb gradient (AEO) — default 200 ft/nm
+req_grad = st.number_input("Required climb gradient (ft/nm)", min_value=0, max_value=1000, value=200, step=10)
+st.session_state["req_climb_grad_ft_nm"] = int(req_grad)
 
 # =========================
 # (6) Takeoff Results
