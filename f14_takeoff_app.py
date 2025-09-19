@@ -400,8 +400,7 @@ def _evaluate_candidate(flaps_label: str,
     """
     cfg = "TO_FLAPS" if flaps_label in ("MANEUVER", "FULL") else "CLEAN"
 
-    # TAKEOFF perf
-        # Use memoized wrapper (fast & repeatable)
+    # TAKEOFF perf (memoized wrapper)
     t_res = cached_perf_takeoff(
         gw_lb=ctx["gw_lb"],
         field_elev_ft=ctx["field_elev_ft"],
@@ -414,6 +413,111 @@ def _evaluate_candidate(flaps_label: str,
         sweep_deg=20.0,
         stores=tuple(ctx["stores"]),
     )
+
+    # Distances
+    gr  = float(t_res.get("GroundRoll_ft", 0.0) or 0.0)
+    d35 = float(t_res.get("DistanceTo35ft_ft", 0.0) or 0.0)
+
+    # Prefer true ASDR if core exposes; else surrogate (documented)
+    asdr_ft = float(t_res.get("ASDR_ft", 0.0) or 0.0)
+    if asdr_ft <= 0.0:
+        asdr_ft = gr * 1.15 if gr > 0 else d35 * 1.10  # surrogate only if core ASDR not provided
+
+    # Prefer explicit OEI TODR if available; else AEO d35 per baseline
+    todr_ft = float(t_res.get("TODR_OEI_35ft_ft", 0.0) or 0.0)
+    if todr_ft <= 0.0:
+        todr_ft = d35
+
+    # Balanced-Field diff ratio
+    m = max(asdr_ft, todr_ft) if max(asdr_ft, todr_ft) > 0 else 1.0
+    diff_ratio = abs(asdr_ft - todr_ft) / m
+
+    # CLIMB perf (AEO gradient to 1000 ft) — only if runway gates pass
+    aeo_grad = None
+    tora = float(ctx.get("available_tora_ft", 0.0))
+    asda = float(ctx.get("available_asda_ft", tora))
+    pass_runway_precheck = (todr_ft <= tora) and (asdr_ft <= asda)
+
+    if pass_runway_precheck:
+        try:
+            cres = cached_perf_climb(
+                gw_lb=ctx["gw_lb"],
+                alt_start_ft=max(0.0, ctx["field_elev_ft"]),
+                alt_end_ft=max(1000.0 + ctx["field_elev_ft"], ctx["field_elev_ft"] + 1.0),
+                oat_dev_c=0.0,
+                schedule="NAVY",        # baseline schedule for AEO check
+                mode="DCS",
+                power=("MAX" if thrust_mode == "MAX" else "MIL"),
+                sweep_deg=20.0,
+                config=("CLEAN" if cfg == "CLEAN" else "TO_FLAPS"),
+            )
+            # Prefer explicit gradient if core provides one; else estimate from distance
+            explicit = cres.get("AEO_min_grad_ft_per_nm_to_1000", None)
+            if explicit is None:
+                explicit = cres.get("Grad_ft_per_nm", None)
+            if explicit is not None:
+                aeo_grad = float(explicit)
+            else:
+                d_nm = float(cres.get("Distance_nm", 0.0) or 0.0)
+                aeo_grad = (1000.0 / d_nm) if d_nm > 0 else None
+        except Exception:
+            aeo_grad = None
+
+    # Gates
+    req_grad = float(ctx.get("req_grad_ft_nm", 200.0))
+    pass_runway = pass_runway_precheck
+    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)  # unknown climb → pass
+
+    dispatchable = pass_runway and pass_climb
+
+    # Base V-speeds from engine result
+    v_speeds = {
+        "V1_kts": float(t_res.get("VR_kts", 0.0) or 0.0),  # placeholder = Vr until explicit V1 provided
+        "Vr_kts": float(t_res.get("VR_kts", 0.0) or 0.0),
+        "V2_kts": float(t_res.get("V2_kts", 0.0) or 0.0),
+        "Vfs_kts": float(max(
+            (t_res.get("V2_kts") or 0.0) * 1.1,
+            (t_res.get("VLOF_kts") or 0.0) * 1.15
+        )),
+    }
+
+    # Table-based gentle override (if available)
+    try:
+        vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
+        if vs_tbl:
+            if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
+                v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
+            if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
+                v_speeds["Vr_kts"] = float(vs_tbl["Vr_kts"])
+                v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])  # mirror Vr until V1 exists
+            if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
+                v_speeds["V2_kts"] = float(vs_tbl["V2_kts"])
+                v_speeds["Vfs_kts"] = float(max(
+                    v_speeds["V2_kts"] * 1.1,
+                    (t_res.get("VLOF_kts") or 0.0) * 1.15
+                ))
+    except Exception:
+        pass  # never block on table lookup
+
+    return dict(
+        flaps=flaps_label,
+        thrust_label=thrust_label,
+        thrust_mode=thrust_mode,
+        t_res=t_res,
+        todr_ft=todr_ft,
+        asdr_ft=asdr_ft,
+        diff_ratio=diff_ratio,
+        aeo_grad_ft_nm=aeo_grad,
+        pass_runway=pass_runway,
+        pass_climb=pass_climb,
+        dispatchable=dispatchable,
+        margins=dict(
+            tora_margin_ft=tora - todr_ft,
+            asda_margin_ft=asda - asdr_ft,
+        ),
+        v=v_speeds,
+    )
+
 
 
     # Distances
@@ -1072,105 +1176,7 @@ if auto_mode:
             selection = None  # not dispatchable even with AB
 
 
-def _ladder_derate_labels():
-    # Discrete derate points; labels for UI, MIL for engine calls
-    pts = [85, 88, 90, 92, 95, 97, 100]
-    return [f"DERATE ({p}%)" if p < 100 else "MILITARY" for p in pts], pts
 
-def _choose_best(cands: list[dict]):
-    # Tie-breakers: min thrust → min flap → max margin → closest to balanced
-    def thrust_rank(c):
-        lbl = c.get("thrust_label", "")
-        if lbl.startswith("DERATE"):
-            import re as _re
-            m = _re.search(r"(\d+)%", lbl)
-            pct = int(m.group(1)) if m else 100
-            return (0, pct)  # lower pct better
-        if lbl.startswith("MILITARY"):
-            return (1, 100)
-        if lbl.startswith("AFTERBURNER"):
-            return (2, 200)
-        return (9, 999)
-
-    def flap_rank(c):
-        order = {"UP": 0, "MANEUVER": 1, "FULL": 2}
-        return order.get(c.get("flaps", ""), 9)
-
-    def margin_rank(c):
-        m = c.get("margins", {})
-        return -min(m.get("tora_margin_ft", -1e9), m.get("asda_margin_ft", -1e9))  # more margin is better
-
-    def balance_rank(c):
-        return c.get("diff_ratio", 1.0)  # smaller is better
-
-    return sorted(cands, key=lambda c: (thrust_rank(c), flap_rank(c), margin_rank(c), balance_rank(c)))[0] if cands else None
-
-if auto_mode:
-    # 1) Try DERATE→MIL ladder with flaps UP→MANEUVER→FULL
-    derate_labels, derate_pcts = _ladder_derate_labels()
-    flaps_order = ["UP", "MANEUVER", "FULL"]
-    feasible = []
-
-    for lbl, _pct in zip(derate_labels, derate_pcts):
-        for flp in flaps_order:
-            try:
-                cand = _evaluate_candidate(
-                    flaps_label=flp,
-                    thrust_label=lbl,
-                    thrust_mode="MIL",           # engine sees MIL; derate is a label/scheduling decision
-                    hw_eff_kts=hw_eff,
-                    ctx=scenario_ctx
-                )
-            except Exception as _e:
-                # Defensive: skip malformed candidate
-                continue
-            # A candidate is good if runway gates pass; climb None counts as pass by policy
-            if cand.get("dispatchable", False):
-                feasible.append(cand)
-
-    best_mil = _choose_best(feasible)
-
-    if best_mil:
-        selection = dict(best_mil, ab_required=False)
-    else:
-        # 1b) Fallback sanity: try a single direct MIL candidate using current flap control
-        # (This often matches the manual result users test.)
-        current_flaps = flaps if flaps != "Auto-Select" else "UP"
-        try:
-            fallback = _evaluate_candidate(
-                flaps_label=current_flaps,
-                thrust_label="MILITARY",
-                thrust_mode="MIL",
-                hw_eff_kts=hw_eff,
-                ctx=scenario_ctx
-            )
-            if fallback.get("dispatchable", False):
-                selection = dict(fallback, ab_required=False)
-        except Exception:
-            pass
-
-    if not selection:
-        # 2) Escalate to AB feasibility (not authorization)
-        feasible_ab = []
-        for flp in flaps_order:
-            try:
-                cand = _evaluate_candidate(
-                    flaps_label=flp,
-                    thrust_label="AFTERBURNER (required)",
-                    thrust_mode="MAX",
-                    hw_eff_kts=hw_eff,
-                    ctx=scenario_ctx
-                )
-            except Exception:
-                continue
-            if cand.get("dispatchable", False):
-                feasible_ab.append(cand)
-
-        best_ab = _choose_best(feasible_ab)
-        if best_ab:
-            selection = dict(best_ab, ab_required=True)
-        else:
-            selection = None  # not dispatchable even with AB
 
 # ---------- Resolve UI display based on auto vs manual ----------
 if auto_mode and selection:
