@@ -299,6 +299,122 @@ def hw_xw_components(wind_dir: Optional[int], wind_kts: Optional[float], rwy_hea
     hw = wind_kts * math.cos(angle); xw = wind_kts * math.sin(angle)
     return hw, abs(xw)
 
+# --- Wind policy application (App Scope Definition) ---------------------------
+def apply_wind_policy(hw_raw_kts: float, use_50_150: bool) -> float:
+    # +HW is headwind, -HW tailwind
+    if use_50_150:
+        return 0.5 * max(hw_raw_kts, 0.0) + 1.5 * min(hw_raw_kts, 0.0)
+    else:
+        return 0.0 * max(hw_raw_kts, 0.0) + 1.5 * min(hw_raw_kts, 0.0)
+
+# --- Evaluate one (flaps, thrust) candidate against gates --------------------
+def _evaluate_candidate(flaps_label: str,
+                        thrust_label: str,   # "DERATE (xx%)", "MILITARY", or "AFTERBURNER (required)"
+                        thrust_mode: str,    # "MIL" or "MAX" for perf engine
+                        hw_eff_kts: float,
+                        ctx: dict) -> dict:
+    """
+    Returns a dict with:
+      - todr_ft, asdr_ft, diff_ratio
+      - pass_runway, pass_climb, dispatchable
+      - v_speeds dict
+    Uses perf_* wrappers directly (no external cache dependency).
+    """
+    cfg = "TO_FLAPS" if flaps_label in ("MANEUVER", "FULL") else "CLEAN"
+
+    # TAKEOFF perf
+    t_res = {}
+    if callable(perf_takeoff):
+        t_res = perf_takeoff(
+            gw_lb=ctx["gw_lb"],
+            field_elev_ft=ctx["field_elev_ft"],
+            oat_c=ctx["oat_c"],
+            headwind_kts=hw_eff_kts,
+            runway_slope=ctx["runway_slope"],
+            thrust_mode=("MAX" if thrust_mode == "MAX" else "MIL"),
+            mode=ctx["mode"],
+            config=cfg,
+            sweep_deg=20.0,
+            stores=ctx["stores"],
+        )
+
+    # Distances
+    gr  = float(t_res.get("GroundRoll_ft", 0.0) or 0.0)
+    d35 = float(t_res.get("DistanceTo35ft_ft", 0.0) or 0.0)
+
+    # Prefer true ASDR if core exposes; else surrogate (documented)
+    asdr_ft = float(t_res.get("ASDR_ft", 0.0) or 0.0)
+    if asdr_ft <= 0.0:
+        asdr_ft = gr * 1.15 if gr > 0 else d35 * 1.10  # surrogate only if core ASDR not provided
+
+    # Prefer explicit OEI TODR if available; else AEO d35 per baseline
+    todr_ft = float(t_res.get("TODR_OEI_35ft_ft", 0.0) or 0.0)
+    if todr_ft <= 0.0:
+        todr_ft = d35
+
+    # Balanced-Field diff ratio
+    m = max(asdr_ft, todr_ft) if max(asdr_ft, todr_ft) > 0 else 1.0
+    diff_ratio = abs(asdr_ft - todr_ft) / m
+
+    # CLIMB perf (AEO gradient to 1000 ft)
+    aeo_grad = None
+    if callable(perf_climb):
+        try:
+            cres = perf_climb(
+                gw_lb=ctx["gw_lb"],
+                alt_start_ft=max(0.0, ctx["field_elev_ft"]),
+                alt_end_ft=max(1000.0 + ctx["field_elev_ft"], ctx["field_elev_ft"] + 1.0),
+                oat_dev_c=0.0,
+                schedule="NAVY",        # baseline schedule for AEO check
+                mode="DCS",
+                power=("MAX" if thrust_mode == "MAX" else "MIL"),
+                sweep_deg=20.0,
+                config=("CLEAN" if cfg == "CLEAN" else "TO_FLAPS"),
+            )
+            aeo_grad = float(cres.get("AEO_min_grad_ft_per_nm_to_1000", None) or cres.get("Grad_ft_per_nm", None) or 0.0)
+        except Exception:
+            aeo_grad = None
+
+    # Gates
+    tora = float(ctx.get("available_tora_ft", 0.0))
+    asda = float(ctx.get("available_asda_ft", tora))
+    req_grad = float(ctx.get("req_grad_ft_nm", 200.0))
+
+    pass_runway = (todr_ft <= tora) and (asdr_ft <= asda)
+    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)  # if climb not available, don’t block
+    dispatchable = pass_runway and pass_climb
+
+    # Package
+    v_speeds = {
+        "V1_kts": float(t_res.get("VR_kts", 0.0) or 0.0),  # placeholder = Vr until explicit V1 provided
+        "Vr_kts": float(t_res.get("VR_kts", 0.0) or 0.0),
+        "V2_kts": float(t_res.get("V2_kts", 0.0) or 0.0),
+        "Vfs_kts": float(max(
+            (t_res.get("V2_kts") or 0.0) * 1.1,
+            (t_res.get("VLOF_kts") or 0.0) * 1.15
+        )),
+    }
+
+    return dict(
+        flaps=flaps_label,
+        thrust_label=thrust_label,
+        thrust_mode=thrust_mode,
+        t_res=t_res,
+        todr_ft=todr_ft,
+        asdr_ft=asdr_ft,
+        diff_ratio=diff_ratio,
+        aeo_grad_ft_nm=aeo_grad,
+        pass_runway=pass_runway,
+        pass_climb=pass_climb,
+        dispatchable=dispatchable,
+        margins=dict(
+            tora_margin_ft=tora - todr_ft,
+            asda_margin_ft=asda - asdr_ft,
+        ),
+        v=v_speeds,
+    )
+
+
 # Fuel helpers
 def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
     if from_percent is None: return None
