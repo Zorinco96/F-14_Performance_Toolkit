@@ -421,24 +421,24 @@ with st.expander("2) Runway", expanded=True):
     c1, c2, c3 = st.columns([1.4, 1.2, 1])
 
     with c1:
-    # ① Pick MAP first
-    maps = sorted(airports_cached["map"].dropna().unique().tolist())
-    map_sel = st.selectbox("Map", maps, key="rw_map")
+        # ① Pick MAP first
+        maps = sorted(airports_cached["map"].dropna().unique().tolist())
+        map_sel = st.selectbox("Map", maps, key="rw_map")
 
-    # Subset to selected map
-    sub_all = airports_cached[airports_cached["map"] == map_sel]
-    sub_all = sub_all[sub_all["airport_name"].notna()]
+        # Subset to selected map
+        sub_all = airports_cached[airports_cached["map"] == map_sel]
+        sub_all = sub_all[sub_all["airport_name"].notna()]
 
-    # ② Search within the selected map
-    search_all = st.text_input("Search airport (selected map only)", placeholder="Type part of the airport name…")
-    matches = sub_all[sub_all["airport_name"].str.contains(search_all, case=False, na=False)] if search_all else sub_all
+        # ② Search within the selected map
+        search_all = st.text_input("Search airport (selected map only)", placeholder="Type part of the airport name…")
+        matches = sub_all[sub_all["airport_name"].str.contains(search_all, case=False, na=False)] if search_all else sub_all
 
-    # ③ Airport picker (filtered by map and optional search)
-    pick_names = sorted(matches["airport_name"].unique().tolist())
-    apt = st.selectbox("Airport", pick_names, key="rw_airport")
+        # ③ Airport picker (filtered by map and optional search)
+        pick_names = sorted(matches["airport_name"].unique().tolist())
+        apt = st.selectbox("Airport", pick_names, key="rw_airport")
 
-    # Rows for the chosen airport on this map
-    sub = sub_all[sub_all["airport_name"] == apt]
+        # Rows for the chosen airport on this map
+        sub = sub_all[sub_all["airport_name"] == apt]
 
 
     with c2:
