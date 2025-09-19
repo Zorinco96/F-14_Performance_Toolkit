@@ -212,6 +212,84 @@ for p in PERF_PATHS:
         perf = load_perf(p); break
     except Exception:
         continue
+        
+# --- V-Speeds lookup from f14_perf.csv (cached) ------------------------------
+@st.cache_data(show_spinner=False)
+def _vs_lookup_from_perf_table(gw_lb: float, flaps_label: str, thrust_mode: str) -> Optional[dict]:
+    """
+    Returns dict like {'Vs_kts': float, 'Vr_kts': float, 'V2_kts': float} from f14_perf.csv
+    using simple linear interpolation on weight. If no suitable rows, returns None.
+    """
+    try:
+        df = perf.copy()
+        if df is None or df.empty:
+            return None
+        # Map flaps label to a flap_deg key used in the CSV
+        flap_map = {"UP": 0, "MANEUVER": 20, "FULL": 35}
+        flap_deg = flap_map.get(str(flaps_label).upper(), 0)
+
+        # If the CSV has 'flap_deg', filter by it; otherwise keep all rows
+        if "flap_deg" in df.columns:
+            df = df[pd.to_numeric(df["flap_deg"], errors="coerce") == flap_deg]
+            if df.empty:
+                return None
+
+        # If thrust is encoded in your CSV, you could filter here (e.g., a 'thrust_mode' column).
+        # We skip thrust filtering for now because your shared sheet didn’t show such column.
+
+        # Require needed columns
+        needed = {"gw_lbs", "Vr_kt", "V2_kt"}
+        if not needed.issubset(set(df.columns)):
+            return None
+
+        # Clean and sort by weight
+        df = df[["gw_lbs", "Vs_kt", "Vr_kt", "V2_kt"]].dropna()
+        df["gw_lbs"] = pd.to_numeric(df["gw_lbs"], errors="coerce")
+        df = df.dropna(subset=["gw_lbs"]).sort_values("gw_lbs")
+
+        # Edge cases
+        if df.empty:
+            return None
+        w = float(gw_lb)
+        # Exact or bracketed interpolation
+        # Find rows just below and above w
+        lower = df[df["gw_lbs"] <= w].tail(1)
+        upper = df[df["gw_lbs"] >= w].head(1)
+
+        if lower.empty and upper.empty:
+            return None
+        if lower.empty:
+            row = upper.iloc[0]
+            return {"Vs_kts": float(row.get("Vs_kt", float("nan"))),
+                    "Vr_kts": float(row["Vr_kt"]),
+                    "V2_kts": float(row["V2_kt"])}
+        if upper.empty:
+            row = lower.iloc[0]
+            return {"Vs_kts": float(row.get("Vs_kt", float("nan"))),
+                    "Vr_kts": float(row["Vr_kt"]),
+                    "V2_kts": float(row["V2_kt"])}
+
+        l = lower.iloc[0]; u = upper.iloc[0]
+        if u["gw_lbs"] == l["gw_lbs"]:
+            # same weight row
+            return {"Vs_kts": float(l.get("Vs_kt", u.get("Vs_kt", float("nan")))),
+                    "Vr_kts": float(l["Vr_kt"]),
+                    "V2_kts": float(l["V2_kt"])}
+
+        # Linear interpolation on weight
+        t = (w - l["gw_lbs"]) / (u["gw_lbs"] - l["gw_lbs"])
+        def lerp(a, b): 
+            if pd.isna(a) or pd.isna(b): 
+                return float("nan")
+            return float(a + t * (b - a))
+
+        vs = lerp(l.get("Vs_kt", float("nan")), u.get("Vs_kt", float("nan")))
+        vr = lerp(l["Vr_kt"], u["Vr_kt"])
+        v2 = lerp(l["V2_kt"], u["V2_kt"])
+        return {"Vs_kts": vs, "Vr_kts": vr, "V2_kts": v2}
+    except Exception:
+        return None
+# -----------------------------------------------------------------------------
 
 # =========================
 # Cached wrappers for heavy perf calls (hashable args only)
@@ -415,6 +493,21 @@ def _evaluate_candidate(flaps_label: str,
             (t_res.get("VLOF_kts") or 0.0) * 1.15
         )),
     }
+# Override with table-based V-speeds if available (gentle override)
+vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
+if vs_tbl:
+    # Only update what we got; keep Vfs recomputed off updated V2 if present
+    if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
+        v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
+    if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
+        v_speeds["Vr_kts"] = float(vs_tbl["Vr_kts"])
+        v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])  # still mirroring Vr until explicit V1 present
+    if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
+        v_speeds["V2_kts"] = float(vs_tbl["V2_kts"])
+        v_speeds["Vfs_kts"] = float(max(
+            v_speeds["V2_kts"] * 1.1,
+            (t_res.get("VLOF_kts") or 0.0) * 1.15
+        ))
 
     return dict(
         flaps=flaps_label,
@@ -1115,6 +1208,22 @@ else:
                 sweep_deg=20.0,
                 stores=tuple(stores_list),
             )
+            # Manual mode: gently override displayed V-speeds from table if available
+try:
+    fl_for_tbl = flap_display if flap_display in ("UP","MANEUVER","FULL") else "UP"
+    tm_for_tbl = "MAX" if tm == "MAX" else "MIL"
+    vs_tbl = _vs_lookup_from_perf_table(gw_lb, fl_for_tbl, tm_for_tbl)
+    if vs_tbl:
+        if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
+            t_res["VR_kts"] = float(vs_tbl["Vr_kts"])
+        if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
+            t_res["V2_kts"] = float(vs_tbl["V2_kts"])
+        if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
+            t_res["Vs_kts"] = float(vs_tbl["Vs_kts"])
+except Exception:
+    pass
+
+            
         except Exception as e:
             st.warning(f"Perf engine error: {e}")
 # If Auto-Select ended up with AB-only feasibility, show the policy banner
@@ -1201,19 +1310,35 @@ with col2:
     st.metric("Stabilizer Trim", f"{wb.get('stab_trim_units', 0.0):+0.1f} units")
     st.caption("N1% / FF(pph/engine) — guidance (table)")
 
-    _derate_pct_display = 100
-    if isinstance(thrust_display, str):
-        import re as _re
-        m = _re.search(r"DERATE\s*\((\d+)%\)", thrust_display.upper())
-        if m:
-            _derate_pct_display = int(m.group(1))
-        elif thrust_display.upper().startswith("MILITARY"):
-            _derate_pct_display = 100
-        elif thrust_display.upper().startswith("DERATE") and 'derate' in locals():
-            _derate_pct_display = int(locals().get("derate", 95))
+# Derive the effective derate % from the RESOLVED thrust_display, not the radio
+import re as _re
 
-    engine_df = build_engine_table(thrust_display, int(locals().get("derate",95)))
-    st.dataframe(engine_df, hide_index=True, use_container_width=True)
+def _parse_derate_from_label(lbl: str) -> int:
+    if not isinstance(lbl, str) or not lbl:
+        return 100
+    u = lbl.upper()
+    if u.startswith("DERATE"):
+        m = _re.search(r"(\d+)\s*%", u)
+        if m:
+            return max(85, min(100, int(m.group(1))))
+        return 95
+    if u.startswith("MILITARY"):
+        return 100
+    # For AB, the table uses its own hard-coded values; the % isn’t used there.
+    if u.startswith("AFTERBURNER"):
+        return 102
+    return 100
+
+# When manual DERATE slider is active, prefer that value
+if isinstance(thrust_display, str) and thrust_display.upper().startswith("DERATE"):
+    _derate_effective = _parse_derate_from_label(thrust_display)
+elif thrust == "DERATE (Manual)":
+    _derate_effective = int(locals().get("derate", 95))
+else:
+    _derate_effective = _parse_derate_from_label(thrust_display or thrust or "MILITARY")
+
+engine_df = build_engine_table(thrust_display or thrust or "MILITARY", int(_derate_effective))
+st.dataframe(engine_df, hide_index=True, use_container_width=True)
 
 with col3:
     st.subheader("Runway Distances")
