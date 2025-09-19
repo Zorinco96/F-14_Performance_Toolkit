@@ -860,6 +860,113 @@ scenario_ctx = dict(
 auto_mode = (flaps == "Auto-Select") or (thrust == "Auto-Select")
 selection = None
 
+# NEW (Patch 5b): capture all candidates we evaluate (for a read-only debug drawer)
+candidate_logs: List[Dict[str, Any]] = []
+
+def _ladder_derate_labels():
+    # Discrete derate points; labels for UI, MIL for engine calls
+    pts = [85, 88, 90, 92, 95, 97, 100]
+    return [f"DERATE ({p}%)" if p < 100 else "MILITARY" for p in pts], pts
+
+def _choose_best(cands: list[dict]):
+    # Tie-breakers: min thrust → min flap → max margin → closest to balanced
+    def thrust_rank(c):
+        lbl = c["thrust_label"]
+        if lbl.startswith("DERATE"):
+            import re as _re
+            m = _re.search(r"(\d+)%", lbl)
+            pct = int(m.group(1)) if m else 100
+            return (0, pct)  # lower pct better
+        if lbl.startswith("MILITARY"):
+            return (1, 100)
+        if lbl.startswith("AFTERBURNER"):
+            return (2, 200)
+        return (9, 999)
+
+    def flap_rank(c):
+        order = {"UP": 0, "MANEUVER": 1, "FULL": 2}
+        return order.get(c["flaps"], 9)
+
+    def margin_rank(c):
+        m = c["margins"]
+        return -min(m.get("tora_margin_ft", -1e9), m.get("asda_margin_ft", -1e9))  # larger is better
+
+    def balance_rank(c):
+        return c["diff_ratio"]  # smaller is better
+
+    return sorted(cands, key=lambda c: (thrust_rank(c), flap_rank(c), margin_rank(c), balance_rank(c)))[0] if cands else None
+
+if auto_mode:
+    # 1) Try DERATE→MIL ladder with flaps UP→MANEUVER→FULL
+    derate_labels, derate_pcts = _ladder_derate_labels()
+    flaps_order = ["UP", "MANEUVER", "FULL"]
+    feasible = []
+
+    for lbl, pct in zip(derate_labels, derate_pcts):
+        for flp in flaps_order:
+            cand = _evaluate_candidate(
+                flaps_label=flp,
+                thrust_label=lbl,
+                thrust_mode="MIL",           # engine sees MIL; derate is a label decision
+                hw_eff_kts=hw_eff,
+                ctx=scenario_ctx
+            )
+            # NEW (Patch 5b): log every candidate (even failures)
+            candidate_logs.append({
+                "Flaps": cand["flaps"],
+                "Thrust": cand["thrust_label"],
+                "ThrustMode": cand["thrust_mode"],
+                "TODR_ft": int(round(cand["todr_ft"])) if cand["todr_ft"] else None,
+                "ASDR_ft": int(round(cand["asdr_ft"])) if cand["asdr_ft"] else None,
+                "TORA_margin_ft": int(round(cand["margins"]["tora_margin_ft"])) if cand["margins"].get("tora_margin_ft") is not None else None,
+                "ASDA_margin_ft": int(round(cand["margins"]["asda_margin_ft"])) if cand["margins"].get("asda_margin_ft") is not None else None,
+                "AEO_grad_ft_nm": None if cand["aeo_grad_ft_nm"] is None else float(cand["aeo_grad_ft_nm"]),
+                "Pass_Runway": bool(cand["pass_runway"]),
+                "Pass_Climb": bool(cand["pass_climb"]),
+                "Dispatchable": bool(cand["dispatchable"]),
+            })
+            if cand["dispatchable"]:
+                feasible.append(cand)
+
+    best_mil = _choose_best(feasible)
+
+    if best_mil:
+        selection = dict(best_mil, ab_required=False)
+    else:
+        # 2) Escalate to AB: evaluate feasibility but DO NOT authorize in Auto-Select
+        feasible_ab = []
+        for flp in flaps_order:
+            cand = _evaluate_candidate(
+                flaps_label=flp,
+                thrust_label="AFTERBURNER (required)",
+                thrust_mode="MAX",
+                hw_eff_kts=hw_eff,
+                ctx=scenario_ctx
+            )
+            # NEW (Patch 5b): also log AB candidates
+            candidate_logs.append({
+                "Flaps": cand["flaps"],
+                "Thrust": cand["thrust_label"],
+                "ThrustMode": cand["thrust_mode"],
+                "TODR_ft": int(round(cand["todr_ft"])) if cand["todr_ft"] else None,
+                "ASDR_ft": int(round(cand["asdr_ft"])) if cand["asdr_ft"] else None,
+                "TORA_margin_ft": int(round(cand["margins"]["tora_margin_ft"])) if cand["margins"].get("tora_margin_ft") is not None else None,
+                "ASDA_margin_ft": int(round(cand["margins"]["asda_margin_ft"])) if cand["margins"].get("asda_margin_ft") is not None else None,
+                "AEO_grad_ft_nm": None if cand["aeo_grad_ft_nm"] is None else float(cand["aeo_grad_ft_nm"]),
+                "Pass_Runway": bool(cand["pass_runway"]),
+                "Pass_Climb": bool(cand["pass_climb"]),
+                "Dispatchable": bool(cand["dispatchable"]),
+            })
+            if cand["dispatchable"]:
+                feasible_ab.append(cand)
+
+        best_ab = _choose_best(feasible_ab)
+        if best_ab:
+            selection = dict(best_ab, ab_required=True)
+        else:
+            selection = None  # not dispatchable even with AB
+
+
 def _ladder_derate_labels():
     # Discrete derate points; labels for UI, MIL for engine calls
     pts = [85, 88, 90, 92, 95, 97, 100]
@@ -1176,6 +1283,51 @@ if t_res:
 else:
     st.info("Model unavailable — no values shown (placeholder).")
 st.divider()
+# === Auto-Select Debug (Patch 5b) — read-only, shows why candidates fail ===
+if auto_mode:
+    with st.expander("Auto-Select Debug (candidates)", expanded=bool(show_debug)):
+        if candidate_logs:
+            df_logs = pd.DataFrame(candidate_logs)
+            # summary row
+            total = len(df_logs)
+            n_runway_pass = int(df_logs["Pass_Runway"].sum()) if "Pass_Runway" in df_logs else 0
+            n_climb_pass  = int(df_logs["Pass_Climb"].sum()) if "Pass_Climb" in df_logs else 0
+            n_dispatch    = int(df_logs["Dispatchable"].sum()) if "Dispatchable" in df_logs else 0
+
+            st.caption(
+                f"Tested {total} candidate(s) • Runway pass: {n_runway_pass} • "
+                f"Climb pass (≥ req {int(scenario_ctx['req_grad_ft_nm'])} ft/nm): {n_climb_pass} • "
+                f"Dispatchable: {n_dispatch}"
+            )
+
+            # Friendly column labels
+            disp = df_logs.rename(columns={
+                "Flaps": "Flaps",
+                "Thrust": "Thrust (label)",
+                "ThrustMode": "Power",
+                "TODR_ft": "TODR (ft)",
+                "ASDR_ft": "ASDR (ft)",
+                "TORA_margin_ft": "TORA Margin (ft)",
+                "ASDA_margin_ft": "ASDA Margin (ft)",
+                "AEO_grad_ft_nm": "AEO Grad (ft/NM)",
+                "Pass_Runway": "Pass Runway",
+                "Pass_Climb": "Pass Climb",
+                "Dispatchable": "Dispatchable",
+            })
+
+            # Sort by Dispatchable desc, then margins
+            sort_cols = ["Dispatchable", "TORA Margin (ft)", "ASDA Margin (ft)"]
+            disp = disp.sort_values(by=sort_cols, ascending=[False, False, False], na_position="last")
+
+            st.dataframe(disp, hide_index=True, use_container_width=True)
+
+            st.caption(
+                "Tip: If **Pass Climb** is False while **Pass Runway** is True, your Required climb gradient gate "
+                f"({int(scenario_ctx['req_grad_ft_nm'])} ft/NM) is the reason Auto-Select rejects otherwise valid runway candidates. "
+                "Try a lower requirement or confirm the climb model policy."
+            )
+        else:
+            st.info("No Auto-Select candidates were evaluated yet (manual mode or missing inputs).")
 
 # =========================
 # 5a) Intersection Margins (vectorized, cached, scoped)
