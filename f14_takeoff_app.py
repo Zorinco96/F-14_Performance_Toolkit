@@ -1003,19 +1003,43 @@ with col3:
 
 with col4:
     st.subheader("Dispatchability")
-    if t_res:
-        required = int(round(t_res["DistanceTo35ft_ft"]))
-        available = tora_ft
-        if available >= required:
-            st.success("Dispatchable")
-            st.caption("Limiting: None")
+    if auto_mode and selection:
+        if selection.get("ab_required", False):
+            # AB would make it pass, but is not authorized in Auto-Select
+            st.error("TAKEOFF — AB REQUIRED — NOT AUTHORIZED")
+            st.caption("Limiting: Thrust authorization (AB required).")
+            m = selection["margins"]
+            st.metric("TORA margin (with AB)", f"{int(m['tora_margin_ft']):,} ft")
+            st.metric("ASDA margin (with AB)", f"{int(m['asda_margin_ft']):,} ft")
+            st.metric("Expected Climb Gradient (AEO)", f"{selection.get('aeo_grad_ft_nm','—')} ft/NM")
         else:
-            st.error("NOT Dispatchable")
-            st.caption("Limiting: TORA vs Dist to 35 ft")
-        st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
+            # Fully dispatchable with MIL/Derate
+            if selection["dispatchable"]:
+                st.success("Dispatchable")
+                st.caption(f"Limiting: {('None' if selection['diff_ratio'] <= 0.05 else governing)}")
+            else:
+                st.error("NOT Dispatchable")
+                st.caption("Limiting: Runway or Climb (see margins)")
+            m = selection["margins"]
+            st.metric("TORA margin", f"{int(m['tora_margin_ft']):,} ft")
+            st.metric("ASDA margin", f"{int(m['asda_margin_ft']):,} ft")
+            st.metric("Expected Climb Gradient (AEO)", f"{selection.get('aeo_grad_ft_nm','—')} ft/NM")
     else:
-        st.info("Perf model not available.")
-        st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
+        # Manual or no selection — keep prior fallback
+        if t_res:
+            required = int(round(t_res.get("DistanceTo35ft_ft", 0)))
+            available = tora_ft
+            if available >= required:
+                st.success("Dispatchable")
+                st.caption("Limiting: None")
+            else:
+                st.error("NOT Dispatchable")
+                st.caption("Limiting: TORA vs Dist to 35 ft")
+            st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
+        else:
+            st.info("Perf model not available.")
+            st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
+
 
 st.divider()
 st.subheader("DCS Expected Performance (calculated)")
