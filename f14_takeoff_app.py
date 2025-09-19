@@ -356,7 +356,6 @@ def _evaluate_candidate(flaps_label: str,
     m = max(asdr_ft, todr_ft) if max(asdr_ft, todr_ft) > 0 else 1.0
     diff_ratio = abs(asdr_ft - todr_ft) / m
 
-    # CLIMB perf (AEO gradient to 1000 ft)
     # CLIMB perf (AEO gradient to 1000 ft) — only if runway gates pass
     aeo_grad = None
     tora = float(ctx.get("available_tora_ft", 0.0))
@@ -376,7 +375,23 @@ def _evaluate_candidate(flaps_label: str,
                 sweep_deg=20.0,
                 config=("CLEAN" if cfg == "CLEAN" else "TO_FLAPS"),
             )
-            aeo_grad = float(cres.get("AEO_min_grad_ft_per_nm_to_1000", None) or cres.get("Grad_ft_per_nm", None) or 0.0)
+
+            # Prefer explicit gradient if core provides one
+            explicit = cres.get("AEO_min_grad_ft_per_nm_to_1000", None)
+            if explicit is None:
+                explicit = cres.get("Grad_ft_per_nm", None)
+
+            if explicit is not None:
+                aeo_grad = float(explicit)
+            else:
+                # Fallback estimate: 1000 ft gained over the horizontal distance to 1000 ft
+                d_nm = float(cres.get("Distance_nm", 0.0) or 0.0)
+                if d_nm > 0:
+                    aeo_grad = 1000.0 / d_nm
+                else:
+                    # No usable info → leave as None (unknown), do not fail climb gate
+                    aeo_grad = None
+
         except Exception:
             aeo_grad = None
 
