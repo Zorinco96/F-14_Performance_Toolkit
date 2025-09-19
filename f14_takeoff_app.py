@@ -793,24 +793,37 @@ st.session_state["req_climb_grad_ft_nm"] = int(req_grad)
 st.header("Takeoff Results")
 
 def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
+    """
+    Builds a simple N1 / FF(pph per engine) guidance table based on the
+    *resolved* thrust selection (e.g., "MILITARY", "AFTERBURNER",
+    "DERATE (92%)"). Does NOT read global `thrust` — uses `thrust_sel`.
+    """
     def rows(n1_to, ff_to, n1_ic, ff_ic, n1_cl, ff_cl):
         return [
             {"Phase": "Takeoff",       "Target N1 (%)": int(round(n1_to)), "FF (pph/engine)": int(round(ff_to))},
             {"Phase": "Initial Climb", "Target N1 (%)": int(round(n1_ic)), "FF (pph/engine)": int(round(ff_ic))},
             {"Phase": "Climb Segment", "Target N1 (%)": int(round(n1_cl)), "FF (pph/engine)": int(round(ff_cl))},
         ]
-    if thrust == "MILITARY":
-        data = rows(96, 7000, 95, 6500, 93, 6000)
-    elif thrust == "AFTERBURNER":
+
+    label = (thrust_sel or "").upper()
+
+    if "AFTERBURNER" in label:
         data = rows(102, 19000, 98, 10000, 95, 7500)
-    elif thrust == "DERATE (Manual)":
-        n1_to = max(85, min(100, int(derate if 'derate' in locals() else 95)))
-        n1_ic = max(85, n1_to - 2); n1_cl = max(85, n1_ic - 2)
+    elif "DERATE" in label:
+        # Use provided derate_pct if available; fallback to 95
+        n1_to = max(85, min(100, int(derate_pct or 95)))
+        n1_ic = max(85, n1_to - 2)
+        n1_cl = max(85, n1_ic - 2)
         scale = (n1_to / 96.0)
         data = rows(n1_to, 7000*scale, n1_ic, 6500*scale, n1_cl, 6000*scale)
+    elif "MILITARY" in label:
+        data = rows(96, 7000, 95, 6500, 93, 6000)
     else:
+        # Generic auto fallback ~ MIL-ish
         data = rows(95, 6500, 94, 6250, 92, 5750)
+
     return pd.DataFrame(data)
+
 
 perf_takeoff_ref = getattr(core, "perf_compute_takeoff", None)
 
@@ -933,32 +946,49 @@ if auto_mode and selection:
         else ("ASDR-limited" if selection["asdr_ft"] > selection["todr_ft"] else "TODR-limited")
     )
     governing = balanced_badge
+        # AB escalation UX: if Auto-Select required AB to be dispatchable, warn loudly
+    if selection.get("ab_required", False):
+        st.error("**TAKEOFF — AB REQUIRED — NOT AUTHORIZED**\n\n"
+                 "Auto-Select determined that no MIL/DERATE configuration is dispatchable. "
+                 "AFTERBURNER would be required to meet runway/climb gates. "
+                 "Switch Thrust to **AFTERBURNER** manually to authorize and recompute.",
+                 icon="🚫")
+
 else:
-    # Manual (or no selection available) → compute single-point perf per current controls
+    # Manual (or no selection available)
     flap_display = flaps if flaps != "Auto-Select" else "FULL"
     thrust_display = thrust
     balanced_badge = ""
     governing = ""
     t_res = {}
-    if callable(perf_takeoff_ref):
-        try:
-            # Manual AB is treated as authorized
-            tm = "MAX" if thrust_display == "AFTERBURNER" else "MIL"
-            hw_eff_manual = apply_wind_policy(hw_raw, use_50_150)
-            t_res = cached_perf_takeoff(
-                gw_lb=gw_lb,
-                field_elev_ft=field_elev_ft,
-                oat_c=oat_c,
-                headwind_kts=hw_eff_manual,
-                runway_slope=runway_slope,
-                thrust_mode=tm,
-                mode=mode_flag,
-                config=("TO_FLAPS" if flap_display in ("MANEUVER","FULL") else "CLEAN"),
-                sweep_deg=20.0,
-                stores=tuple(stores_list),
-            )
-        except Exception as e:
-            st.warning(f"Perf engine error: {e}")
+
+    if (flaps == "Auto-Select") or (thrust == "Auto-Select"):
+        # Do NOT compute a manual point when user is still in Auto-Select and no candidate exists.
+        # Show guidance to either authorize AB or adjust config.
+        st.info("Auto-Select did not produce a dispatchable configuration. "
+                "Authorize AFTERBURNER (manual Thrust = AFTERBURNER) or adjust weight / runway / wind.",
+                icon="ℹ️")
+    else:
+        # Fully manual → compute single-point perf per current controls
+        if callable(perf_takeoff_ref):
+            try:
+                tm = "MAX" if thrust_display == "AFTERBURNER" else "MIL"
+                hw_eff_manual = apply_wind_policy(hw_raw, use_50_150)
+                t_res = cached_perf_takeoff(
+                    gw_lb=gw_lb,
+                    field_elev_ft=field_elev_ft,
+                    oat_c=oat_c,
+                    headwind_kts=hw_eff_manual,
+                    runway_slope=runway_slope,
+                    thrust_mode=tm,
+                    mode=mode_flag,
+                    config=("TO_FLAPS" if flap_display in ("MANEUVER","FULL") else "CLEAN"),
+                    sweep_deg=20.0,
+                    stores=tuple(stores_list),
+                )
+            except Exception as e:
+                st.warning(f"Perf engine error: {e}")
+
 
 
 col1, col2, col3, col4 = st.columns(4)
@@ -970,6 +1000,8 @@ with col1:
         st.metric("Vr (kt)",   f"{t_res['VR_kts']:.0f}")
         st.metric("V2 (kt)",   f"{t_res['V2_kts']:.0f}")
         st.metric("Vfs (kt)",  f"{max(t_res['V2_kts']*1.1, t_res['VLOF_kts']*1.15):.0f}")
+        st.caption("V1 shown as Vr placeholder until accelerate-stop is modeled.")
+
     else:
         st.metric("V1 (kt)", "—"); st.metric("Vr (kt)", "—"); st.metric("V2 (kt)", "—"); st.metric("Vfs (kt)", "—")
 
@@ -1001,6 +1033,9 @@ with col3:
         st.metric("Dist to 35 ft (ft)",     f"{t_res['DistanceTo35ft_ft']:.0f}")
         st.metric("Available (TORA)",       f"{tora_ft:,} ft")
         st.metric("Required (≤TORA)",       f"{int(round(t_res['DistanceTo35ft_ft'])):,} ft")
+        if asda_ft == tora_ft:
+    st.caption("ASDA not provided — using TORA as a conservative fallback for ASDR gate.")
+
     else:
         st.metric("Ground roll (ft)", "—")
         st.metric("Dist to 35 ft (ft)", "—")
@@ -1009,19 +1044,62 @@ with col3:
 
 with col4:
     st.subheader("Dispatchability")
-    if t_res:
-        required = int(round(t_res["DistanceTo35ft_ft"]))
-        available = tora_ft
-        if available >= required:
+
+    # Prefer Auto-Select candidate if present; else use current single-point t_res
+    candidate = None
+    if auto_mode and selection:
+        candidate = selection
+    elif t_res:
+        # Build a minimal candidate from current point for display
+        candidate = {
+            "todr_ft": float(t_res.get("DistanceTo35ft_ft", 0.0) or 0.0),
+            "asdr_ft": float(t_res.get("ASDR_ft", 0.0) or 0.0) or float(t_res.get("GroundRoll_ft", 0.0) or 0.0) * 1.15,
+            "aeo_grad_ft_nm": None,
+            "margins": {
+                "tora_margin_ft": float(tora_ft) - float(t_res.get("DistanceTo35ft_ft", 0.0) or 0.0),
+                "asda_margin_ft": float(asda_ft) - (float(t_res.get("ASDR_ft", 0.0) or 0.0) or float(t_res.get("GroundRoll_ft", 0.0) or 0.0) * 1.15),
+            },
+        }
+
+    if candidate:
+        # Gates
+        todr = float(candidate["todr_ft"])
+        asdr = float(candidate["asdr_ft"])
+        tora = float(tora_ft)
+        asda = float(asda_ft)
+        grad = candidate.get("aeo_grad_ft_nm", None)
+        req_grad = float(st.session_state.get("req_climb_grad_ft_nm", 200))
+
+        pass_runway = (todr <= tora) and (asdr <= asda)
+        pass_climb = (grad is None) or (grad >= req_grad)
+        dispatchable = pass_runway and pass_climb
+
+        if dispatchable:
             st.success("Dispatchable")
-            st.caption("Limiting: None")
         else:
             st.error("NOT Dispatchable")
-            st.caption("Limiting: TORA vs Dist to 35 ft")
-        st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
+
+        # Limiter & margins
+        lim = "Balanced"
+        if asdr > asda and todr <= tora:
+            lim = "ASDR-limited"
+        elif todr > tora and asdr <= asda:
+            lim = "TODR-limited"
+        elif todr > tora and asdr > asda:
+            lim = "TODR & ASDR limited"
+        st.caption(f"Limiting: {lim}")
+
+        tm = candidate.get("margins", {})
+        st.metric("TORA Margin", f"{int(round(tm.get('tora_margin_ft', 0))):,} ft")
+        st.metric("ASDA Margin", f"{int(round(tm.get('asda_margin_ft', 0))):,} ft")
+        if grad is not None:
+            st.metric("Expected Climb Gradient (AEO)", f"{grad:.0f} ft/NM")
+        else:
+            st.metric("Expected Climb Gradient (AEO)", "— ft/NM (not computed)")
     else:
-        st.info("Perf model not available.")
-        st.metric("Expected Climb Gradient (AEO)", "— ft/NM (placeholder)")
+        st.info("No dispatchable candidate. Adjust thrust/flaps, weight, or runway.", icon="ℹ️")
+        st.metric("Expected Climb Gradient (AEO)", "— ft/NM (not computed)")
+
 
 st.divider()
 st.subheader("DCS Expected Performance (calculated)")
@@ -1162,21 +1240,7 @@ with st.expander("6) Climb Profile", expanded=True):
         ignore_reg = st.checkbox("Ignore regulatory speed restrictions (≤250 KIAS <10k)")
 
 perf_climb_ref = getattr(core, "perf_compute_climb", None)
-# Cheap in-process memoization for perf calls (idempotent if already defined)
-try:
-    cached_perf_climb
-except NameError:
-    from functools import lru_cache
-    @lru_cache(maxsize=256)
-    def cached_perf_climb(*, gw_lb, alt_start_ft, alt_end_ft, oat_dev_c,
-                          schedule, mode, power, sweep_deg, config):
-        if not callable(perf_climb_ref):
-            return {}
-        return perf_climb_ref(
-            gw_lb=gw_lb, alt_start_ft=alt_start_ft, alt_end_ft=alt_end_ft,
-            oat_dev_c=oat_dev_c, schedule=schedule, mode=mode, power=power,
-            sweep_deg=sweep_deg, config=config
-        )
+
 
 gw_lb = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
 alt0  = float(locals().get("elev", 0.0))
