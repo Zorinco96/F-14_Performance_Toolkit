@@ -418,12 +418,12 @@ def _evaluate_candidate(flaps_label: str,
     gr  = float(t_res.get("GroundRoll_ft", 0.0) or 0.0)
     d35 = float(t_res.get("DistanceTo35ft_ft", 0.0) or 0.0)
 
-    # Prefer true ASDR if core exposes; else surrogate (documented)
+    # Prefer true ASDR if core exposes; else surrogate
     asdr_ft = float(t_res.get("ASDR_ft", 0.0) or 0.0)
     if asdr_ft <= 0.0:
-        asdr_ft = gr * 1.15 if gr > 0 else d35 * 1.10  # surrogate only if core ASDR not provided
+        asdr_ft = gr * 1.15 if gr > 0 else d35 * 1.10
 
-    # Prefer explicit OEI TODR if available; else AEO d35 per baseline
+    # Prefer explicit OEI TODR if available; else AEO d35
     todr_ft = float(t_res.get("TODR_OEI_35ft_ft", 0.0) or 0.0)
     if todr_ft <= 0.0:
         todr_ft = d35
@@ -445,13 +445,12 @@ def _evaluate_candidate(flaps_label: str,
                 alt_start_ft=max(0.0, ctx["field_elev_ft"]),
                 alt_end_ft=max(1000.0 + ctx["field_elev_ft"], ctx["field_elev_ft"] + 1.0),
                 oat_dev_c=0.0,
-                schedule="NAVY",        # baseline schedule for AEO check
+                schedule="NAVY",
                 mode="DCS",
                 power=("MAX" if thrust_mode == "MAX" else "MIL"),
                 sweep_deg=20.0,
                 config=("CLEAN" if cfg == "CLEAN" else "TO_FLAPS"),
             )
-            # Prefer explicit gradient if core provides one; else estimate from distance
             explicit = cres.get("AEO_min_grad_ft_per_nm_to_1000", None)
             if explicit is None:
                 explicit = cres.get("Grad_ft_per_nm", None)
@@ -466,11 +465,10 @@ def _evaluate_candidate(flaps_label: str,
     # Gates
     req_grad = float(ctx.get("req_grad_ft_nm", 200.0))
     pass_runway = pass_runway_precheck
-    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)  # unknown climb → pass
-
+    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)
     dispatchable = pass_runway and pass_climb
 
-    # Base V-speeds from engine result
+    # Base V-speeds from perf engine
     v_speeds = {
         "V1_kts": float(t_res.get("VR_kts", 0.0) or 0.0),  # placeholder = Vr until explicit V1 provided
         "Vr_kts": float(t_res.get("VR_kts", 0.0) or 0.0),
@@ -481,7 +479,7 @@ def _evaluate_candidate(flaps_label: str,
         )),
     }
 
-    # Table-based gentle override (if available)
+    # Gentle table-based override (if f14_perf.csv is present)
     try:
         vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
         if vs_tbl:
@@ -489,7 +487,7 @@ def _evaluate_candidate(flaps_label: str,
                 v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
             if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
                 v_speeds["Vr_kts"] = float(vs_tbl["Vr_kts"])
-                v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])  # mirror Vr until V1 exists
+                v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])
             if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
                 v_speeds["V2_kts"] = float(vs_tbl["V2_kts"])
                 v_speeds["Vfs_kts"] = float(max(
@@ -517,7 +515,6 @@ def _evaluate_candidate(flaps_label: str,
         ),
         v=v_speeds,
     )
-
 
 
     # Distances
