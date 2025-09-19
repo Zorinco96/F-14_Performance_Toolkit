@@ -212,6 +212,61 @@ for p in PERF_PATHS:
         perf = load_perf(p); break
     except Exception:
         continue
+# =========================
+# Reference V-speed helpers (from f14_perf.csv)
+# =========================
+def _closest_row_by_weight(df: pd.DataFrame, gw_lb: float, flap_deg_target: Optional[int]) -> Optional[pd.Series]:
+    if df is None or df.empty:
+        return None
+    wcol = "gw_lbs"
+    if wcol not in df.columns:
+        return None
+    tmp = df.copy()
+    # optional flap filter if present in dataset
+    if flap_deg_target is not None and "flap_deg" in tmp.columns:
+        tmp = tmp[pd.to_numeric(tmp["flap_deg"], errors="coerce") == float(flap_deg_target)]
+        if tmp.empty:
+            tmp = df.copy()  # fallback: ignore flap if not present
+    tmp["_werr"] = (pd.to_numeric(tmp[wcol], errors="coerce") - float(gw_lb)).abs()
+    tmp = tmp.sort_values("_werr")
+    return tmp.iloc[0] if not tmp.empty else None
+
+def get_reference_vspeeds_from_csv(
+    perf_df: Optional[pd.DataFrame],
+    gw_lb: float,
+    flaps_label: str
+) -> Optional[dict]:
+    """
+    Pull Vs/V1/Vr/V2 from f14_perf.csv by nearest weight and flap setting if available.
+    For flap mapping:
+      - "UP"        -> flap_deg_target = 0
+      - "MANEUVER"  -> flap_deg_target = 20  (approx UI baseline)
+      - "FULL"      -> flap_deg_target = 25  (approx UI baseline)
+    If any key is missing, returns None to allow model fallback.
+    """
+    if perf_df is None or perf_df.empty:
+        return None
+
+    flap_map = {"UP": 0, "MANEUVER": 20, "FULL": 25}
+    flap_deg_target = flap_map.get(str(flaps_label).upper(), None)
+    row = _closest_row_by_weight(perf_df, gw_lb, flap_deg_target)
+    if row is None:
+        return None
+
+    needed = ["Vs_kt", "V1_kt", "Vr_kt", "V2_kt"]
+    if not all(col in row.index for col in needed):
+        return None
+
+    try:
+        return dict(
+            Vs=float(row["Vs_kt"]),
+            V1=float(row["V1_kt"]),
+            Vr=float(row["Vr_kt"]),
+            V2=float(row["V2_kt"]),
+        )
+    except Exception:
+        return None
+        
 # --- Helper: V-speed lookup from f14_perf.csv (nearest neighbor by flaps & GW)
 def _vs_lookup_from_perf_table(gw_lb: float, flaps_label: str) -> dict:
     """
@@ -1351,14 +1406,34 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.subheader("V-Speeds")
     if t_res:
-        st.metric("V1 (kt)",   f"{t_res['VR_kts']:.0f}")
-        st.metric("Vr (kt)",   f"{t_res['VR_kts']:.0f}")
-        st.metric("V2 (kt)",   f"{t_res['V2_kts']:.0f}")
-        st.metric("Vfs (kt)",  f"{max(t_res['V2_kts']*1.1, t_res['VLOF_kts']*1.15):.0f}")
-        st.caption("V1 shown as Vr placeholder until accelerate-stop is modeled.")
+        # Prefer reference CSV when we are in non-AB operation
+        # (CSV is MIL-based; use it for DERATE...MIL. For AB, show model.)
+        use_csv = False
+        if auto_mode and selection:
+            use_csv = not bool(selection.get("ab_required", False))
+        else:
+            # manual thrust: use CSV if NOT AB
+            use_csv = (str(thrust_display).upper().startswith("MILITARY") or str(thrust_display).upper().startswith("DERATE"))
 
+        ref = get_reference_vspeeds_from_csv(perf, gw_lb, flap_display) if use_csv else None
+
+        if ref:
+            v1 = ref["V1"]; vr = ref["Vr"]; v2 = ref["V2"]
+        else:
+            # model fallback (note: current core returns VR as both V1/Vr placeholder)
+            v1 = float(t_res.get("VR_kts", 0.0) or 0.0)
+            vr = float(t_res.get("VR_kts", 0.0) or 0.0)
+            v2 = float(t_res.get("V2_kts", 0.0) or 0.0)
+
+        vfs = max(v2 * 1.1, float(t_res.get("VLOF_kts", 0.0) or 0.0) * 1.15)
+
+        st.metric("V1 (kt)", f"{v1:.0f}" if v1 > 0 else "—")
+        st.metric("Vr (kt)", f"{vr:.0f}" if vr > 0 else "—")
+        st.metric("V2 (kt)", f"{v2:.0f}" if v2 > 0 else "—")
+        st.metric("Vfs (kt)", f"{vfs:.0f}" if vfs > 0 else "—")
     else:
         st.metric("V1 (kt)", "—"); st.metric("Vr (kt)", "—"); st.metric("V2 (kt)", "—"); st.metric("Vfs (kt)", "—")
+
    
     st.caption("V1 shown as **Vr** (placeholder) until ASDR/V1 modeling is wired. "
                "All V-speeds currently come from the performance table and may need calibration against NATOPS/DCS.")
