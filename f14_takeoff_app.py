@@ -868,7 +868,7 @@ def _ladder_derate_labels():
 def _choose_best(cands: list[dict]):
     # Tie-breakers: min thrust → min flap → max margin → closest to balanced
     def thrust_rank(c):
-        lbl = c["thrust_label"]
+        lbl = c.get("thrust_label", "")
         if lbl.startswith("DERATE"):
             import re as _re
             m = _re.search(r"(\d+)%", lbl)
@@ -882,15 +882,14 @@ def _choose_best(cands: list[dict]):
 
     def flap_rank(c):
         order = {"UP": 0, "MANEUVER": 1, "FULL": 2}
-        return order.get(c["flaps"], 9)
+        return order.get(c.get("flaps", ""), 9)
 
     def margin_rank(c):
-        m = c["margins"]
-        # larger min margin is better (negated for ascending sort)
-        return -min(m.get("tora_margin_ft", -1e9), m.get("asda_margin_ft", -1e9))
+        m = c.get("margins", {})
+        return -min(m.get("tora_margin_ft", -1e9), m.get("asda_margin_ft", -1e9))  # more margin is better
 
     def balance_rank(c):
-        return c["diff_ratio"]  # smaller is better
+        return c.get("diff_ratio", 1.0)  # smaller is better
 
     return sorted(cands, key=lambda c: (thrust_rank(c), flap_rank(c), margin_rank(c), balance_rank(c)))[0] if cands else None
 
@@ -900,16 +899,21 @@ if auto_mode:
     flaps_order = ["UP", "MANEUVER", "FULL"]
     feasible = []
 
-    for lbl, pct in zip(derate_labels, derate_pcts):
+    for lbl, _pct in zip(derate_labels, derate_pcts):
         for flp in flaps_order:
-            cand = _evaluate_candidate(
-                flaps_label=flp,
-                thrust_label=lbl,
-                thrust_mode="MIL",           # engine sees MIL; derate is a label decision
-                hw_eff_kts=hw_eff,
-                ctx=scenario_ctx
-            )
-            if cand["dispatchable"]:
+            try:
+                cand = _evaluate_candidate(
+                    flaps_label=flp,
+                    thrust_label=lbl,
+                    thrust_mode="MIL",           # engine sees MIL; derate is a label/scheduling decision
+                    hw_eff_kts=hw_eff,
+                    ctx=scenario_ctx
+                )
+            except Exception as _e:
+                # Defensive: skip malformed candidate
+                continue
+            # A candidate is good if runway gates pass; climb None counts as pass by policy
+            if cand.get("dispatchable", False):
                 feasible.append(cand)
 
     best_mil = _choose_best(feasible)
@@ -917,17 +921,37 @@ if auto_mode:
     if best_mil:
         selection = dict(best_mil, ab_required=False)
     else:
-        # 2) Escalate to AB: evaluate feasibility but DO NOT authorize in Auto-Select
-        feasible_ab = []
-        for flp in flaps_order:
-            cand = _evaluate_candidate(
-                flaps_label=flp,
-                thrust_label="AFTERBURNER (required)",
-                thrust_mode="MAX",
+        # 1b) Fallback sanity: try a single direct MIL candidate using current flap control
+        # (This often matches the manual result users test.)
+        current_flaps = flaps if flaps != "Auto-Select" else "UP"
+        try:
+            fallback = _evaluate_candidate(
+                flaps_label=current_flaps,
+                thrust_label="MILITARY",
+                thrust_mode="MIL",
                 hw_eff_kts=hw_eff,
                 ctx=scenario_ctx
             )
-            if cand["dispatchable"]:
+            if fallback.get("dispatchable", False):
+                selection = dict(fallback, ab_required=False)
+        except Exception:
+            pass
+
+    if not selection:
+        # 2) Escalate to AB feasibility (not authorization)
+        feasible_ab = []
+        for flp in flaps_order:
+            try:
+                cand = _evaluate_candidate(
+                    flaps_label=flp,
+                    thrust_label="AFTERBURNER (required)",
+                    thrust_mode="MAX",
+                    hw_eff_kts=hw_eff,
+                    ctx=scenario_ctx
+                )
+            except Exception:
+                continue
+            if cand.get("dispatchable", False):
                 feasible_ab.append(cand)
 
         best_ab = _choose_best(feasible_ab)
@@ -937,6 +961,46 @@ if auto_mode:
             selection = None  # not dispatchable even with AB
 
 # ---------- Resolve UI display based on auto vs manual ----------
+if auto_mode and selection:
+    flap_display = selection["flaps"]
+    thrust_display = selection["thrust_label"]
+    t_res = selection.get("t_res") or {}
+    balanced_badge = (
+        "Balanced" if selection.get("diff_ratio", 1.0) <= 0.05
+        else ("ASDR-limited" if selection.get("asdr_ft", 0) > selection.get("todr_ft", 0) else "TODR-limited")
+    )
+    governing = balanced_badge
+else:
+    # Manual (or no selection available) → compute single-point perf per current controls
+    flap_display = flaps if flaps != "Auto-Select" else "FULL"
+    thrust_display = thrust
+    balanced_badge = ""
+    governing = ""
+    t_res = {}
+    if callable(perf_takeoff_ref):
+        try:
+            tm = "MAX" if thrust_display == "AFTERBURNER" else "MIL"
+            hw_eff_manual = apply_wind_policy(hw_raw, use_50_150)
+            t_res = cached_perf_takeoff(
+                gw_lb=gw_lb,
+                field_elev_ft=field_elev_ft,
+                oat_c=oat_c,
+                headwind_kts=hw_eff_manual,
+                runway_slope=runway_slope,
+                thrust_mode=tm,
+                mode=mode_flag,
+                config=("TO_FLAPS" if flap_display in ("MANEUVER","FULL") else "CLEAN"),
+                sweep_deg=20.0,
+                stores=tuple(stores_list),
+            )
+        except Exception as e:
+            st.warning(f"Perf engine error: {e}")
+# If Auto-Select ended up with AB-only feasibility, show the policy banner
+if auto_mode and selection and selection.get("ab_required", False):
+    st.error("**TAKEOFF — AB REQUIRED — NOT AUTHORIZED**\n\nAuto-Select found no dispatchable MIL/DERATE option. "
+             "To proceed, explicitly set **Thrust = AFTERBURNER** (manual) or adjust runway / weight / wind.",
+             icon="🚫")
+
 if auto_mode and selection:
     flap_display = selection["flaps"]
     thrust_display = selection["thrust_label"]
