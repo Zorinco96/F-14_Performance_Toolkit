@@ -585,7 +585,7 @@ def _evaluate_candidate(flaps_label: str,
     dispatchable = pass_runway and pass_climb
 
     # Package
-    }
+    
 
     # Override with table-based V-speeds if available (gentle override)
     try:
