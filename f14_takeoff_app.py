@@ -1208,21 +1208,21 @@ else:
                 sweep_deg=20.0,
                 stores=tuple(stores_list),
             )
-      # Manual mode: gently override displayed V-speeds from table if available
-try:
-    fl_for_tbl = flap_display if flap_display in ("UP","MANEUVER","FULL") else "UP"
-    tm_for_tbl = "MAX" if tm == "MAX" else "MIL"
-    vs_tbl = _vs_lookup_from_perf_table(gw_lb, fl_for_tbl, tm_for_tbl)
-    if vs_tbl:
-        if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
-            t_res["VR_kts"] = float(vs_tbl["Vr_kts"])
-        if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
-            t_res["V2_kts"] = float(vs_tbl["V2_kts"])
-        if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
-            t_res["Vs_kts"] = float(vs_tbl["Vs_kts"])
-except Exception:
-    # Safe fallback: don’t block app if lookup fails
-    pass
+            # Manual mode: gently override displayed V-speeds from table if available
+            try:
+                fl_for_tbl = flap_display if flap_display in ("UP","MANEUVER","FULL") else "UP"
+                tm_for_tbl = "MAX" if tm == "MAX" else "MIL"
+                vs_tbl = _vs_lookup_from_perf_table(gw_lb, fl_for_tbl, tm_for_tbl)
+                if vs_tbl:
+                    if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
+                        t_res["VR_kts"] = float(vs_tbl["Vr_kts"])
+                    if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
+                        t_res["V2_kts"] = float(vs_tbl["V2_kts"])
+                    if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
+                        t_res["Vs_kts"] = float(vs_tbl["Vs_kts"])
+            except Exception:
+                # Safe fallback: don’t block app if lookup fails
+                pass
 
             
         except Exception as e:
