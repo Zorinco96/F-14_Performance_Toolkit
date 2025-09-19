@@ -1112,12 +1112,59 @@ st.session_state["req_climb_grad_ft_nm"] = int(req_grad)
 # =========================
 st.header("Takeoff Results")
 
-def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
+def build_engine_table(thrust_label: str, thrust_mode: str, derate_pct: Optional[int] = None) -> pd.DataFrame:
     """
-    Builds a simple N1 / FF(pph per engine) guidance table based on the
-    *resolved* thrust selection (e.g., "MILITARY", "AFTERBURNER",
-    "DERATE (92%)"). Does NOT read global `thrust` — uses `thrust_sel`.
+    Build the N1/FF(pph/engine) guidance table to mirror the *effective* thrust selection:
+      - Auto-Select → use selection["thrust_label"] (e.g., "DERATE (85%)", "MILITARY", "AFTERBURNER (required)")
+      - Manual → use current UI radios (and slider for derate)
+    Notes:
+      • FF values are scaled heuristics until the engine model provides per-phase FF.
+      • N1 targets reflect label/mode so the table never conflicts with the chosen thrust.
     """
+    import re as _re
+
+    # Derive a numeric N1 for "Takeoff" from label/mode
+    # Baselines (heuristic but consistent with prior UI):
+    # - MIL: 100% N1 (table previously used ~95–96%; we standardize to 100 for display clarity)
+    # - DERATE(x%): x% N1
+    # - AB/MAX: 102% N1 (display-only; engine model still uses "MAX")
+    label = (thrust_label or "").upper().strip()
+    mode  = (thrust_mode or "MIL").upper().strip()
+
+    if "DERATE" in label:
+        m = _re.search(r"(\d+)\s*%", label)
+        n1_takeoff = max(85, min(100, int(m.group(1)) if m else (derate_pct if derate_pct is not None else 95)))
+    elif label.startswith("AFTERBURNER"):
+        n1_takeoff = 102
+    elif label.startswith("MILITARY") or mode == "MIL":
+        n1_takeoff = 100
+    else:
+        # Fallbacks: respect manual DERATE if provided
+        if derate_pct is not None:
+            n1_takeoff = max(85, min(100, int(derate_pct)))
+        else:
+            n1_takeoff = 100
+
+    # Simple per-phase deltas: Initial Climb -2%, Climb Segment -4% from Takeoff (bounded ≥85)
+    n1_ic  = max(85, n1_takeoff - 2)
+    n1_cl  = max(85, n1_takeoff - 4)
+
+    # FF heuristics:
+    # Use MIL baselines then scale by (n1_takeoff / 100). AB has a larger multiplier.
+    # These are display-only placeholders pending real FF from the core.
+    if "AFTERBURNER" in label or mode == "MAX":
+        ff_takeoff = 19000
+        ff_ic      = 10000
+        ff_cl      =  7500
+        # Light scaling so DERATE in AB (rare in UI) doesn't go weird; keep AB tables prominent.
+        scale = (n1_takeoff / 102.0)
+        ff_takeoff *= scale; ff_ic *= scale; ff_cl *= scale
+    else:
+        # MIL/DERATE baseline ~7000 pph/engine at 100% N1
+        ff_takeoff = 7000 * (n1_takeoff / 100.0)
+        ff_ic      = 6500 * (n1_ic      / 100.0)
+        ff_cl      = 6000 * (n1_cl      / 100.0)
+
     def rows(n1_to, ff_to, n1_ic, ff_ic, n1_cl, ff_cl):
         return [
             {"Phase": "Takeoff",       "Target N1 (%)": int(round(n1_to)), "FF (pph/engine)": int(round(ff_to))},
@@ -1125,24 +1172,9 @@ def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
             {"Phase": "Climb Segment", "Target N1 (%)": int(round(n1_cl)), "FF (pph/engine)": int(round(ff_cl))},
         ]
 
-    label = (thrust_sel or "").upper()
-
-    if "AFTERBURNER" in label:
-        data = rows(102, 19000, 98, 10000, 95, 7500)
-    elif "DERATE" in label:
-        # Use provided derate_pct if available; fallback to 95
-        n1_to = max(85, min(100, int(derate_pct or 95)))
-        n1_ic = max(85, n1_to - 2)
-        n1_cl = max(85, n1_ic - 2)
-        scale = (n1_to / 96.0)
-        data = rows(n1_to, 7000*scale, n1_ic, 6500*scale, n1_cl, 6000*scale)
-    elif "MILITARY" in label:
-        data = rows(96, 7000, 95, 6500, 93, 6000)
-    else:
-        # Generic auto fallback ~ MIL-ish
-        data = rows(95, 6500, 94, 6250, 92, 5750)
-
+    data = rows(n1_takeoff, ff_takeoff, n1_ic, ff_ic, n1_cl, ff_cl)
     return pd.DataFrame(data)
+
 
 
 perf_takeoff_ref = getattr(core, "perf_compute_takeoff", None)
