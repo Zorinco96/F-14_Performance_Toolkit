@@ -811,25 +811,20 @@ perf_takeoff_ref = getattr(core, "perf_compute_takeoff", None)
 gw_lb         = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
 field_elev_ft = float(locals().get("elev", 0.0))
 oat_c         = float(locals().get("field_temp", 15.0))
-headwind_kts  = float(locals().get("hw", 0.0) or 0.0)
 runway_slope  = 0.0
 stores_list   = get_stores_drag_list()
 mode_flag     = "DCS"
 
+# Runway availability
 tora_ft = _s_int(locals().get("tora", 0))
-asda_ft = tora_ft
+asda_ft = tora_ft  # ASDA fallback to TORA if unknown
 
-wp = core.WIND_POLICY_50_150 if wind_policy_choice.startswith("50%") else core.WIND_POLICY_0_150
+# Apply wind policy to the headwind component BEFORE perf calls
+use_50_150 = bool(wind_policy_choice.startswith("50%"))
+hw_raw = float(locals().get("hw", 0.0) or 0.0)
+hw_eff = apply_wind_policy(hw_raw, use_50_150)
 
-sel_inputs = core.AutoSelectInputs(
-    available_tora_ft=int(tora_ft),
-    available_asda_ft=int(asda_ft),
-    runway_heading_deg=float(locals().get("hdg", 0.0) or 0.0),
-    headwind_kts_raw=float(locals().get("hw", 0.0) or 0.0),
-    aeo_required_ft_per_nm=float(st.session_state.get("req_climb_grad_ft_nm", 200)),
-    wind_policy=wp,
-)
-
+# Scenario context for evaluations
 scenario_ctx = dict(
     gw_lb=gw_lb,
     field_elev_ft=field_elev_ft,
@@ -837,65 +832,103 @@ scenario_ctx = dict(
     runway_slope=runway_slope,
     stores=stores_list,
     mode=mode_flag,
-    headwind_kts=float(locals().get("hw", 0.0) or 0.0),
+    available_tora_ft=float(tora_ft),
+    available_asda_ft=float(asda_ft),
+    req_grad_ft_nm=float(st.session_state.get("req_climb_grad_ft_nm", 200)),
 )
 
-def compute_candidate(*, flaps: str, thrust_pct: int, v1_kt: float | None, context: dict) -> dict:
-    cfg = "TO_FLAPS" if flaps in ("MANEUVER", "FULL") else "CLEAN"
-    thrust_mode = "MIL" if thrust_pct <= 100 else "MAX"
-    base = {}
-    try:
-        if callable(perf_takeoff_ref):
-            base = cached_perf_takeoff(
-                gw_lb=context["gw_lb"],
-                field_elev_ft=context["field_elev_ft"],
-                oat_c=context["oat_c"],
-                headwind_kts=context["headwind_kts"],
-                runway_slope=context["runway_slope"],
-                thrust_mode=("MAX" if thrust_mode == "MAX" else "MIL"),
-                mode=context["mode"],
-                config=cfg,
-                sweep_deg=20.0,
-                stores=tuple(context["stores"]),
-            )
-        else:
-            base["__diagnostic__"] = "perf_takeoff_unavailable"
-    except Exception as e:
-        base["__exception__"] = str(e)
-
-    gr = float(base.get("GroundRoll_ft", 0.0) or 0.0)
-    d35 = float(base.get("DistanceTo35ft_ft", 0.0) or 0.0)
-    asdr = gr * 1.15 if gr > 0 else d35 * 1.10
-    todr = d35
-    m = max(asdr, todr) if max(asdr, todr) > 0 else 1.0
-    diff_ratio = abs(asdr - todr) / m
-
-    return {
-        "ASDR_ft": asdr,
-        "TODR_OEI_35ft_ft": todr,
-        "balanced_diff_ratio": diff_ratio,
-        "AEO_min_grad_ft_per_nm_to_1000": None,
-        "OEI_second_seg_gross_pct": None,
-        "OEI_final_seg_gross_pct": None,
-        "perf": base,
-    }
-
+# ---------- Auto-Select (DERATE→MIL, then AB feasibility) ----------
 auto_mode = (flaps == "Auto-Select") or (thrust == "Auto-Select")
 selection = None
-if auto_mode:
-    selection = core.auto_select_flaps_thrust(
-        sel=sel_inputs,
-        scenario_context=scenario_ctx,
-        compute_candidate=compute_candidate,
-    )
 
-if selection and selection.dispatchable:
-    flap_display = selection.flaps
-    thrust_display = selection.thrust_label
-    t_res = selection.perf or {}
-    balanced_badge = selection.balanced_label or ""
-    governing = selection.governing_side
+def _ladder_derate_labels():
+    # Discrete derate points; labels for UI, MIL for engine calls
+    pts = [85, 88, 90, 92, 95, 97, 100]
+    return [f"DERATE ({p}%)" if p < 100 else "MILITARY" for p in pts], pts
+
+def _choose_best(cands: list[dict]):
+    # Tie-breakers: min thrust → min flap → max margin → closest to balanced
+    def thrust_rank(c):
+        lbl = c["thrust_label"]
+        if lbl.startswith("DERATE"):
+            import re as _re
+            m = _re.search(r"(\d+)%", lbl)
+            pct = int(m.group(1)) if m else 100
+            return (0, pct)  # lower pct better
+        if lbl.startswith("MILITARY"):
+            return (1, 100)
+        if lbl.startswith("AFTERBURNER"):
+            return (2, 200)
+        return (9, 999)
+
+    def flap_rank(c):
+        order = {"UP": 0, "MANEUVER": 1, "FULL": 2}
+        return order.get(c["flaps"], 9)
+
+    def margin_rank(c):
+        m = c["margins"]
+        # larger min margin is better (negated for ascending sort)
+        return -min(m.get("tora_margin_ft", -1e9), m.get("asda_margin_ft", -1e9))
+
+    def balance_rank(c):
+        return c["diff_ratio"]  # smaller is better
+
+    return sorted(cands, key=lambda c: (thrust_rank(c), flap_rank(c), margin_rank(c), balance_rank(c)))[0] if cands else None
+
+if auto_mode:
+    # 1) Try DERATE→MIL ladder with flaps UP→MANEUVER→FULL
+    derate_labels, derate_pcts = _ladder_derate_labels()
+    flaps_order = ["UP", "MANEUVER", "FULL"]
+    feasible = []
+
+    for lbl, pct in zip(derate_labels, derate_pcts):
+        for flp in flaps_order:
+            cand = _evaluate_candidate(
+                flaps_label=flp,
+                thrust_label=lbl,
+                thrust_mode="MIL",           # engine sees MIL; derate is a label decision
+                hw_eff_kts=hw_eff,
+                ctx=scenario_ctx
+            )
+            if cand["dispatchable"]:
+                feasible.append(cand)
+
+    best_mil = _choose_best(feasible)
+
+    if best_mil:
+        selection = dict(best_mil, ab_required=False)
+    else:
+        # 2) Escalate to AB: evaluate feasibility but DO NOT authorize in Auto-Select
+        feasible_ab = []
+        for flp in flaps_order:
+            cand = _evaluate_candidate(
+                flaps_label=flp,
+                thrust_label="AFTERBURNER (required)",
+                thrust_mode="MAX",
+                hw_eff_kts=hw_eff,
+                ctx=scenario_ctx
+            )
+            if cand["dispatchable"]:
+                feasible_ab.append(cand)
+
+        best_ab = _choose_best(feasible_ab)
+        if best_ab:
+            selection = dict(best_ab, ab_required=True)
+        else:
+            selection = None  # not dispatchable even with AB
+
+# ---------- Resolve UI display based on auto vs manual ----------
+if auto_mode and selection:
+    flap_display = selection["flaps"]
+    thrust_display = selection["thrust_label"]
+    t_res = selection["t_res"] or {}
+    balanced_badge = (
+        "Balanced" if selection["diff_ratio"] <= 0.05
+        else ("ASDR-limited" if selection["asdr_ft"] > selection["todr_ft"] else "TODR-limited")
+    )
+    governing = balanced_badge
 else:
+    # Manual (or no selection available) → compute single-point perf per current controls
     flap_display = flaps if flaps != "Auto-Select" else "FULL"
     thrust_display = thrust
     balanced_badge = ""
@@ -903,13 +936,16 @@ else:
     t_res = {}
     if callable(perf_takeoff_ref):
         try:
+            # Manual AB is treated as authorized
+            tm = "MAX" if thrust_display == "AFTERBURNER" else "MIL"
+            hw_eff_manual = apply_wind_policy(hw_raw, use_50_150)
             t_res = cached_perf_takeoff(
                 gw_lb=gw_lb,
                 field_elev_ft=field_elev_ft,
                 oat_c=oat_c,
-                headwind_kts=headwind_kts,
+                headwind_kts=hw_eff_manual,
                 runway_slope=runway_slope,
-                thrust_mode=("MAX" if thrust == "AFTERBURNER" else "MIL"),
+                thrust_mode=tm,
                 mode=mode_flag,
                 config=("TO_FLAPS" if flap_display in ("MANEUVER","FULL") else "CLEAN"),
                 sweep_deg=20.0,
@@ -917,6 +953,7 @@ else:
             )
         except Exception as e:
             st.warning(f"Perf engine error: {e}")
+
 
 col1, col2, col3, col4 = st.columns(4)
 
