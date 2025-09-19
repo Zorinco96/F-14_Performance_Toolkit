@@ -1033,14 +1033,15 @@ with col3:
         st.metric("Dist to 35 ft (ft)",     f"{t_res['DistanceTo35ft_ft']:.0f}")
         st.metric("Available (TORA)",       f"{tora_ft:,} ft")
         st.metric("Required (≤TORA)",       f"{int(round(t_res['DistanceTo35ft_ft'])):,} ft")
+            if asda_ft == tora_ft:
+            st.caption("ASDA not provided — using TORA as a conservative fallback for ASDR gate.")
 
     else:
         st.metric("Ground roll (ft)", "—")
         st.metric("Dist to 35 ft (ft)", "—")
         st.metric("Available (TORA)", f"{tora_ft:,} ft")
         st.metric("Required (≤TORA)", "—")
-    if asda_ft == tora_ft:
-    st.caption("ASDA not provided — using TORA as a conservative fallback for ASDR gate.")
+
 with col4:
     st.subheader("Dispatchability")
 
