@@ -807,6 +807,23 @@ def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
     return pd.DataFrame(data)
 
 perf_takeoff_ref = getattr(core, "perf_compute_takeoff", None)
+# Cheap in-process memoization for perf calls (idempotent if already defined)
+try:
+    cached_perf_takeoff
+except NameError:
+    from functools import lru_cache
+    @lru_cache(maxsize=256)
+    def cached_perf_takeoff(*, gw_lb, field_elev_ft, oat_c, headwind_kts, runway_slope,
+                            thrust_mode, mode, config, sweep_deg, stores):
+        if not callable(perf_takeoff_ref):
+            return {}
+        # IMPORTANT: lru_cache needs hashables; tuple-ize stores
+        return perf_takeoff_ref(
+            gw_lb=gw_lb, field_elev_ft=field_elev_ft, oat_c=oat_c,
+            headwind_kts=headwind_kts, runway_slope=runway_slope,
+            thrust_mode=thrust_mode, mode=mode, config=config,
+            sweep_deg=sweep_deg, stores=tuple(stores)
+        )
 
 gw_lb         = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
 field_elev_ft = float(locals().get("elev", 0.0))
@@ -1156,6 +1173,21 @@ with st.expander("6) Climb Profile", expanded=True):
         ignore_reg = st.checkbox("Ignore regulatory speed restrictions (≤250 KIAS <10k)")
 
 perf_climb_ref = getattr(core, "perf_compute_climb", None)
+# Cheap in-process memoization for perf calls (idempotent if already defined)
+try:
+    cached_perf_climb
+except NameError:
+    from functools import lru_cache
+    @lru_cache(maxsize=256)
+    def cached_perf_climb(*, gw_lb, alt_start_ft, alt_end_ft, oat_dev_c,
+                          schedule, mode, power, sweep_deg, config):
+        if not callable(perf_climb_ref):
+            return {}
+        return perf_climb_ref(
+            gw_lb=gw_lb, alt_start_ft=alt_start_ft, alt_end_ft=alt_end_ft,
+            oat_dev_c=oat_dev_c, schedule=schedule, mode=mode, power=power,
+            sweep_deg=sweep_deg, config=config
+        )
 
 gw_lb = float(locals().get("wb", {}).get("gw_tow_lb", DEFAULT_GTOW))
 alt0  = float(locals().get("elev", 0.0))
