@@ -511,7 +511,7 @@ with st.expander("3) Environment", expanded=True):
             qnh_inhg, qnh_label = detect_pressure(qnh_text)
             st.caption(f"Detected: {qnh_label}")
         with c2:
-            wind_text = st.text_input("Wind (deg/speed)", value="270/10 kt", help="e.g. 090/7m/s or 270/10 kt")
+            wind_text = st.text_input("Wind (deg/speed)", value="000/00 kt", help="e.g. 090/7m/s or 270/10 kt")
             w = parse_wind(wind_text)
             st.caption(f"Detected: {w['unit']}")
         with c3:
@@ -627,9 +627,24 @@ wb = core.build_loadout_totals(
 )
 
 t1, t2, t3 = st.columns(3)
+# GW always shown
 t1.metric("Gross Weight (lb)", f"{wb['gw_tow_lb']:.0f}")
-t2.metric("Center of Gravity (%MAC)", f"{wb['cg_percent_mac']:.1f}")
-t3.metric("Stabilizer Trim (units)", f"{wb['stab_trim_units']:+.1f}")
+
+# %MAC logic: show placeholder in Simple mode or if value unavailable
+cg_val = wb.get("cg_percent_mac", None)
+cg_is_number = (cg_val is not None) and (not pd.isna(cg_val))
+simple_mode = bool(str(wb_mode).startswith("Simple"))
+
+if simple_mode or not cg_is_number:
+    # Placeholder label only — avoid asserting a numeric when we lack detailed W&B
+    t2.metric("Center of Gravity (%MAC)", "— % (std)")
+    st.caption("CG shown as standardized placeholder — enter Detailed W&B for an exact %MAC.")
+else:
+    t2.metric("Center of Gravity (%MAC)", f"{float(cg_val):.1f}")
+
+# Trim as before (if your core returns a numeric)
+t3.metric("Stabilizer Trim (units)", f"{wb.get('stab_trim_units', 0.0):+0.1f}")
+
 
 st.caption(f"PA: {int(press_alt):,} ft • Fuel TOW: {wb['fuel_tow_lb']:.0f} lb • Fuel LDG: {wb['fuel_ldg_lb']:.0f} lb")
 
