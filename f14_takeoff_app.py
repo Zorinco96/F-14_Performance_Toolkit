@@ -1068,6 +1068,9 @@ with col1:
 
     else:
         st.metric("V1 (kt)", "—"); st.metric("Vr (kt)", "—"); st.metric("V2 (kt)", "—"); st.metric("Vfs (kt)", "—")
+   
+    st.caption("V1 shown as **Vr** (placeholder) until ASDR/V1 modeling is wired. "
+               "All V-speeds currently come from the performance table and may need calibration against NATOPS/DCS.")
 
 with col2:
     st.subheader("Configuration")
