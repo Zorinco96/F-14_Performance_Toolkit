@@ -1033,8 +1033,7 @@ with col3:
         st.metric("Dist to 35 ft (ft)",     f"{t_res['DistanceTo35ft_ft']:.0f}")
         st.metric("Available (TORA)",       f"{tora_ft:,} ft")
         st.metric("Required (≤TORA)",       f"{int(round(t_res['DistanceTo35ft_ft'])):,} ft")
-            if asda_ft == tora_ft:
-            st.caption("ASDA not provided — using TORA as a conservative fallback for ASDR gate.")
+
 
     else:
         st.metric("Ground roll (ft)", "—")
@@ -1511,34 +1510,3 @@ if 'show_debug' in locals() and show_debug:
     }
     st.markdown("### Scenario JSON (debug)")
     st.code(json.dumps(scenario, indent=2))
-
-# (Duplicate helper retained at end for backwards-compat anchors)
-def get_stores_drag_list() -> list[str]:
-    totals = {"AIM-9M": 0, "AIM-7M": 0, "AIM-54C": 0, "Drop Tank 267 gal": 0}
-    pylon_pair = False
-    for sta in STATIONS:
-        store = st.session_state.get(f"store_{sta}", "—")
-        qty_default = AUTO_QTY_BY_STORE.get(store, 0)
-        try:
-            qty = int(st.session_state.get(f"qty_{sta}", qty_default))
-        except Exception:
-            qty = qty_default
-        if store in totals:
-            totals[store] += max(0, qty)
-        if bool(st.session_state.get(f"pylon_{sta}", False)):
-            pylon_pair = True
-    if bool(st.session_state.get("ext_left_full", False)):
-        totals["Drop Tank 267 gal"] += 1
-    if bool(st.session_state.get("ext_right_full", False)):
-        totals["Drop Tank 267 gal"] += 1
-    deltas: list[str] = []
-    if pylon_pair: deltas.append("PylonPair")
-    if totals["AIM-9M"] >= 2: deltas.append("2xSidewinders")
-    if totals["AIM-7M"] >= 2: deltas.append("2xSparrows")
-    if totals["AIM-54C"] >= 2: deltas.append("2xPhoenix")
-    if totals["Drop Tank 267 gal"] >= 2: deltas.append("FuelTank2x")
-    seen = set(); out = []
-    for d in deltas:
-        if d not in seen:
-            out.append(d); seen.add(d)
-    return out
