@@ -484,30 +484,27 @@ def _evaluate_candidate(flaps_label: str,
     dispatchable = pass_runway and pass_climb
 
     # Package
-    v_speeds = {
-        "V1_kts": float(t_res.get("VR_kts", 0.0) or 0.0),  # placeholder = Vr until explicit V1 provided
-        "Vr_kts": float(t_res.get("VR_kts", 0.0) or 0.0),
-        "V2_kts": float(t_res.get("V2_kts", 0.0) or 0.0),
-        "Vfs_kts": float(max(
-            (t_res.get("V2_kts") or 0.0) * 1.1,
-            (t_res.get("VLOF_kts") or 0.0) * 1.15
-        )),
     }
-# Override with table-based V-speeds if available (gentle override)
-vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
-if vs_tbl:
-    # Only update what we got; keep Vfs recomputed off updated V2 if present
-    if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
-        v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
-    if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
-        v_speeds["Vr_kts"] = float(vs_tbl["Vr_kts"])
-        v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])  # still mirroring Vr until explicit V1 present
-    if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
-        v_speeds["V2_kts"] = float(vs_tbl["V2_kts"])
-        v_speeds["Vfs_kts"] = float(max(
-            v_speeds["V2_kts"] * 1.1,
-            (t_res.get("VLOF_kts") or 0.0) * 1.15
-        ))
+
+    # Override with table-based V-speeds if available (gentle override)
+    try:
+        vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
+        if vs_tbl:
+            if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
+                v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
+            if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
+                v_speeds["Vr_kts"] = float(vs_tbl["Vr_kts"])
+                v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])  # still mirror Vr until explicit V1 exists
+            if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
+                v_speeds["V2_kts"] = float(vs_tbl["V2_kts"])
+                v_speeds["Vfs_kts"] = float(max(
+                    v_speeds["V2_kts"] * 1.1,
+                    (t_res.get("VLOF_kts") or 0.0) * 1.15
+                ))
+    except Exception:
+        # Don’t block app if CSV lookup fails
+        pass
+
 
     return dict(
         flaps=flaps_label,
