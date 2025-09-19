@@ -396,7 +396,7 @@ def _evaluate_candidate(flaps_label: str,
       - todr_ft, asdr_ft, diff_ratio
       - pass_runway, pass_climb, dispatchable
       - v_speeds dict
-    Uses perf_* wrappers directly (no external cache dependency).
+    Uses perf_* wrappers directly (cached).
     """
     cfg = "TO_FLAPS" if flaps_label in ("MANEUVER", "FULL") else "CLEAN"
 
@@ -423,7 +423,7 @@ def _evaluate_candidate(flaps_label: str,
     if asdr_ft <= 0.0:
         asdr_ft = gr * 1.15 if gr > 0 else d35 * 1.10
 
-    # Prefer explicit OEI TODR if available; else AEO d35
+    # Prefer explicit OEI TODR if available; else AEO d35 baseline
     todr_ft = float(t_res.get("TODR_OEI_35ft_ft", 0.0) or 0.0)
     if todr_ft <= 0.0:
         todr_ft = d35
@@ -451,9 +451,8 @@ def _evaluate_candidate(flaps_label: str,
                 sweep_deg=20.0,
                 config=("CLEAN" if cfg == "CLEAN" else "TO_FLAPS"),
             )
-            explicit = cres.get("AEO_min_grad_ft_per_nm_to_1000", None)
-            if explicit is None:
-                explicit = cres.get("Grad_ft_per_nm", None)
+            # Prefer explicit gradient if provided; else simple estimate from distance
+            explicit = cres.get("AEO_min_grad_ft_per_nm_to_1000") or cres.get("Grad_ft_per_nm")
             if explicit is not None:
                 aeo_grad = float(explicit)
             else:
@@ -465,10 +464,11 @@ def _evaluate_candidate(flaps_label: str,
     # Gates
     req_grad = float(ctx.get("req_grad_ft_nm", 200.0))
     pass_runway = pass_runway_precheck
-    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)
+    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)  # unknown climb => pass
+
     dispatchable = pass_runway and pass_climb
 
-    # Base V-speeds from perf engine
+    # Base V-speeds from engine result
     v_speeds = {
         "V1_kts": float(t_res.get("VR_kts", 0.0) or 0.0),  # placeholder = Vr until explicit V1 provided
         "Vr_kts": float(t_res.get("VR_kts", 0.0) or 0.0),
@@ -479,7 +479,7 @@ def _evaluate_candidate(flaps_label: str,
         )),
     }
 
-    # Gentle table-based override (if f14_perf.csv is present)
+    # Gentle override from f14_perf.csv (if available)
     try:
         vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
         if vs_tbl:
@@ -487,7 +487,7 @@ def _evaluate_candidate(flaps_label: str,
                 v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
             if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
                 v_speeds["Vr_kts"] = float(vs_tbl["Vr_kts"])
-                v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])
+                v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])  # mirror Vr until we have V1
             if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
                 v_speeds["V2_kts"] = float(vs_tbl["V2_kts"])
                 v_speeds["Vfs_kts"] = float(max(
@@ -497,24 +497,24 @@ def _evaluate_candidate(flaps_label: str,
     except Exception:
         pass  # never block on table lookup
 
-    return dict(
-        flaps=flaps_label,
-        thrust_label=thrust_label,
-        thrust_mode=thrust_mode,
-        t_res=t_res,
-        todr_ft=todr_ft,
-        asdr_ft=asdr_ft,
-        diff_ratio=diff_ratio,
-        aeo_grad_ft_nm=aeo_grad,
-        pass_runway=pass_runway,
-        pass_climb=pass_climb,
-        dispatchable=dispatchable,
-        margins=dict(
-            tora_margin_ft=tora - todr_ft,
-            asda_margin_ft=asda - asdr_ft,
-        ),
-        v=v_speeds,
-    )
+    return {
+        "flaps": flaps_label,
+        "thrust_label": thrust_label,
+        "thrust_mode": thrust_mode,
+        "t_res": t_res,
+        "todr_ft": todr_ft,
+        "asdr_ft": asdr_ft,
+        "diff_ratio": diff_ratio,
+        "aeo_grad_ft_nm": aeo_grad,
+        "pass_runway": pass_runway,
+        "pass_climb": pass_climb,
+        "dispatchable": dispatchable,
+        "margins": {
+            "tora_margin_ft": tora - todr_ft,
+            "asda_margin_ft": asda - asdr_ft,
+        },
+        "v": v_speeds,
+    }
 
 
     # Distances
