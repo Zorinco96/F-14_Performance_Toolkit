@@ -212,6 +212,53 @@ for p in PERF_PATHS:
         perf = load_perf(p); break
     except Exception:
         continue
+# --- Helper: V-speed lookup from f14_perf.csv (nearest neighbor by flaps & GW)
+def _vs_lookup_from_perf_table(gw_lb: float, flaps_label: str) -> dict:
+    """
+    Returns a dict of any of: {"VR_kts": float, "V2_kts": float, "Vs_kts": float}
+    pulled from your f14_perf.csv by nearest neighbor on flap_deg and gw_lbs.
+    If the table or columns are missing, returns {} (no override).
+    """
+    try:
+        if perf is None or getattr(perf, "empty", True):
+            return {}
+
+        # Map UI flaps to approximate flap_deg used in the perf table
+        target_flap = {"UP": 0, "MANEUVER": 10, "FULL": 20}.get(str(flaps_label).upper(), 0)
+
+        df = perf.copy()
+
+        # Ensure numeric types for selection
+        if "flap_deg" in df.columns:
+            df["flap_deg"] = pd.to_numeric(df["flap_deg"], errors="coerce")
+        if "gw_lbs" in df.columns:
+            df["gw_lbs"] = pd.to_numeric(df["gw_lbs"], errors="coerce")
+
+        # Narrow to closest flap_deg if present, otherwise keep all
+        if "flap_deg" in df.columns and df["flap_deg"].notna().any():
+            diff = (df["flap_deg"] - target_flap).abs()
+            df = df.loc[diff == diff.min()]
+
+        # Now choose the closest weight row
+        if "gw_lbs" in df.columns and df["gw_lbs"].notna().any():
+            idx = (df["gw_lbs"] - float(gw_lb)).abs().idxmin()
+            row = df.loc[idx]
+        else:
+            # Fallback to first row if weight column isn't there
+            row = df.iloc[0]
+
+        out = {}
+        # Copy over available columns → canonical keys used by UI (`t_res` keys)
+        if "Vr_kt" in row and pd.notna(row["Vr_kt"]):
+            out["VR_kts"] = float(row["Vr_kt"])
+        if "V2_kt" in row and pd.notna(row["V2_kt"]):
+            out["V2_kts"] = float(row["V2_kt"])
+        if "Vs_kt" in row and pd.notna(row["Vs_kt"]):
+            out["Vs_kts"] = float(row["Vs_kt"])
+        return out
+    except Exception:
+        # Never break the app on lookup
+        return {}
         
 # --- V-Speeds lookup from f14_perf.csv (cached) ------------------------------
 @st.cache_data(show_spinner=False)
@@ -583,6 +630,18 @@ def _evaluate_candidate(flaps_label: str,
     pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)  # if climb not computed (because runway failed), this will be True
 
     dispatchable = pass_runway and pass_climb
+    # --- CSV V-speed override (Auto-Select and manual share the same source) ---
+    # If the perf table has a better Vr/V2/Vs for this (flaps, weight), gently overwrite.
+    _csv_vs = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label)
+    if _csv_vs:
+        try:
+            # Merge into t_res using canonical keys VR_kts / V2_kts / Vs_kts (if provided)
+            for _k in ("VR_kts", "V2_kts", "Vs_kts"):
+                if _k in _csv_vs and _csv_vs[_k] is not None:
+                    t_res[_k] = float(_csv_vs[_k])
+        except Exception:
+            # non-fatal if types are odd
+            pass
 
     # Package
     
