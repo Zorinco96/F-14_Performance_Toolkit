@@ -323,20 +323,20 @@ def _evaluate_candidate(flaps_label: str,
     cfg = "TO_FLAPS" if flaps_label in ("MANEUVER", "FULL") else "CLEAN"
 
     # TAKEOFF perf
-    t_res = {}
-    if callable(perf_takeoff):
-        t_res = perf_takeoff(
-            gw_lb=ctx["gw_lb"],
-            field_elev_ft=ctx["field_elev_ft"],
-            oat_c=ctx["oat_c"],
-            headwind_kts=hw_eff_kts,
-            runway_slope=ctx["runway_slope"],
-            thrust_mode=("MAX" if thrust_mode == "MAX" else "MIL"),
-            mode=ctx["mode"],
-            config=cfg,
-            sweep_deg=20.0,
-            stores=ctx["stores"],
-        )
+        # Use memoized wrapper (fast & repeatable)
+    t_res = cached_perf_takeoff(
+        gw_lb=ctx["gw_lb"],
+        field_elev_ft=ctx["field_elev_ft"],
+        oat_c=ctx["oat_c"],
+        headwind_kts=hw_eff_kts,
+        runway_slope=ctx["runway_slope"],
+        thrust_mode=("MAX" if thrust_mode == "MAX" else "MIL"),
+        mode=ctx["mode"],
+        config=cfg,
+        sweep_deg=20.0,
+        stores=tuple(ctx["stores"]),
+    )
+
 
     # Distances
     gr  = float(t_res.get("GroundRoll_ft", 0.0) or 0.0)
@@ -357,10 +357,15 @@ def _evaluate_candidate(flaps_label: str,
     diff_ratio = abs(asdr_ft - todr_ft) / m
 
     # CLIMB perf (AEO gradient to 1000 ft)
+    # CLIMB perf (AEO gradient to 1000 ft) — only if runway gates pass
     aeo_grad = None
-    if callable(perf_climb):
+    tora = float(ctx.get("available_tora_ft", 0.0))
+    asda = float(ctx.get("available_asda_ft", tora))
+    pass_runway_precheck = (todr_ft <= tora) and (asdr_ft <= asda)
+
+    if pass_runway_precheck:
         try:
-            cres = perf_climb(
+            cres = cached_perf_climb(
                 gw_lb=ctx["gw_lb"],
                 alt_start_ft=max(0.0, ctx["field_elev_ft"]),
                 alt_end_ft=max(1000.0 + ctx["field_elev_ft"], ctx["field_elev_ft"] + 1.0),
@@ -380,8 +385,9 @@ def _evaluate_candidate(flaps_label: str,
     asda = float(ctx.get("available_asda_ft", tora))
     req_grad = float(ctx.get("req_grad_ft_nm", 200.0))
 
-    pass_runway = (todr_ft <= tora) and (asdr_ft <= asda)
-    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)  # if climb not available, don’t block
+    pass_runway = pass_runway_precheck
+    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)  # if climb not computed (because runway failed), this will be True
+
     dispatchable = pass_runway and pass_climb
 
     # Package
