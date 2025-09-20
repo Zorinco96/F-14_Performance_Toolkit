@@ -1,10 +1,12 @@
+# test_app.py — Interactive smoke test for F-14 Performance Toolkit core
+# Place at repo root (same level as f14_takeoff_app.py and /data)
 
-# test_app.py — Interactive smoke test for F-14 Performance Toolkit core (stability patch)
 import os
 import streamlit as st
 import f14_takeoff_core as core
 
 st.set_page_config(page_title="F-14 Toolkit — Smoke Test", layout="wide")
+
 st.title("F-14 Performance Toolkit — Interactive Smoke Test")
 st.caption(f"Core version: {getattr(core, '__version__', '?')}")
 
@@ -99,3 +101,36 @@ if run_btn:
 
     except Exception as e:
         st.error(f"Smoke test failed: {e}")
+
+# ---------- Optional: simple Auto-Select probe (only if you already wire compute_candidate) ----------
+st.markdown("---")
+st.subheader("Optional: Auto-Select Probe (requires model compute callback)")
+st.caption("This section only works if your app wires a compute_candidate() into auto_select_flaps_thrust().")
+if st.checkbox("Try Auto-Select (experimental)", value=False):
+    st.info("This demo calls auto_select_flaps_thrust with a placeholder compute function that returns 'not wired'.")
+    from dataclasses import asdict
+
+    demo_sel = core.AutoSelectInputs(
+        available_tora_ft=int(tora_ft),
+        available_asda_ft=int(asda_ft),
+        runway_heading_deg=0.0,
+        headwind_kts_raw=float(headwind_kts_component),
+    )
+
+    def _placeholder_compute_candidate(*, flaps, thrust_pct, v1_kt, context):
+        # Return minimal keys but force 'not wired' path
+        return {
+            "ASDR_ft": 999999,
+            "TODR_OEI_35ft_ft": 999999,
+            "AEO_min_grad_ft_per_nm_to_1000": 0.0,
+            "OEI_second_seg_gross_pct": 0.0,
+            "OEI_final_seg_gross_pct": 0.0,
+            "__diagnostic__": "placeholder",
+        }
+
+    res = core.auto_select_flaps_thrust(
+        sel=demo_sel,
+        scenario_context={"note": "demo"},
+        compute_candidate=_placeholder_compute_candidate
+    )
+    st.json(asdict(res))
