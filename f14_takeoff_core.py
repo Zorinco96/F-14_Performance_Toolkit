@@ -1,4 +1,5 @@
-# f14_takeoff_core.py — v1.2.1-core (DERATE integration & SL overlay; version bump only)
+# f14_takeoff_core.py
+# Note: UI enforces CSV-as-authority envelope policy for V-speeds (inside/border/outside) — v1.2.1-core (DERATE integration & SL overlay; version bump only)
 from __future__ import annotations
 
 from typing import Dict, Tuple, Optional
