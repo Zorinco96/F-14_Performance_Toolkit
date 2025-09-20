@@ -16,7 +16,7 @@ from cruise_model import cruise_point
 from landing_model import landing_performance
 from functools import lru_cache
 
-__version__ = "1.2.3-core+flap-debug"
+__version__ = "1.2.3-core+flap-debug+deps"
 
 @lru_cache(maxsize=1)
 def get_calib():
@@ -783,3 +783,21 @@ def plan_takeoff_with_optional_derate(
         "derate_debug": (None if der is not None else (derate_debug or ("disabled" if not do_derate else "unknown"))),
     }
     return out
+
+# ==============================
+# NEW: expose true data deps
+# ==============================
+def required_files() -> list[str]:
+    """Files that must exist in ./data for core to run."""
+    return ["f14_perf.csv"]
+
+def optional_files() -> list[str]:
+    """Files that are consumed if present (no hard failure if absent)."""
+    return [
+        "f14_perf_calibrated_SL_overlay.csv",
+        "calibration_sl_summary.csv",
+        "f110_tff_model.csv",
+        "f110_ff_to_rpm_knots.csv",
+        "derate_config.json",
+        "dcs_airports.csv",
+    ]
