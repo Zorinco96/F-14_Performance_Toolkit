@@ -31,6 +31,47 @@ import streamlit as st
 # Robust import for Streamlit Cloud
 try:
     import f14_takeoff_core as core
+
+
+# --- Safe wrappers if core helpers are absent -------------------------------
+def _safe_parse_derate_from_label(label: str) -> int:
+    """Parse 'DERATE (xx%)' robustly; fall back to 100 for MIL/AB/Auto."""
+    try:
+        fn = getattr(core, "_parse_derate_from_label", None)
+        if callable(fn):
+            return int(fn(label))
+    except Exception:
+        pass
+    import re as _re
+    s = (label or "").upper()
+    if "DERATE" in s:
+        m = _re.search(r"(\d{2,3})\s*%", s)
+        if m:
+            return max(0, min(100, int(m.group(1))))
+        return 95
+    return 100
+
+def _safe_resolve_thrust_display(sel: str, derate_pct: int) -> str:
+    """Build a display label when core.resolve_thrust_display is unavailable."""
+    try:
+        fn = getattr(core, "resolve_thrust_display", None)
+        if callable(fn):
+            return str(fn(sel, int(derate_pct)))
+    except Exception:
+        pass
+    s = (sel or "").upper()
+    d = int(max(0, min(100, derate_pct or 100)))
+    if "AFTERBURNER" in s or "MAX" in s:
+        return "AFTERBURNER"
+    if "MIL" in s:
+        return "MILITARY" if d >= 100 else f"DERATE ({d}%)"
+    if "DERATE" in s:
+        return f"DERATE ({d}%)"
+    if "AUTO" in s:
+        return f"DERATE ({d}%)" if d < 100 else "MILITARY"
+    return f"DERATE ({d}%)" if d < 100 else "MILITARY"
+# ---------------------------------------------------------------------------
+
 except Exception:
     import sys, os, importlib
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -1532,11 +1573,11 @@ def _parse_derate_from_label(lbl: str) -> int:
 if thrust == "DERATE (Manual)":
     # Always honor the slider in Manual mode
     _derate_effective = int(locals().get("derate", 95))
-    thrust_display = core.resolve_thrust_display("MIL", _derate_effective)
+    thrust_display = _safe_resolve_thrust_display("MIL", _derate_effective)
 else:
     # Auto-Select or MIL/AB paths
     _derate_effective = _parse_derate_from_label(thrust_display or thrust or "MILITARY")
-    thrust_display = core.resolve_thrust_display(thrust_display or thrust, _derate_effective)
+    thrust_display = _safe_resolve_thrust_display(thrust_display or thrust, _derate_effective)
 
 engine_df = build_engine_table(thrust_display or thrust or "MILITARY", int(_derate_effective))
 st.dataframe(engine_df, hide_index=True, use_container_width=True)
