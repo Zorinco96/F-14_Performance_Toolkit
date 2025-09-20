@@ -1,10 +1,13 @@
+# engine_f110.py — v1.2.1-data
+# Change: default CSV path now resolves to ./data/f110_engine.csv via data_loaders.
 
 from __future__ import annotations
 import numpy as np
 from data_loaders import load_engine_csv
 
 class F110Deck:
-    def __init__(self, path: str = "f110_engine.csv"):
+    def __init__(self, path: str | None = None):
+        # When path is None, load_engine_csv() will use ./data/f110_engine.csv
         self.df = load_engine_csv(path)
 
     def _interp3(self, alt_ft: float, mach: float, power: str, col: str) -> float:
