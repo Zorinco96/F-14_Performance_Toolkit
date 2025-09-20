@@ -15,7 +15,7 @@ from cruise_model import cruise_point
 from landing_model import landing_performance
 from functools import lru_cache
 
-__version__ = "1.2.2-core"
+__version__ = "1.2.2-core+debug"
 
 @lru_cache(maxsize=1)
 def get_calib():
@@ -578,10 +578,7 @@ def mil_ground_roll_ft(flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float)
         df = PERF_CAL[thrust_mask]
     else:
         df = PERF_CAL.copy()
-    val = _interp3(df, flap_deg, gw_lbs, pa_ft, oat_c, value_col="AGD_to35_ft")
-    if val is None:
-        val = _interp3(df, flap_deg, gw_lbs, pa_ft, oat_c, value_col="AGD_ft")
-    return val
+    return _interp3(df, flap_deg, gw_lbs, pa_ft, oat_c, value_col="AGD_ft")
 
 # --- Derate engine wrapper (derate.py) ---
 try:
@@ -666,16 +663,33 @@ def plan_takeoff_with_optional_derate(
 
     # 4) Optional derate (uses compute_derate_for_run we added earlier)
     der = None
-    if do_derate:
-        der = compute_derate_for_run(
-            flap_deg=flap_deg,
-            gw_lbs=gw_lbs,
-            pa_ft=pa_ft,
-            oat_c=oat_c,
-            runway_available_ft=runway_available_ft,
-            allow_ab=allow_ab
-        )
-
+derate_debug = None
+if do_derate:
+    try:
+        if DM is None:
+            derate_debug = 'DM_none'
+        else:
+            base = mil_ground_roll_or_to35_ft(flap_deg, gw_lbs, pa_ft, oat_c)
+            if base is None:
+                try:
+                    flap_present = not PERF_CAL[PERF_CAL['flap_deg'] == int(flap_deg)].empty
+                except Exception:
+                    flap_present = False
+                if not flap_present:
+                    derate_debug = f'table_missing_flap:{int(flap_deg)}'
+                else:
+                    derate_debug = 'table_missing_corners'
+            else:
+                der = DM.compute_derate_from_groundroll(
+                    flap_deg=int(flap_deg),
+                    pa_ft=float(pa_ft),
+                    mil_ground_roll_ft=float(base),
+                    runway_available_ft=float(runway_available_ft),
+                    allow_ab=allow_ab
+                )
+    except Exception as e:
+        der = None
+        derate_debug = f'exception:{type(e).__name__}:{e}'
     # 5) Build UI payload
     out = {
         "inputs": {
