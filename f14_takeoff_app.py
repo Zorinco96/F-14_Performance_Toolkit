@@ -1477,6 +1477,11 @@ else:
 engine_df = build_engine_table(thrust_display or thrust or "MILITARY", int(_derate_effective))
 st.dataframe(engine_df, hide_index=True, use_container_width=True)
 
+st.caption(
+    "<span style='color:#664200;background:#FFF4CC;border:1px solid #FFD666;"
+    "padding:2px 6px;border-radius:6px;font-size:12px;'>Calibration needed</span>",
+    unsafe_allow_html=True,
+)
 with col3:
     st.subheader("Runway Distances")
     if t_res:
