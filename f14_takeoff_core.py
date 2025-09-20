@@ -15,7 +15,7 @@ from cruise_model import cruise_point
 from landing_model import landing_performance
 from functools import lru_cache
 
-__version__ = "1.2.2-core+debug"
+__version__ = "1.2.2-core+debug-fix"
 
 @lru_cache(maxsize=1)
 def get_calib():
@@ -641,7 +641,7 @@ def plan_takeoff_with_optional_derate(
       - Returns a dict your UI can render directly
     """
 
-    # 1) Baseline MIL performance (your existing call)
+    # 1) Baseline MIL performance (existing call)
     mil_perf = perf_compute_takeoff(
         gw_lb=gw_lbs,
         field_elev_ft=field_elev_ft,
@@ -650,46 +650,52 @@ def plan_takeoff_with_optional_derate(
         runway_slope=runway_slope,
         thrust_mode="MIL",
         mode="DCS",
-        config=("TO_FLAPS" if flap_deg == 35 else "CLEAN"),
+        config=("TO_FLAPS" if flap_deg >= 35 else "CLEAN"),
         sweep_deg=20.0,
         stores=[]
     )
 
-    # 2) Choose a limiting runway distance for derate (simple, conservative)
+    # 2) Limiting runway distance for derate (conservative)
     runway_available_ft = min(int(tora_ft), int(asda_ft))
 
-    # 3) Compute pressure altitude for the derate model
+    # 3) Pressure altitude
     pa_ft = pressure_altitude_ft(field_elev_ft, qnh_inhg)
 
-    # 4) Optional derate (uses compute_derate_for_run we added earlier)
+    # 4) Optional derate
     der = None
-derate_debug = None
-if do_derate:
-    try:
-        if DM is None:
-            derate_debug = 'DM_none'
-        else:
-            base = mil_ground_roll_or_to35_ft(flap_deg, gw_lbs, pa_ft, oat_c)
-            if base is None:
-                try:
-                    flap_present = not PERF_CAL[PERF_CAL['flap_deg'] == int(flap_deg)].empty
-                except Exception:
-                    flap_present = False
-                if not flap_present:
-                    derate_debug = f'table_missing_flap:{int(flap_deg)}'
-                else:
-                    derate_debug = 'table_missing_corners'
+    derate_debug = None
+    if do_derate:
+        try:
+            if DM is None:
+                derate_debug = 'DM_none'
             else:
-                der = DM.compute_derate_from_groundroll(
-                    flap_deg=int(flap_deg),
-                    pa_ft=float(pa_ft),
-                    mil_ground_roll_ft=float(base),
-                    runway_available_ft=float(runway_available_ft),
-                    allow_ab=allow_ab
-                )
-    except Exception as e:
-        der = None
-        derate_debug = f'exception:{type(e).__name__}:{e}'
+                # Prefer 35-ft if available, and map 35->nearest table flap (e.g., 40)
+                try:
+                    base = mil_ground_roll_or_to35_ft(flap_deg, gw_lbs, pa_ft, oat_c)
+                except NameError:
+                    # Fallback to AGD_ft-only helper if the file doesn't have the 35-ft-aware one
+                    base = mil_ground_roll_ft(flap_deg, gw_lbs, pa_ft, oat_c)
+                if base is None:
+                    try:
+                        flap_present = not PERF_CAL[PERF_CAL['flap_deg'] == int(flap_deg)].empty
+                    except Exception:
+                        flap_present = False
+                    if not flap_present:
+                        derate_debug = f'table_missing_flap:{int(flap_deg)}'
+                    else:
+                        derate_debug = 'table_missing_corners'
+                else:
+                    der = DM.compute_derate_from_groundroll(
+                        flap_deg=int(flap_deg),
+                        pa_ft=float(pa_ft),
+                        mil_ground_roll_ft=float(base),
+                        runway_available_ft=float(runway_available_ft),
+                        allow_ab=allow_ab
+                    )
+        except Exception as e:
+            der = None
+            derate_debug = f'exception:{type(e).__name__}:{e}'
+
     # 5) Build UI payload
     out = {
         "inputs": {
@@ -706,6 +712,7 @@ if do_derate:
             "runway_available_ft": runway_available_ft,
         },
         "baseline_MIL": mil_perf,
-        "derate": der,  # None if not available or do_derate=False
+        "derate": der,
+        "derate_debug": (None if der is not None else (derate_debug or ("disabled" if not do_derate else "unknown"))),
     }
     return out
