@@ -33,6 +33,13 @@ try:
     import f14_takeoff_core as core
 
 
+
+except Exception:
+    import sys, os, importlib
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    core = importlib.import_module("f14_takeoff_core")
+
+
 # --- Safe wrappers if core helpers are absent -------------------------------
 def _safe_parse_derate_from_label(label: str) -> int:
     """Parse 'DERATE (xx%)' robustly; fall back to 100 for MIL/AB/Auto."""
@@ -71,11 +78,6 @@ def _safe_resolve_thrust_display(sel: str, derate_pct: int) -> str:
         return f"DERATE ({d}%)" if d < 100 else "MILITARY"
     return f"DERATE ({d}%)" if d < 100 else "MILITARY"
 # ---------------------------------------------------------------------------
-
-except Exception:
-    import sys, os, importlib
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-    core = importlib.import_module("f14_takeoff_core")
 
 # (Optional) show where Python loaded the core from for quick sanity-check
 try:
