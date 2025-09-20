@@ -1,37 +1,9 @@
-
 """
-derate.py — F‑14B derate helper
---------------------------------
-Chain: required thrust  → required FF → required RPM%
-Data sources (CSV artifacts):
-- f110_tff_model.csv           : per-altitude power law fits T = C * FF^alpha (M≈0)
-- f110_ff_to_rpm_knots.csv     : FF→RPM% monotonic piecewise mapping (Sea Level sweep)
-- calibration_sl_summary.csv   : SL flap-specific bias and delta-to-35ft (optional)
-
-Typical use:
-    from derate import DerateModel
-
-    dm = DerateModel(
-        tff_model_csv="f110_tff_model.csv",
-        ff_rpm_knots_csv="f110_ff_to_rpm_knots.csv",
-        calibration_sl_csv="calibration_sl_summary.csv",  # optional
-        config_json="derate_config.json"                  # optional
-    )
-
-    # Ground-roll driven derate example:
-    out = dm.compute_derate_from_groundroll(
-        flap_deg=0,
-        pa_ft=0,
-        mil_ground_roll_ft=3200,    # baseline at MIL for the scenario (already bias-corrected)
-        runway_available_ft=4500,   # available distance minus safety margin
-        allow_ab=False              # cap at MIL (default)
-    )
-    print(out)  # dict with T_required_lbf, FF_required_pph, RPM_required_pct, thrust_multiplier
-
-Notes:
-- This scaffold does not compute "mil_ground_roll_ft" from scratch; feed it from your calibrated
-  performance model (NATOPS + SL bias + delta-to-35 ft, etc.).
-- If you have AB spot checks, set flap-specific 'm' in derate_config.json for better accuracy.
+derate.py — F-14B derate helper  (v1.2.2-derate)
+Changes:
+- Adds flap-band derate floors via config (defaults: 0°→85, 35°→90).
+- Returns 'derate_pct' and 'clamped_to_floor' in output.
+- If computed RPM%/FF would imply < floor, we snap to the floor (and recompute).
 """
 
 from __future__ import annotations
@@ -69,7 +41,7 @@ class DerateModel:
         with open(path, newline="") as f:
             rdr = csv.DictReader(f)
             for row in rdr:
-                alt = int(float(row["alt_ft"]))
+                alt = int(float(row["alt_ft\]))
                 by_alt[alt] = TFFPoint(
                     alt_ft = alt,
                     C = float(row["C"]),
@@ -87,14 +59,12 @@ class DerateModel:
             for row in rdr:
                 ff.append(float(row["FF_pph"]))
                 rpm.append(float(row["RPM_pct"]))
-        # ensure sorted by FF
         pairs = sorted(zip(ff, rpm), key=lambda x: x[0])
         ff = [p[0] for p in pairs]
         rpm = [p[1] for p in pairs]
         return ff, rpm
 
     def _load_calibration(self, path: str) -> Dict[int, Dict[str, float]]:
-        # Returns { flap_deg: {"bias_factor": ..., "delta_to35_ft": ...} }
         out: Dict[int, Dict[str, float]] = {}
         try:
             with open(path, newline="") as f:
@@ -112,21 +82,26 @@ class DerateModel:
     def _default_config(self) -> Dict:
         return {
             "allow_ab": False,
-            "min_idle_ff_pph": 1200,   # from SL sweep
-            "thrust_exponent_m": { "0": 0.75, "35": 0.75 },  # placeholder; replace with AB/MIL spot-check fit
+            "min_idle_ff_pph": 1200,
+            "thrust_exponent_m": { "0": 0.75, "35": 0.75 },
+            "min_pct_by_flap_deg": { "0": 85, "35": 90 },
             "safety": { "runway_margin_ft": 0.0 },
         }
 
     def _load_config(self, path: str) -> Dict:
         try:
             with open(path) as f:
-                return json.load(f)
+                cfg = json.load(f)
         except FileNotFoundError:
-            return self._default_config()
+            cfg = self._default_config()
+        cfg.setdefault("min_idle_ff_pph", 1200)
+        cfg.setdefault("thrust_exponent_m", { "0": 0.75, "35": 0.75 })
+        cfg.setdefault("min_pct_by_flap_deg", { "0": 85, "35": 90 })
+        cfg.setdefault("safety", { "runway_margin_ft": 0.0 })
+        return cfg
 
     # ---------- Core transforms ----------
     def _nearest_alt_point(self, pa_ft: float) -> TFFPoint:
-        # Nearest neighbor in alt grid
         alts = list(self.tff_by_alt.keys())
         idx = bisect.bisect_left(alts, pa_ft)
         if idx == 0: return self.tff_by_alt[alts[0]]
@@ -135,18 +110,13 @@ class DerateModel:
         return self.tff_by_alt[before] if (pa_ft - before) <= (after - pa_ft) else self.tff_by_alt[after]
 
     def thrust_to_ff(self, T_req_lbf: float, pa_ft: float) -> float:
-        """Invert T = C * FF^alpha at nearest altitude."""
         p = self._nearest_alt_point(pa_ft)
-        # Guard
         T_req_lbf = max(T_req_lbf, 0.0)
-        # Solve FF = (T/C)^(1/alpha)
         FF = (T_req_lbf / max(p.C, 1e-6)) ** (1.0 / max(p.alpha, 1e-6))
-        # Never below idle
         FF = max(FF, float(self.cfg.get("min_idle_ff_pph", 1000)))
         return FF
 
     def ff_to_rpm(self, ff_pph: float) -> float:
-        """Piecewise linear interpolation through SL knots; clamp to ends."""
         x = self.knots_ff; y = self.knots_rpm
         if ff_pph <= x[0]: return y[0]
         if ff_pph >= x[-1]: return y[-1]
@@ -158,16 +128,17 @@ class DerateModel:
 
     # ---------- Ground-roll driven derate ----------
     def solve_thrust_multiplier_from_groundroll(self, mil_ground_roll_ft: float, target_ground_roll_ft: float, flap_deg: int) -> float:
-        """
-        Local sensitivity model: Ground Roll ∝ T^(−m).
-        multiplier = (GR_MIL / GR_target)^(1/m).
-        """
-        m = float(self.cfg.get("thrust_exponent_m", {}).get(str(int(flap_deg)), 0.75))
-        m = max(min(m, 2.0), 0.2)  # sanity
+        m_map = self.cfg.get("thrust_exponent_m", {})
+        m = float(m_map.get(str(int(flap_deg)), m_map.get("0", 0.75)))
+        m = max(min(m, 2.0), 0.2)
         gr_mil = max(mil_ground_roll_ft, 1.0)
         gr_target = max(target_ground_roll_ft, 1.0)
         mult = (gr_mil / gr_target) ** (1.0 / m)
         return max(mult, 0.0)
+
+    def _min_pct_for_flaps(self, flap_deg: int) -> int:
+        table = self.cfg.get("min_pct_by_flap_deg", {"0": 85, "35": 90})
+        return int(table.get(str(int(flap_deg)), 85))
 
     def compute_derate_from_groundroll(
         self,
@@ -177,31 +148,35 @@ class DerateModel:
         runway_available_ft: float,
         allow_ab: Optional[bool] = None
     ) -> Dict[str, float]:
-        """
-        Solve for the minimum thrust so that GroundRoll <= runway_available_ft.
-        Requires baseline MIL ground roll for the scenario (already bias-corrected in your perf model).
-        """
         if allow_ab is None: allow_ab = bool(self.cfg.get("allow_ab", False))
         margin = float(self.cfg.get("safety", {}).get("runway_margin_ft", 0.0))
         target = max(runway_available_ft - margin, 1.0)
 
-        # Thrust multiplier needed
         mult = self.solve_thrust_multiplier_from_groundroll(mil_ground_roll_ft, target, flap_deg)
 
-        # Map to absolute thrust using nearest-alt MIL reference
         p = self._nearest_alt_point(pa_ft)
-        T_required = mult * p.T_MIL_lbf
-        # If AB not allowed, cap at MIL
-        if not allow_ab:
-            T_required = min(T_required, p.T_MIL_lbf)
-            mult = T_required / max(p.T_MIL_lbf, 1e-6)
+        floor_pct = self._min_pct_for_flaps(flap_deg)
 
-        # Convert to FF and RPM
+        pct = int(round(mult * 100.0))
+        clamped = False
+
+        if not allow_ab:
+            pct = min(pct, 100)
+
+        if pct < floor_pct:
+            pct = floor_pct
+            clamped = True
+
+        mult = pct / 100.0
+        T_required = mult * p.T_MIL_lbf
+
         FF_required = self.thrust_to_ff(T_required, pa_ft)
         RPM_required = self.ff_to_rpm(FF_required)
 
         return {
             "thrust_multiplier": float(mult),
+            "derate_pct": int(pct),
+            "clamped_to_floor": bool(clamped),
             "T_required_lbf": float(T_required),
             "FF_required_pph": float(FF_required),
             "RPM_required_pct": float(RPM_required),
