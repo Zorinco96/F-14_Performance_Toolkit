@@ -1,3 +1,5 @@
+# f14_aero.py — v1.2.1-data
+# Change: default CSV path now resolves to ./data/f14_aero.csv via data_loaders.
 
 from __future__ import annotations
 import math
@@ -8,7 +10,8 @@ S_WING_FT2 = 565.0  # ref area (approx)
 S_WING_M2 = S_WING_FT2 * 0.09290304
 
 class F14Aero:
-    def __init__(self, path: str = "f14_aero.csv"):
+    def __init__(self, path: str | None = None):
+        # When path is None, load_aero_csv() will use ./data/f14_aero.csv
         self.df = load_aero_csv(path)
 
     def polar(self, config: str, sweep_deg: int | float = 20):
