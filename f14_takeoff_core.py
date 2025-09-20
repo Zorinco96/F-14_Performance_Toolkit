@@ -429,20 +429,21 @@ def auto_select_flaps_thrust(
 
     # 1) DERATE search by flap band (lowest flap wins)
     for flap_name, pmin, pmax in flap_bands:
-        for pct in range(pmin, pmax + 1, sel.pct_step):
-            ok, r, diff_ratio, govern = try_candidate(flap_name, pct)
-            if ok:
-                bal_label = "Balanced" if diff_ratio <= 0.01 else (f"Governing: {govern}")
-                return AutoSelectResult(
-                    dispatchable=True,
-                    flaps=flap_name,
-                    thrust_label=f"DERATE ({pct}%)",
-                    derate_pct=pct,
-                    balanced_label=bal_label,
-                    governing_side=("" if diff_ratio <= 0.01 else govern),
-                    notes=notes,
-                    perf=r
-                )
+    for pct in range(pmin, pmax + 1, sel.pct_step):  # Ascending = minimum required thrust
+        ok, r, diff_ratio, govern = try_candidate(flap_name, pct)
+        if ok:
+            bal_label = "Balanced" if diff_ratio <= 0.01 else (f"Governing: {govern}")
+            return AutoSelectResult(
+                dispatchable=True,
+                flaps=flap_name,
+                thrust_label=(f"DERATE ({pct}%)" if pct < 100 else "MILITARY (100% RPM)"),
+                derate_pct=(pct if pct < 100 else None),
+                balanced_label=bal_label,
+                governing_side=("" if diff_ratio <= 0.01 else govern),
+                notes=notes,
+                perf=r
+            )
+
 
     # 2) Special tie-breaker vs UP MIL:
     # If UP-MIL would pass but a MAN/FULL derate could pass, we already would have returned above.
