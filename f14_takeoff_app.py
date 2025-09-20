@@ -1465,12 +1465,14 @@ def _parse_derate_from_label(lbl: str) -> int:
     return 100
 
 # When manual DERATE slider is active, prefer that value
-if isinstance(thrust_display, str) and thrust_display.upper().startswith("DERATE"):
-    _derate_effective = _parse_derate_from_label(thrust_display)
-elif thrust == "DERATE (Manual)":
+if thrust == "DERATE (Manual)":
+    # Always honor the slider in Manual mode
     _derate_effective = int(locals().get("derate", 95))
+    thrust_display = core.resolve_thrust_display("MIL", _derate_effective)
 else:
+    # Auto-Select or MIL/AB paths
     _derate_effective = _parse_derate_from_label(thrust_display or thrust or "MILITARY")
+    thrust_display = core.resolve_thrust_display(thrust_display or thrust, _derate_effective)
 
 engine_df = build_engine_table(thrust_display or thrust or "MILITARY", int(_derate_effective))
 st.dataframe(engine_df, hide_index=True, use_container_width=True)
