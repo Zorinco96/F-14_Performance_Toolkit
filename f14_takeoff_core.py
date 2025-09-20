@@ -1,10 +1,10 @@
-# f14_takeoff_core.py — v1.2.0-core-skel (stable)
+# f14_takeoff_core.py — v1.2.0-core-skel (with DERATE integration)
 from __future__ import annotations
 
 from typing import Dict, Tuple, Optional
 import math
-# ============ BEGIN: physics bridge wrappers (safe add) ============
 
+# ============ BEGIN: physics bridge wrappers (safe add) ============
 # These wrappers call the small, calibrated modules we built:
 # takeoff_model, climb_model, cruise_model, landing_model + calibration loader.
 
@@ -117,8 +117,7 @@ def perf_compute_landing(
         config=config,
         sweep_deg=sweep_deg,
     )
-
-# ============ END: physics bridge wrappers ============ 
+# ============ END: physics bridge wrappers ============
 
 # -----------------------------
 # Constants (placeholder values)
@@ -130,7 +129,6 @@ ISA_LAPSE_C_PER_FT = 1.98 / 1000.0  # °C per foot
 # Simple MAC/trim placeholders for UI wiring
 DEFAULT_CG_PERCENT_MAC = 24.5
 DEFAULT_STAB_TRIM_UNITS = 0.0
-
 
 # ---------------------------------------
 # Atmosphere / conversions (UI scaffolds)
@@ -148,7 +146,6 @@ def pressure_altitude_ft(field_elev_ft: float, qnh_inhg: Optional[float]) -> flo
     except Exception:
         qnh = 29.92
     return elev + (29.92 - qnh) * 1000.0
-
 
 def density_ratio_sigma(press_alt_ft: float, oat_c: float) -> float:
     """
@@ -171,7 +168,6 @@ def density_ratio_sigma(press_alt_ft: float, oat_c: float) -> float:
         theta = 1.0
     sigma = delta / theta
     return max(0.2, min(1.2, float(sigma)))
-
 
 # ---------------------------------------
 # Weight & Balance aggregation (scaffold)
@@ -243,10 +239,10 @@ def build_loadout_totals(
         "cg_percent_mac": cg_percent_mac,
         "stab_trim_units": stab_trim_units,
     }
+
 # ======================================================================
 # Auto-Select & Balanced-Field (BFL) selection pipeline — v1.0 (spec-frozen)
 # ======================================================================
-
 from dataclasses import dataclass
 from typing import Any, Callable, List
 
@@ -474,4 +470,154 @@ def auto_select_flaps_thrust(
         reason="Not Dispatchable — Would pass with Afterburner (Prohibited)",
         notes=notes or ["Auto-select evaluated: all DERATE and MIL options failed the BFL + AEO + OEI gates."],
         perf={}
+    )
+
+# ======================================================================
+# ============ DERATE INTEGRATION (NEW) =================================
+# ======================================================================
+
+# This section wires in:
+# - SL overlay corrections (f14_perf_calibrated_SL_overlay.csv)
+# - A small interpolator to read MIL ground roll for the user’s scenario
+# - A thin wrapper that calls derate.DerateModel to return FF/RPM targets
+
+import os
+import pandas as pd
+import numpy as np
+
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+def _csv(name: str) -> str:
+    return os.path.join(DATA_DIR, name)
+
+# Optional assets (load safely if present)
+def _load_df_safe(path: str, required: bool = False) -> pd.DataFrame:
+    try:
+        return pd.read_csv(path)
+    except Exception:
+        if required:
+            raise
+        return pd.DataFrame()
+
+# Baseline NATOPS perf grid (must exist in your repo)
+PERF = _load_df_safe(_csv("f14_perf.csv"), required=False)
+
+# SL overlay and calibration summary (optional)
+SL_OVERLAY = _load_df_safe(_csv("f14_perf_calibrated_SL_overlay.csv"))
+CAL_SL     = _load_df_safe(_csv("calibration_sl_summary.csv"))
+
+def apply_sl_overlay(perf_df: pd.DataFrame) -> pd.DataFrame:
+    """Apply SL bias and delta-to-35ft to baseline rows (press_alt_ft == 0) if overlay present."""
+    if perf_df.empty or SL_OVERLAY.empty:
+        return perf_df
+    key = ["press_alt_ft", "flap_deg", "gw_lbs", "oat_c"]
+    df = perf_df.copy()
+    if "AGD_ft" not in df.columns:
+        return df
+    merged = df.merge(SL_OVERLAY[key + ["AGD_bias_factor", "delta_to35_ft"]], on=key, how="left")
+    mask = (merged["press_alt_ft"] == 0) & merged["AGD_bias_factor"].notna()
+    merged.loc[mask, "AGD_ft"] = merged.loc[mask, "AGD_ft"] * merged.loc[mask, "AGD_bias_factor"]
+    if "AGD_to35_ft" not in merged.columns:
+        merged["AGD_to35_ft"] = pd.NA
+    merged.loc[mask, "AGD_to35_ft"] = merged.loc[mask, "AGD_ft"] + merged.loc[mask, "delta_to35_ft"].fillna(0)
+    return merged
+
+PERF_CAL = apply_sl_overlay(PERF)
+
+def _interp3(perf_df: pd.DataFrame, flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float, value_col: str = "AGD_ft") -> Optional[float]:
+    """Tri-linear-like interpolation across press_alt_ft × gw_lbs × oat_c at fixed flap."""
+    if perf_df.empty:
+        return None
+    sub = perf_df[perf_df["flap_deg"] == int(flap_deg)]
+    if sub.empty or value_col not in sub.columns:
+        return None
+
+    def brack(vals: np.ndarray, x: float) -> tuple[float, float]:
+        vals = np.unique(np.sort(vals))
+        lo = vals[vals <= x]
+        hi = vals[vals >= x]
+        v_lo = lo.max() if lo.size else float(vals.min())
+        v_hi = hi.min() if hi.size else float(vals.max())
+        return float(v_lo), float(v_hi)
+
+    pa_lo, pa_hi   = brack(sub["press_alt_ft"].values, float(pa_ft))
+    gw_lo, gw_hi   = brack(sub["gw_lbs"].values,       float(gw_lbs))
+    ot_lo, ot_hi   = brack(sub["oat_c"].values,        float(oat_c))
+
+    def corner(pa, gw, ot):
+        q = sub[(sub["press_alt_ft"]==pa) & (sub["gw_lbs"]==gw) & (sub["oat_c"]==ot)]
+        if q.empty:
+            return None
+        return float(q.iloc[0][value_col])
+
+    c000 = corner(pa_lo, gw_lo, ot_lo); c001 = corner(pa_lo, gw_lo, ot_hi)
+    c010 = corner(pa_lo, gw_hi, ot_lo); c011 = corner(pa_lo, gw_hi, ot_hi)
+    c100 = corner(pa_hi, gw_lo, ot_lo); c101 = corner(pa_hi, gw_lo, ot_hi)
+    c110 = corner(pa_hi, gw_hi, ot_lo); c111 = corner(pa_hi, gw_hi, ot_hi)
+    if any(v is None for v in [c000,c001,c010,c011,c100,c101,c110,c111]):
+        return None
+
+    def lerp(a,b,t): return a + (b-a)*t
+    tx = 0.0 if pa_hi==pa_lo else (float(pa_ft)-pa_lo)/(pa_hi-pa_lo)
+    ty = 0.0 if gw_hi==gw_lo else (float(gw_lbs)-gw_lo)/(gw_hi-gw_lo)
+    tz = 0.0 if ot_hi==ot_lo else (float(oat_c)-ot_lo)/(ot_hi-ot_lo)
+
+    # Interpolate
+    c00 = lerp(c000, c001, tz)
+    c01 = lerp(c010, c011, tz)
+    c10 = lerp(c100, c101, tz)
+    c11 = lerp(c110, c111, tz)
+    c0  = lerp(c00, c01, ty)
+    c1  = lerp(c10, c11, ty)
+    return lerp(c0, c1, tx)
+
+def mil_ground_roll_ft(flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float) -> Optional[float]:
+    """Baseline MIL ground roll from the calibrated (overlay-applied) table."""
+    if PERF_CAL.empty:
+        return None
+    # Accept 'thrust' string column variations
+    if "thrust" in PERF_CAL.columns:
+        thrust_mask = PERF_CAL["thrust"].str.upper().isin(["MIL","MILITARY"])
+        df = PERF_CAL[thrust_mask]
+    else:
+        df = PERF_CAL.copy()
+    return _interp3(df, flap_deg, gw_lbs, pa_ft, oat_c, value_col="AGD_ft")
+
+# --- Derate engine wrapper (derate.py) ---
+try:
+    from derate import DerateModel
+    DM = DerateModel(
+        tff_model_csv=_csv("f110_tff_model.csv"),
+        ff_rpm_knots_csv=_csv("f110_ff_to_rpm_knots.csv"),
+        calibration_sl_csv=_csv("calibration_sl_summary.csv"),
+        config_json=os.path.join(os.path.dirname(__file__), "derate_config.json"),
+    )
+except Exception:
+    DM = None  # keep app functional even if derate files not present
+
+def compute_derate_for_run(
+    *,
+    flap_deg: int,
+    gw_lbs: float,
+    pa_ft: float,
+    oat_c: float,
+    runway_available_ft: float,
+    allow_ab: Optional[bool] = None
+) -> Optional[dict]:
+    """
+    Returns dict:
+      { 'thrust_multiplier', 'T_required_lbf', 'FF_required_pph', 'RPM_required_pct',
+        'T_MIL_lbf', 'FF_MIL_pph', 'alpha_used', 'alt_used_ft' }
+    or None if unavailable.
+    """
+    if DM is None:
+        return None
+    gr_mil = mil_ground_roll_ft(flap_deg, gw_lbs, pa_ft, oat_c)
+    if gr_mil is None:
+        return None
+    return DM.compute_derate_from_groundroll(
+        flap_deg=int(flap_deg),
+        pa_ft=float(pa_ft),
+        mil_ground_roll_ft=float(gr_mil),
+        runway_available_ft=float(runway_available_ft),
+        allow_ab=allow_ab
     )
