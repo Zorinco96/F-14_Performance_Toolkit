@@ -15,7 +15,7 @@ from cruise_model import cruise_point
 from landing_model import landing_performance
 from functools import lru_cache
 
-__version__ = "1.2.2-core+debug-fix"
+__version__ = "1.2.2-core+debug-fix3"
 
 @lru_cache(maxsize=1)
 def get_calib():
@@ -347,7 +347,7 @@ def _bfl_solve_minimax_v1(
     for v1 in v1_grid:
         r = compute_candidate(flaps=flaps, thrust_pct=thrust_pct, v1_kt=float(v1), context=context)
         if ("ASDR_ft" not in r) or ("TODR_OEI_35ft_ft" not in r):
-            # model not wired → skip
+            # model not wired -> skip
             continue
         asdr = float(r["ASDR_ft"]); todr = float(r["TODR_OEI_35ft_ft"])
         m = max(asdr, todr)
@@ -374,10 +374,10 @@ def auto_select_flaps_thrust(
     """
     Implements:
       - Prefer derate over MIL
-      - Flap priority UP → MANEUVER → FULL
+      - Flap priority UP -> MANEUVER -> FULL
       - Flap caps: UP ≥85, MAN ≥90, FULL ≥98; 1% steps
       - Special tie-breaker: prefer MAN DERATE over UP MIL if both pass
-      - Afterburner: evaluated only to report "would pass (prohibited)" → ND
+      - Afterburner: evaluated only to report "would pass (prohibited)" -> ND
       - Pass gates: BFL ≤ ASDA/TORA, AEO ≥ 200 ft/NM to 1000 AFE, OEI segments (gross; report net)
       - Balanced label if within 1%
     """
@@ -389,7 +389,7 @@ def auto_select_flaps_thrust(
     ctx = dict(scenario_context)
     ctx["headwind_kts_policy"] = hw_policy_kts
 
-    # Build the per-flap derate ranges (descending thrust from min→99, then 100 MIL last)
+    # Build the per-flap derate ranges (descending thrust from min->99, then 100 MIL last)
     flap_bands = [
         ("UP",       sel.up_min_pct,   99),
         ("MANEUVER", sel.man_min_pct,  99),
@@ -521,6 +521,82 @@ def apply_sl_overlay(perf_df: pd.DataFrame) -> pd.DataFrame:
 
 PERF_CAL = apply_sl_overlay(PERF)
 
+def _available_flaps(perf_df: 'pd.DataFrame') -> list[int]:
+    try:
+        return sorted(int(x) for x in pd.unique(perf_df.get("flap_deg", [])).tolist())
+    except Exception:
+        return []
+
+def _nearest_flap(perf_df: 'pd.DataFrame', flap_deg: int) -> int:
+    avail = _available_flaps(perf_df)
+    if not avail:
+        return flap_deg
+    if flap_deg in avail:
+        return flap_deg
+    return min(avail, key=lambda v: abs(v - flap_deg))
+
+def _interp3(perf_df: 'pd.DataFrame', flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float, value_col: str):
+    if perf_df is None or getattr(perf_df, "empty", True):
+        return None
+    sub = perf_df[perf_df["flap_deg"] == int(flap_deg)]
+    if sub.empty or value_col not in sub.columns:
+        return None
+
+    import numpy as np
+
+    def brack(vals, x):
+        vals = np.unique(np.sort(vals))
+        lo = vals[vals <= x]
+        hi = vals[vals >= x]
+        v_lo = lo.max() if lo.size else float(vals.min())
+        v_hi = hi.min() if hi.size else float(vals.max())
+        return float(v_lo), float(v_hi)
+
+    pa_lo, pa_hi = brack(sub["press_alt_ft"].values, float(pa_ft))
+    gw_lo, gw_hi = brack(sub["gw_lbs"].values, float(gw_lbs))
+    ot_lo, ot_hi = brack(sub["oat_c"].values, float(oat_c))
+
+    def corner(pa, gw, ot):
+        q = sub[(sub["press_alt_ft"]==pa) & (sub["gw_lbs"]==gw) & (sub["oat_c"]==ot)]
+        if q.empty:
+            return None
+        return float(q.iloc[0][value_col])
+
+    c000 = corner(pa_lo, gw_lo, ot_lo); c001 = corner(pa_lo, gw_lo, ot_hi)
+    c010 = corner(pa_lo, gw_hi, ot_lo); c011 = corner(pa_lo, gw_hi, ot_hi)
+    c100 = corner(pa_hi, gw_lo, ot_lo); c101 = corner(pa_hi, gw_lo, ot_hi)
+    c110 = corner(pa_hi, gw_hi, ot_lo); c111 = corner(pa_hi, gw_hi, ot_hi)
+    if any(v is None for v in [c000,c001,c010,c011,c100,c101,c110,c111]):
+        return None
+
+    def lerp(a,b,t): return a + (b-a)*t
+    tx = 0.0 if pa_hi==pa_lo else (float(pa_ft)-pa_lo)/(pa_hi-pa_lo)
+    ty = 0.0 if gw_hi==gw_lo else (float(gw_lbs)-gw_lo)/(gw_hi-gw_lo)
+    tz = 0.0 if ot_hi==ot_lo else (float(oat_c)-ot_lo)/(ot_hi-ot_lo)
+
+    c00 = lerp(c000, c001, tz)
+    c01 = lerp(c010, c011, tz)
+    c10 = lerp(c100, c101, tz)
+    c11 = lerp(c110, c111, tz)
+    c0  = lerp(c00, c01, ty)
+    c1  = lerp(c10, c11, ty)
+    return lerp(c0, c1, tx)
+
+def mil_ground_roll_or_to35_ft(flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float):
+    """Prefer AGD_to35_ft if present; else AGD_ft. Uses nearest flap row if 35 isn't in table."""
+    df = globals().get("PERF_CAL", None)
+    if df is None or getattr(df, "empty", True):
+        return None
+    if "thrust" in df.columns:
+        thrust_mask = df["thrust"].astype(str).str.upper().isin(["MIL","MILITARY"])
+        df = df[thrust_mask]
+    used_flap = _nearest_flap(df, int(flap_deg))
+    val = _interp3(df, used_flap, gw_lbs, pa_ft, oat_c, value_col="AGD_to35_ft")
+    if val is None:
+        val = _interp3(df, used_flap, gw_lbs, pa_ft, oat_c, value_col="AGD_ft")
+    return val
+
+
 def _interp3(perf_df: pd.DataFrame, flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float, value_col: str = "AGD_ft") -> Optional[float]:
     """Tri-linear-like interpolation across press_alt_ft × gw_lbs × oat_c at fixed flap."""
     if perf_df.empty:
@@ -620,28 +696,23 @@ def compute_derate_for_run(
         allow_ab=allow_ab
     )
 
+
 def plan_takeoff_with_optional_derate(
     *,
-    flap_deg: int,                 # 0 or 35 for your app
+    flap_deg: int,
     gw_lbs: float,
     field_elev_ft: float,
     qnh_inhg: float | None,
     oat_c: float,
-    headwind_kts_component: float, # already projected onto runway
+    headwind_kts_component: float,
     runway_slope: float,
-    tora_ft: int,                  # available TORA
-    asda_ft: int,                  # available ASDA
+    tora_ft: int,
+    asda_ft: int,
     allow_ab: bool = False,
     do_derate: bool = True
 ) -> dict:
-    """
-    One-stop call for your UI:
-      - Computes baseline MIL performance
-      - If do_derate=True, computes derated thrust/RPM to meet runway
-      - Returns a dict your UI can render directly
-    """
-
-    # 1) Baseline MIL performance (existing call)
+    \"\"\"Computes baseline MIL perf, and optional derate, returning a UI-ready dict.\"\"\"
+    # 1) Baseline MIL performance
     mil_perf = perf_compute_takeoff(
         gw_lb=gw_lbs,
         field_elev_ft=field_elev_ft,
@@ -655,7 +726,7 @@ def plan_takeoff_with_optional_derate(
         stores=[]
     )
 
-    # 2) Limiting runway distance for derate (conservative)
+    # 2) Limiting runway distance
     runway_available_ft = min(int(tora_ft), int(asda_ft))
 
     # 3) Pressure altitude
@@ -669,12 +740,7 @@ def plan_takeoff_with_optional_derate(
             if DM is None:
                 derate_debug = 'DM_none'
             else:
-                # Prefer 35-ft if available, and map 35->nearest table flap (e.g., 40)
-                try:
-                    base = mil_ground_roll_or_to35_ft(flap_deg, gw_lbs, pa_ft, oat_c)
-                except NameError:
-                    # Fallback to AGD_ft-only helper if the file doesn't have the 35-ft-aware one
-                    base = mil_ground_roll_ft(flap_deg, gw_lbs, pa_ft, oat_c)
+                base = mil_ground_roll_or_to35_ft(flap_deg, gw_lbs, pa_ft, oat_c)
                 if base is None:
                     try:
                         flap_present = not PERF_CAL[PERF_CAL['flap_deg'] == int(flap_deg)].empty
