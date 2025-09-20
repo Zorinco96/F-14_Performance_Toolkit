@@ -711,7 +711,7 @@ def plan_takeoff_with_optional_derate(
     allow_ab: bool = False,
     do_derate: bool = True
 ) -> dict:
-    \"\"\"Computes baseline MIL perf, and optional derate, returning a UI-ready dict.\"\"\"
+    """Computes baseline MIL perf, and optional derate, returning a UI-ready dict."""
     # 1) Baseline MIL performance
     mil_perf = perf_compute_takeoff(
         gw_lb=gw_lbs,
