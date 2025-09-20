@@ -15,7 +15,7 @@ from cruise_model import cruise_point
 from landing_model import landing_performance
 from functools import lru_cache
 
-__version__ = "1.2.1-core"
+__version__ = "1.2.2-core"
 
 @lru_cache(maxsize=1)
 def get_calib():
@@ -578,7 +578,10 @@ def mil_ground_roll_ft(flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float)
         df = PERF_CAL[thrust_mask]
     else:
         df = PERF_CAL.copy()
-    return _interp3(df, flap_deg, gw_lbs, pa_ft, oat_c, value_col="AGD_ft")
+    val = _interp3(df, flap_deg, gw_lbs, pa_ft, oat_c, value_col="AGD_to35_ft")
+    if val is None:
+        val = _interp3(df, flap_deg, gw_lbs, pa_ft, oat_c, value_col="AGD_ft")
+    return val
 
 # --- Derate engine wrapper (derate.py) ---
 try:
