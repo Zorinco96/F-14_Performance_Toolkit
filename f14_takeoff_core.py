@@ -1,4 +1,4 @@
-# f14_takeoff_core.py — v1.2.0-core-skel (with DERATE integration)
+# f14_takeoff_core.py — v1.2.0-core-skel (with DERATE integration & SL overlay)
 from __future__ import annotations
 
 from typing import Dict, Tuple, Optional
@@ -379,6 +379,7 @@ def auto_select_flaps_thrust(
       - Pass gates: BFL ≤ ASDA/TORA, AEO ≥ 200 ft/NM to 1000 AFE, OEI segments (gross; report net)
       - Balanced label if within 1%
     """
+    from typing import List  # local import to keep top-level typing minimal
     notes: List[str] = []
 
     # Apply wind policy to the already-computed headwind component
@@ -396,28 +397,27 @@ def auto_select_flaps_thrust(
     # Helper to test one (flaps, pct) across BFL + climb gates
     def try_candidate(flaps: str, pct: int) -> tuple[bool, dict, float, str]:
         # Discrete V1 grid (you can refine once the model is wired)
-        v1_grid = list(range(90, 171, 5))  # TEMP: 90..170 kt, 5-kt step for speed until physics are wired
+        v1_grid = list(range(90, 171, 5))  # TEMP: 90..170 kt, 5-kt step
         v1, r, govern, diff_ratio = _bfl_solve_minimax_v1(
             flaps=flaps, thrust_pct=pct, context=ctx, compute_candidate=compute_candidate, v1_grid=v1_grid
         )
         if r is None:
             return False, {"__diagnostic__": "model_not_wired"}, 1.0, "ASDR"
-        # Field-length gate: compare balanced minimal max(ASDR,TODR) to available limits
+        # Field-length gate
         balanced_req_ft = max(float(r["ASDR_ft"]), float(r["TODR_OEI_35ft_ft"]))
         r["balanced_v1_kt"] = v1
         r["balanced_required_ft"] = balanced_req_ft
         if balanced_req_ft > max(sel.available_asda_ft, sel.available_tora_ft):
             return False, r, diff_ratio, govern
 
-        # AEO 200 ft/NM to 1000 ft AFE
+        # AEO 200 ft/NM to 1000 AFE
         aeo_min = r.get("AEO_min_grad_ft_per_nm_to_1000", None)
         if aeo_min is None:
-            # Model not wired yet
             return False, {**r, "__diagnostic__": "AEO_not_wired"}, diff_ratio, govern
         if aeo_min < sel.aeo_required_ft_per_nm:
             return False, r, diff_ratio, govern
 
-        # OEI segments (gross); you’ll also display net = gross − 0.8
+        # OEI segments (gross)
         seg2 = r.get("OEI_second_seg_gross_pct", None)
         seg4 = r.get("OEI_final_seg_gross_pct", None)
         if (seg2 is None) or (seg4 is None):
@@ -429,25 +429,22 @@ def auto_select_flaps_thrust(
 
     # 1) DERATE search by flap band (lowest flap wins)
     for flap_name, pmin, pmax in flap_bands:
-    for pct in range(pmin, pmax + 1, sel.pct_step):  # Ascending = minimum required thrust
-        ok, r, diff_ratio, govern = try_candidate(flap_name, pct)
-        if ok:
-            bal_label = "Balanced" if diff_ratio <= 0.01 else (f"Governing: {govern}")
-            return AutoSelectResult(
-                dispatchable=True,
-                flaps=flap_name,
-                thrust_label=(f"DERATE ({pct}%)" if pct < 100 else "MILITARY (100% RPM)"),
-                derate_pct=(pct if pct < 100 else None),
-                balanced_label=bal_label,
-                governing_side=("" if diff_ratio <= 0.01 else govern),
-                notes=notes,
-                perf=r
-            )
-
+        for pct in range(pmin, pmax + 1, sel.pct_step):  # Ascending = minimum required thrust
+            ok, r, diff_ratio, govern = try_candidate(flap_name, pct)
+            if ok:
+                bal_label = "Balanced" if diff_ratio <= 0.01 else (f"Governing: {govern}")
+                return AutoSelectResult(
+                    dispatchable=True,
+                    flaps=flap_name,
+                    thrust_label=(f"DERATE ({pct}%)" if pct < 100 else "MILITARY (100% RPM)"),
+                    derate_pct=(pct if pct < 100 else None),
+                    balanced_label=bal_label,
+                    governing_side=("" if diff_ratio <= 0.01 else govern),
+                    notes=notes,
+                    perf=r
+                )
 
     # 2) Special tie-breaker vs UP MIL:
-    # If UP-MIL would pass but a MAN/FULL derate could pass, we already would have returned above.
-    # Now check MIL across flaps (lowest flap that passes).
     for flap_name in ["UP", "MANEUVER", "FULL"]:
         ok, r, diff_ratio, govern = try_candidate(flap_name, 100)
         if ok:
@@ -464,8 +461,6 @@ def auto_select_flaps_thrust(
             )
 
     # 3) AB evaluated only to report prohibition (informational)
-    # Optional: if your model supports AB, you can compute here and attach a note.
-
     return AutoSelectResult(
         dispatchable=False,
         reason="Not Dispatchable — Would pass with Afterburner (Prohibited)",
@@ -622,6 +617,7 @@ def compute_derate_for_run(
         runway_available_ft=float(runway_available_ft),
         allow_ab=allow_ab
     )
+
 def plan_takeoff_with_optional_derate(
     *,
     flap_deg: int,                 # 0 or 35 for your app
