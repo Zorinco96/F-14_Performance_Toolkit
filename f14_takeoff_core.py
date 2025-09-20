@@ -15,7 +15,7 @@ from cruise_model import cruise_point
 from landing_model import landing_performance
 from functools import lru_cache
 
-__version__ = "1.2.2-core+debug-fix3"
+__version__ = "1.2.3-core+flap-debug"
 
 @lru_cache(maxsize=1)
 def get_calib():
