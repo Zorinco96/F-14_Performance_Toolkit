@@ -621,3 +621,75 @@ def compute_derate_for_run(
         runway_available_ft=float(runway_available_ft),
         allow_ab=allow_ab
     )
+def plan_takeoff_with_optional_derate(
+    *,
+    flap_deg: int,                 # 0 or 35 for your app
+    gw_lbs: float,
+    field_elev_ft: float,
+    qnh_inhg: float | None,
+    oat_c: float,
+    headwind_kts_component: float, # already projected onto runway
+    runway_slope: float,
+    tora_ft: int,                  # available TORA
+    asda_ft: int,                  # available ASDA
+    allow_ab: bool = False,
+    do_derate: bool = True
+) -> dict:
+    """
+    One-stop call for your UI:
+      - Computes baseline MIL performance
+      - If do_derate=True, computes derated thrust/RPM to meet runway
+      - Returns a dict your UI can render directly
+    """
+
+    # 1) Baseline MIL performance (your existing call)
+    mil_perf = perf_compute_takeoff(
+        gw_lb=gw_lbs,
+        field_elev_ft=field_elev_ft,
+        oat_c=oat_c,
+        headwind_kts=headwind_kts_component,
+        runway_slope=runway_slope,
+        thrust_mode="MIL",
+        mode="DCS",
+        config=("TO_FLAPS" if flap_deg == 35 else "CLEAN"),
+        sweep_deg=20.0,
+        stores=[]
+    )
+
+    # 2) Choose a limiting runway distance for derate (simple, conservative)
+    runway_available_ft = min(int(tora_ft), int(asda_ft))
+
+    # 3) Compute pressure altitude for the derate model
+    pa_ft = pressure_altitude_ft(field_elev_ft, qnh_inhg)
+
+    # 4) Optional derate (uses compute_derate_for_run we added earlier)
+    der = None
+    if do_derate:
+        der = compute_derate_for_run(
+            flap_deg=flap_deg,
+            gw_lbs=gw_lbs,
+            pa_ft=pa_ft,
+            oat_c=oat_c,
+            runway_available_ft=runway_available_ft,
+            allow_ab=allow_ab
+        )
+
+    # 5) Build UI payload
+    out = {
+        "inputs": {
+            "flap_deg": flap_deg,
+            "gw_lbs": gw_lbs,
+            "field_elev_ft": field_elev_ft,
+            "qnh_inhg": qnh_inhg,
+            "oat_c": oat_c,
+            "headwind_kts_component": headwind_kts_component,
+            "runway_slope": runway_slope,
+            "tora_ft": tora_ft,
+            "asda_ft": asda_ft,
+            "pressure_alt_ft": pa_ft,
+            "runway_available_ft": runway_available_ft,
+        },
+        "baseline_MIL": mil_perf,
+        "derate": der,  # None if not available or do_derate=False
+    }
+    return out
