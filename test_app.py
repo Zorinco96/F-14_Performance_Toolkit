@@ -41,15 +41,24 @@ st.subheader("Data Files Status")
 data_dir = os.path.join(os.path.dirname(__file__), "data")
 st.write("Data directory:", f"`{data_dir}`")
 
-required = ["f14_perf.csv"]
-optional = [
-    "f14_perf_calibrated_SL_overlay.csv",
-    "calibration_sl_summary.csv",
-    "f110_tff_model.csv",
-    "f110_ff_to_rpm_knots.csv",
-    "derate_config.json",
-    "dcs_airports.csv",
-]
+# Pull the authoritative lists from the core
+try:
+    required = list(core.required_files())
+except Exception:
+    required = ["f14_perf.csv"]
+
+try:
+    optional = list(core.optional_files())
+except Exception:
+    optional = [
+        "f14_perf_calibrated_SL_overlay.csv",
+        "calibration_sl_summary.csv",
+        "f110_tff_model.csv",
+        "f110_ff_to_rpm_knots.csv",
+        "derate_config.json",
+        "dcs_airports.csv",
+    ]
+
 cols = st.columns(2)
 with cols[0]:
     st.markdown("**Required**")
@@ -94,7 +103,11 @@ if run_btn:
             st.markdown("**Derate Result**")
             der = result.get("derate")
             if der is None:
-                st.warning("No derate result available (missing optional files or do_derate=False).")
+                why = result.get("derate_debug", None)
+                if why:
+                    st.warning(f"No derate result (reason: {why}).")
+                else:
+                    st.warning("No derate result available (missing optional files or do_derate=False).")
             else:
                 st.success("Derate calculation available.")
                 st.json(der)
