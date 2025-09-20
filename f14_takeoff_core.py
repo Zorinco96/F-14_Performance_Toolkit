@@ -1,4 +1,4 @@
-# f14_takeoff_core.py — v1.2.0-core-skel (with DERATE integration & SL overlay)
+# f14_takeoff_core.py — v1.2.1-core (DERATE integration & SL overlay; version bump only)
 from __future__ import annotations
 
 from typing import Dict, Tuple, Optional
@@ -14,6 +14,8 @@ from climb_model import climb_profile
 from cruise_model import cruise_point
 from landing_model import landing_performance
 from functools import lru_cache
+
+__version__ = "1.2.1-core"
 
 @lru_cache(maxsize=1)
 def get_calib():
