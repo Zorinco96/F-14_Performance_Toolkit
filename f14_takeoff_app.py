@@ -51,6 +51,56 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# --- Data path helpers (local-first with optional dev fallback) ---
+from pathlib import Path as _Path
+_APP_DIR = _Path(__file__).resolve().parent
+_DATA_DIR = _APP_DIR / "data"
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+def ensure_csv(name: str, allow_fallback: bool = False) -> str:
+    p = _DATA_DIR / name
+    if p.exists():
+        return str(p)
+    if not allow_fallback:
+        try:
+            contents = sorted([x.name for x in _DATA_DIR.iterdir()])
+        except Exception:
+            contents = ["<unavailable>"]
+        raise FileNotFoundError(
+            "Required data file not found.\n"
+            f"Expected file: {p}\n"
+            f"Data folder:   {_DATA_DIR}\n"
+            f"Folder exists: {_DATA_DIR.exists()}\n"
+            f"Contents:      {contents}\n\n"
+            "Fix: add the CSV to your repo at F-14_Performance_Toolkit/data/<name> "
+            "and redeploy. Alternatively, enable the sidebar toggle "
+            "'Allow network fallback (dev)' to fetch from GitHub raw."
+        )
+    try:
+        import requests as _requests
+        raw_url = ("https://raw.githubusercontent.com/"
+                   "Zorinco96/F-14_Performance_Toolkit/refs/heads/main/data/"
+                   + name)
+        r = _requests.get(raw_url, timeout=15); r.raise_for_status()
+        p.write_bytes(r.content)
+        return str(p)
+    except Exception as e:
+        try: st.warning(f"Dev fallback failed for {name}: {e}")
+        except Exception: pass
+        raise
+try:
+    _DEV_FALLBACK = st.sidebar.toggle("Allow network fallback (dev)", value=False,
+        help="If a CSV is missing under ./data, fetch from GitHub raw and cache it.")
+except Exception:
+    _DEV_FALLBACK = False
+with st.sidebar.expander("Diagnostics", expanded=False):
+    st.write("App dir:", _APP_DIR); st.write("Data dir:", _DATA_DIR)
+    try:
+        st.write("Data dir exists:", _DATA_DIR.exists())
+        st.write("Data dir contents:", sorted([p.name for p in _DATA_DIR.iterdir()]))
+    except Exception as _e:
+        st.write("Cannot list data dir:", _e)
+    st.write("Dev fallback enabled:", _DEV_FALLBACK)
+
 # =========================
 # Constants (UI placeholders)
 # =========================
@@ -168,6 +218,20 @@ def _series_max(df: pd.DataFrame, col: str):
         return pd.to_numeric(df[col], errors="coerce").max(skipna=True)
     return None
 
+def _calibration_badge(text: str, tone: str = "warning"):
+    palette = {
+        "warning": ("#664200", "#FFF4CC", "#FFD666"),
+        "ok":      ("#0B5E29", "#E5F7EC", "#6ED69E"),
+        "info":    ("#133C7A", "#E7F1FF", "#86B7FE"),
+        "error":   ("#7A1F1F", "#FFE8E6", "#FFA39E"),
+    }
+    fg, bg, bd = palette.get(tone, palette["info"])
+    st.caption(
+        f"<span style='color:{fg};background:{bg};border:1px solid {bd};"
+        f"padding:2px 6px;border-radius:6px;font-size:12px;'>{text}</span>",
+        unsafe_allow_html=True
+    )
+
 # =========================
 # Data loading (CSV only)
 # =========================
@@ -187,31 +251,15 @@ def load_perf(path_or_url: str) -> pd.DataFrame:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
-AIRPORTS_PATHS = [
-    "dcs_airports.csv",
-    "https://raw.githubusercontent.com/Zorinco96/f14_takeoff_app.py/main/dcs_airports.csv",
-]
-PERF_PATHS = [
-    "f14_perf.csv",
-    "https://raw.githubusercontent.com/Zorinco96/f14_takeoff_app.py/main/f14_perf.csv",
-]
-
-airports = None
-for p in AIRPORTS_PATHS:
-    try:
-        airports = load_airports(p); break
-    except Exception:
-        continue
-if airports is None:
-    st.error("Could not load dcs_airports.csv. Ensure it exists locally or in GitHub.")
-    st.stop()
-
-perf = None
-for p in PERF_PATHS:
-    try:
-        perf = load_perf(p); break
-    except Exception:
-        continue
+# Local-first CSV (with optional dev fallback)
+try:
+    airports = load_airports(ensure_csv("dcs_airports.csv", allow_fallback=_DEV_FALLBACK))
+except FileNotFoundError as e:
+    st.error("Airport database missing."); st.code(str(e)); st.stop()
+try:
+    perf = load_perf(ensure_csv("f14_perf.csv", allow_fallback=_DEV_FALLBACK))
+except FileNotFoundError as e:
+    st.error("Performance table missing."); st.code(str(e)); st.stop()
 # =========================
 # Reference V-speed helpers (from f14_perf.csv)
 # =========================
@@ -1112,6 +1160,22 @@ st.session_state["req_climb_grad_ft_nm"] = int(req_grad)
 # =========================
 st.header("Takeoff Results")
 
+
+# --- Resolved thrust display for guidance table (manual DERATE honored) ---
+def _resolved_thrust_display(thrust_choice: str, derate_slider_val):
+    t = (thrust_choice or "").upper()
+    if "DERATE" in t:
+        try:
+            pct = int(derate_slider_val if derate_slider_val is not None else 95)
+        except Exception:
+            pct = 95
+        pct = max(85, min(100, pct))
+        return (f"DERATE ({pct}%)", pct)
+    if "AFTERBURNER" in t:
+        return ("AFTERBURNER", 100)
+    if "MILITARY" in t:
+        return ("MILITARY", 100)
+    return (thrust_choice, 100)
 def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
     """
     Builds a simple N1 / FF(pph per engine) guidance table based on the
