@@ -1,10 +1,10 @@
-# test_app.py — v1.5.0 (1% DERATE search + TSV)
+# test_app.py — v1.6.0 (drag increments + debug toggle)
 import streamlit as st
 import pandas as pd
 import f14_takeoff_core as core
 
-st.set_page_config(page_title="F-14 Toolkit — DERATE Search", layout="wide")
-st.title("F-14 Takeoff — 1% DERATE Search with Flap Priority")
+st.set_page_config(page_title="F-14 Toolkit — Takeoff (Drag-Increment Model)", layout="wide")
+st.title("F-14 Takeoff — Drag Increments & 1% Derate Search")
 
 with st.sidebar:
     gw_lbs = st.number_input("Gross Weight (lb)", value=65000, min_value=50000, max_value=74000, step=500)
@@ -14,10 +14,11 @@ with st.sidebar:
     tora_ft = st.number_input("TORA (ft)", value=8000, step=500)
     asda_ft = st.number_input("ASDA (ft)", value=8000, step=500)
     allow_ab = st.checkbox("Include Afterburner candidate", value=False)
+    show_debug = st.checkbox("Show debug (drag increments, thrust, CL/CD)", value=True)
 
 if st.button("Compute"):
     res = core.plan_takeoff_with_optional_derate(
-        flap_deg=0,  # starting flap selection no longer used; planner searches [0,20,40] internally
+        flap_deg=0,  # planner searches [0,20,40]
         gw_lbs=float(gw_lbs),
         field_elev_ft=float(field_elev_ft),
         qnh_inhg=float(qnh_inhg),
@@ -25,7 +26,7 @@ if st.button("Compute"):
         tora_ft=int(tora_ft),
         asda_ft=int(asda_ft),
         allow_ab=bool(allow_ab),
-        debug=False,
+        debug=bool(show_debug),
         compare_all=True,
         search_1pct=True,
     )
@@ -53,5 +54,23 @@ if st.button("Compute"):
     best = res.get("best")
     if best:
         st.success(f"BEST: Flaps {best['flap_deg']} — {best['thrust_mode']}{' '+str(best['derate_pct'])+'%' if best['thrust_mode']=='DERATE' else ''} — {round(best['aeo_grad_ft_per_nm'])} ft/NM — {best['limiter']}")
+        if show_debug and best.get("_debug"):
+            dbg = best["_debug"]
+            st.subheader("Debug — Drag & Thrust")
+            dbg_rows = [
+                ["cd0_base", dbg.get("cd0_base")],
+                ["cd0_inc_config", dbg.get("cd0_inc_config")],
+                ["cd0_inc_stores", dbg.get("cd0_inc_stores")],
+                ["cd0_total", dbg.get("cd0_total")],
+                ["clmax", dbg.get("clmax")],
+                ["CL_used", dbg.get("CL_used")],
+                ["CD_used", dbg.get("CD_used")],
+                ["T_per_lbf_final", dbg.get("T_per_lbf_final")],
+                ["T_tot_N", dbg.get("T_tot_N")],
+                ["D_N", dbg.get("D_N")],
+                ["excess_N", dbg.get("excess_N")],
+                ["grad_ft_per_nm", dbg.get("grad_ft_per_nm")],
+            ]
+            st.table(pd.DataFrame(dbg_rows, columns=["Metric", "Value"]))
     else:
         st.error(res.get("verdict", "NOT_DISPATCHABLE"))
