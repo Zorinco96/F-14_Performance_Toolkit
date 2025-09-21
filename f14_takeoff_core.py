@@ -1,9 +1,6 @@
-# f14_takeoff_core.py — v1.3.7
-# Accurate AEO climb gradient model:
-# - Evaluate at V2+15 KIAS
-# - Engine thrust uses T_MIL_lbf with gentle Mach falloff (T = T0*(1 - kM))
-# - Added installation/bleed drag increments to CD0
-# - No arbitrary scaling knob
+# f14_takeoff_core.py — v1.4.0
+# - Keeps accurate AEO (V2+15), Mach falloff, install drag
+# - Adds compare_all flag to always evaluate DERATE, MIL, (optional AB) for side-by-side comparison
 
 from __future__ import annotations
 from dataclasses import dataclass, asdict
@@ -43,8 +40,7 @@ class CorePlanner:
         self.derate = DerateModel()
         self.aero = F14Aero()
         self.eng = F110Deck()
-        # Mach correction slope (MIL thrust falloff)
-        self.k_mach = 0.35
+        self.k_mach = 0.35  # MIL thrust falloff with Mach
 
     def _map_flap_to_config(self, flap_deg: int) -> str:
         if flap_deg == 0:
@@ -65,9 +61,8 @@ class CorePlanner:
 
     def _aeo_gradient(self, flap_deg: int, gw_lbs: float,
                       pa_ft: float, V2_kts: float,
-                      thrust_mode: str, derate_pct: Optional[int],
+                      thrust_mode: str, applied_pct: Optional[int],
                       want_debug: bool = False) -> (float, Dict[str,float]):
-        # Evaluate at V2+15
         Vref_kts = V2_kts + 15.0
 
         # Atmosphere
@@ -75,12 +70,12 @@ class CorePlanner:
         Vtas = Vref_kts * KTS_TO_MS * (1.225 / rho) ** 0.5
         M = Vtas / a
 
-        # Engine thrust
+        # Engine thrust with Mach falloff
         power = "MIL" if thrust_mode in ("MILITARY", "DERATE") else "MAX"
         T_per_lbf = self.eng.thrust_lbf(pa_ft, M, power)
-        # Replace engine Mach law: apply linear falloff
         T_per_lbf = T_per_lbf * max(0.7, (1.0 - self.k_mach * M))
-        thrust_mult = derate_pct / 100.0 if (thrust_mode == "DERATE" and derate_pct) else 1.0
+
+        thrust_mult = (applied_pct / 100.0) if (thrust_mode == "DERATE" and applied_pct) else 1.0
         T_tot_N = T_per_lbf * 2 * 4.4482216153 * thrust_mult
 
         # Aero polar
@@ -112,45 +107,32 @@ class CorePlanner:
             }
         return grad, debug
 
-    def compute_candidate(self,
-                          flap_deg: int,
-                          thrust_mode: str,
-                          gw_lbs: float,
-                          pa_ft: float,
-                          oat_c: float,
-                          tora_ft: float,
-                          asda_ft: float,
-                          required_aeo_ft_per_nm: float,
-                          derate_pct: Optional[int] = None,
-                          want_debug: bool = False) -> CandidateResult:
-        base_thrust = "MILITARY" if thrust_mode in ("MILITARY", "DERATE") else "AFTERBURNER"
+    def _build_candidate(self, flap_deg:int, mode:str, gw_lbs:float, pa_ft:float, oat_c:float,
+                         tora_ft:float, asda_ft:float, req_aeo:float,
+                         derate_pct: Optional[int], want_debug:bool) -> CandidateResult:
+        base_thrust = "MILITARY" if mode in ("MILITARY", "DERATE") else "AFTERBURNER"
         pt = self.deck.lookup(flap_deg, base_thrust, gw_lbs, pa_ft, oat_c)
 
-        asd = pt.ASD_ft
-        todr = pt.TODR_ft
-        clamped = False
-        resolved_pct = None
-
-        if thrust_mode == "DERATE":
-            if derate_pct is None:
-                derate_pct = 95
+        asd = float(pt.ASD_ft); todr = float(pt.TODR_ft)
+        clamped=False; resolved_pct=None; applied_pct=None
+        if mode=="DERATE":
+            if derate_pct is None: derate_pct = 95
             resolved_pct = int(derate_pct)
             floor = int(self.derate.cfg.get("min_pct_by_flap_deg",
                                             {"0":85,"20":88,"35":90,"40":90}).get(str(flap_deg),85))
-            clamped = resolved_pct <= floor
+            clamped = bool(resolved_pct <= floor)
+            applied_pct = max(resolved_pct, floor)
 
-        aeo, dbg = self._aeo_gradient(flap_deg, gw_lbs, pa_ft, pt.V2_kts,
-                                      base_thrust, resolved_pct, want_debug)
-
-        limiter = "BALANCED" if abs(asd - todr) / max(todr, 1) < 0.02 else ("ASD" if asd > todr else "TODR")
-        dispatch = (asd <= asda_ft) and (todr <= tora_ft) and (aeo >= required_aeo_ft_per_nm)
+        aeo, dbg = self._aeo_gradient(flap_deg, gw_lbs, pa_ft, pt.V2_kts, base_thrust, applied_pct, want_debug)
+        limiter = "BALANCED" if abs(asd - todr) / max(todr, 1.0) < 0.02 else ("ASD" if asd > todr else "TODR")
+        dispatch = bool((asd <= asda_ft) and (todr <= tora_ft) and (aeo >= req_aeo))
 
         return CandidateResult(
-            flap_deg=flap_deg, thrust_mode=thrust_mode, derate_pct=resolved_pct,
-            clamped_to_floor=clamped,
-            v1_kts=pt.V1_kts, vr_kts=pt.Vr_kts, v2_kts=pt.V2_kts, vs_kts=pt.Vs_kts,
-            asd_ft=asd, todr_ft=todr, aeo_grad_ft_per_nm=aeo,
-            limiter=limiter, dispatchable=dispatch, v1_mode="table",
+            flap_deg=int(flap_deg), thrust_mode=mode, derate_pct=resolved_pct,
+            clamped_to_floor=bool(clamped),
+            v1_kts=float(pt.V1_kts), vr_kts=float(pt.Vr_kts), v2_kts=float(pt.V2_kts), vs_kts=float(pt.Vs_kts),
+            asd_ft=asd, todr_ft=todr, aeo_grad_ft_per_nm=float(aeo),
+            limiter=str(limiter), dispatchable=dispatch, v1_mode="table",
             _debug=dbg if want_debug else None
         )
 
@@ -164,44 +146,51 @@ class CorePlanner:
                                           asda_ft: float,
                                           required_aeo_ft_per_nm: float = 200.0,
                                           allow_ab: bool = False,
-                                          debug: bool = False) -> Dict[str, Any]:
+                                          debug: bool = False,
+                                          compare_all: bool = True) -> Dict[str, Any]:
         pa_ft = field_elev_ft
         tried: List[CandidateResult] = []
-        best: Optional[CandidateResult] = None
 
+        # Compute derate target first
         mil = self.deck.lookup(flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c)
         der = self.derate.compute_derate_from_groundroll(flap_deg, pa_ft,
                                                          mil.AGD_ft/1.15,
                                                          min(tora_ft, asda_ft),
                                                          allow_ab)
-        cand_der = self.compute_candidate(flap_deg, "DERATE", gw_lbs, pa_ft, oat_c,
-                                          tora_ft, asda_ft,
-                                          required_aeo_ft_per_nm,
-                                          der["derate_pct"],
-                                          want_debug=debug)
+        # Always add DERATE
+        cand_der = self._build_candidate(flap_deg, "DERATE", gw_lbs, pa_ft, oat_c,
+                                         tora_ft, asda_ft, required_aeo_ft_per_nm,
+                                         der.get("derate_pct"), debug)
         tried.append(cand_der)
-        if cand_der.dispatchable:
-            best = cand_der
+
+        # Always add MIL for comparison
+        cand_mil = self._build_candidate(flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c,
+                                         tora_ft, asda_ft, required_aeo_ft_per_nm,
+                                         None, debug)
+        tried.append(cand_mil)
+
+        # Optionally AB
+        cand_ab = None
+        if allow_ab:
+            cand_ab = self._build_candidate(flap_deg, "AFTERBURNER", gw_lbs, pa_ft, oat_c,
+                                            tora_ft, asda_ft, required_aeo_ft_per_nm,
+                                            None, debug)
+            tried.append(cand_ab)
+
+        # Choose best (prefer DERATE if multiple are OK; else highest gradient that is dispatchable)
+        dispatchables = [c for c in tried if c.dispatchable]
+        if dispatchables:
+            # prefer DERATE > MIL > AB for noise/engine life
+            order = {"DERATE":0, "MILITARY":1, "AFTERBURNER":2}
+            best = sorted(dispatchables, key=lambda c: order.get(c.thrust_mode, 9))[0]
         else:
-            cand_mil = self.compute_candidate(flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c,
-                                              tora_ft, asda_ft, required_aeo_ft_per_nm,
-                                              want_debug=debug)
-            tried.append(cand_mil)
-            if cand_mil.dispatchable:
-                best = cand_mil
-            elif allow_ab:
-                cand_ab = self.compute_candidate(flap_deg, "AFTERBURNER", gw_lbs, pa_ft, oat_c,
-                                                 tora_ft, asda_ft, required_aeo_ft_per_nm,
-                                                 want_debug=debug)
-                tried.append(cand_ab)
-                if cand_ab.dispatchable:
-                    best = cand_ab
+            best = None
 
         verdict = "OK" if best else "NOT_DISPATCHABLE"
         return {
-            "inputs": {"flap_deg": flap_deg, "gw_lbs": gw_lbs,
-                       "field_elev_ft": field_elev_ft, "qnh_inhg": qnh_inhg,
-                       "oat_c": oat_c, "tora_ft": tora_ft, "asda_ft": asda_ft},
+            "inputs": {"flap_deg": int(flap_deg), "gw_lbs": float(gw_lbs),
+                       "field_elev_ft": float(field_elev_ft), "qnh_inhg": float(qnh_inhg),
+                       "oat_c": float(oat_c), "tora_ft": int(tora_ft), "asda_ft": int(asda_ft)},
             "tried": [asdict(c) for c in tried],
             "best": asdict(best) if best else None,
             "verdict": verdict
@@ -209,9 +198,10 @@ class CorePlanner:
 
 def plan_takeoff_with_optional_derate(**kwargs) -> Dict[str, Any]:
     accepted = {"flap_deg","gw_lbs","field_elev_ft","qnh_inhg","oat_c","tora_ft","asda_ft",
-                "required_aeo_ft_per_nm","allow_ab","debug"}
+                "required_aeo_ft_per_nm","allow_ab","debug","compare_all"}
     filtered = {k: v for k, v in kwargs.items() if k in accepted}
     filtered.setdefault("required_aeo_ft_per_nm", 200.0)
     filtered.setdefault("allow_ab", False)
     filtered.setdefault("debug", False)
+    filtered.setdefault("compare_all", True)
     return CorePlanner().plan_takeoff_with_optional_derate(**filtered)
