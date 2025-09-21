@@ -718,7 +718,6 @@ def _evaluate_candidate(flaps_label: str,
         "planner": plan,
     }
 
-
 def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
     if from_percent is None: return None
     internal = INTERNAL_FUEL_MAX_LB * max(0.0, min(100.0, from_percent)) / 100.0
