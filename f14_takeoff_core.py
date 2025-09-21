@@ -187,7 +187,7 @@ class CorePlanner:
         if mode=="DERATE":
             if derate_pct is None: derate_pct = 95
             resolved_pct = int(derate_pct)
-            default_floors = {"0":85,"20":88,"35":90,"40":90}
+            default_floors = {"0":85,"20":90,"35":96,"40":96}
             floor = int(self.derate.cfg.get("min_pct_by_flap_deg", default_floors).get(str(flap_deg),85))
             if resolved_pct < floor: clamped = True
             applied_pct = max(resolved_pct, floor)
@@ -196,8 +196,14 @@ class CorePlanner:
         aeo, dbg = self._aeo_gradient(flap_deg, gw_lbs, field_elev_ft, qnh_inhg, oat_c,
                                       pt.V2_kts, base_thrust, applied_pct, want_debug)
         limiter = "BALANCED" if abs(asd - todr) / max(todr, 1.0) < 0.02 else ("ASD" if asd > todr else "TODR")
-        dispatch = bool((asd <= asda_ft) and (todr <= tora_ft) and (aeo >= req_aeo))
+        runway_factor = float(self.derate.cfg.get("safety", {}).get("runway_factor", 1.10))
+        asd_req = asd * runway_factor
+        todr_req = todr * runway_factor
+        dispatch = bool((asd_req <= asda_ft) and (todr_req <= tora_ft) and (aeo >= req_aeo))
 
+                if want_debug:
+            dbg = dict(dbg)
+            dbg.update({"asd_ft_raw": float(asd), "todr_ft_raw": float(todr), "runway_factor": runway_factor, "asd_ft_req": float(asd)*runway_factor, "todr_ft_req": float(todr)*runway_factor})
         return CandidateResult(
             flap_deg=int(flap_deg), thrust_mode=mode, derate_pct=resolved_pct,
             clamped_to_floor=bool(clamped),
@@ -224,7 +230,7 @@ class CorePlanner:
         tried: List[CandidateResult] = []
         flaps_priority = [0, 20, 40]
 
-        default_floors = {"0":85,"20":88,"35":90,"40":90}
+        default_floors = {"0":85,"20":90,"35":96,"40":96}
         floors = self.derate.cfg.get("min_pct_by_flap_deg", default_floors)
 
         best: Optional[CandidateResult] = None
@@ -291,9 +297,54 @@ def plan_takeoff_with_optional_derate(**kwargs) -> Dict[str, Any]:
     accepted = {"flap_deg","gw_lbs","field_elev_ft","qnh_inhg","oat_c","tora_ft","asda_ft",
                 "required_aeo_ft_per_nm","allow_ab","debug","compare_all","search_1pct"}
     filtered = {k: v for k, v in kwargs.items() if k in accepted}
-    filtered.setdefault("required_aeo_ft_per_nm", 200.0)
+    filtered.setdefault("required_aeo_ft_per_nm", 300.0)
     filtered.setdefault("allow_ab", False)
     filtered.setdefault("debug", False)
     filtered.setdefault("compare_all", True)
     filtered.setdefault("search_1pct", True)
     return CorePlanner().plan_takeoff_with_optional_derate(**filtered)
+
+
+# --- Utility functions expected by the app ---
+def density_ratio_sigma(pressure_alt_ft: float, oat_c: float) -> float:
+    """Return density ratio sigma = rho / rho0 using ISA pressure at given pressure altitude
+    and actual OAT. Uses isa.isa_atm for pressure, assumes sea-level rho0 = 1.225 kg/m^3."""
+    try:
+        from isa import isa_atm
+        T_isa, p_isa, rho_isa, _ = isa_atm(float(pressure_alt_ft))
+        T_actual = float(oat_c) + 273.15
+        R = 287.05287
+        rho_actual = p_isa / (R * T_actual)
+        return float(rho_actual / 1.225)
+    except Exception:
+        return 1.0
+
+def build_loadout_totals(stations: dict, fuel_lb: float, ext_tanks: tuple | None = None, mode_simple_gw: float | None = None) -> dict:
+    """Minimal implementation used by the app to compute displayed weights.
+    Returns dict with gw_tow_lb, fuel_tow_lb, fuel_ldg_lb. If mode_simple_gw is provided,
+    use it as gw_tow_lb; otherwise sum stations + fuel."""
+    fuel_lb = float(fuel_lb or 0.0)
+    gw_from_stations = 0.0
+    if isinstance(stations, dict):
+        for sta, spec in stations.items():
+            try:
+                qty = float(spec.get("qty", 0.0) or 0.0)
+                gw_from_stations += qty * float(spec.get("store_weight_lb", 0.0))
+                gw_from_stations += qty * float(spec.get("pylon_weight_lb", 0.0))
+            except Exception:
+                continue
+    gw_tow = float(mode_simple_gw) if mode_simple_gw is not None else (gw_from_stations + fuel_lb)
+    # Landing fuel placeholder: until landing scenarios are wired, mirror fuel_lb
+    fuel_ldg = fuel_lb
+    return {"gw_tow_lb": float(gw_tow), "fuel_tow_lb": float(fuel_lb), "fuel_ldg_lb": float(fuel_ldg)}
+
+def resolve_thrust_display(label: str, derate_pct: int | None) -> str:
+    """Normalize thrust label for display in engine table."""
+    if not label:
+        label = "MILITARY"
+    u = str(label).upper().strip()
+    if "AFTERBURNER" in u or u.startswith("AB"):
+        return "AFTERBURNER"
+    if u.startswith("DERATE") or (u.startswith("MIL") and derate_pct is not None and 85 <= int(derate_pct) < 100):
+        return f"DERATE {int(derate_pct or 95)}%"
+    return "MILITARY"
