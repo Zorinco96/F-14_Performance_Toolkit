@@ -171,6 +171,12 @@ def _series_max(df: pd.DataFrame, col: str):
 # =========================
 # Data loading (CSV only)
 # =========================
+# --- Local data directory resolution ---
+import os as _os
+_BASE_DIR = _os.path.dirname(__file__)
+_DATA_DIR = _os.path.join(_BASE_DIR, "data")
+
+
 @st.cache_data(show_spinner=False)
 def load_airports(path_or_url: str) -> pd.DataFrame:
     df = pd.read_csv(path_or_url)
@@ -188,12 +194,14 @@ def load_perf(path_or_url: str) -> pd.DataFrame:
     return df
 
 AIRPORTS_PATHS = [
+    _os.path.join(_DATA_DIR, "dcs_airports.csv"),
     "dcs_airports.csv",
-    "https://raw.githubusercontent.com/Zorinco96/f14_takeoff_app.py/main/dcs_airports.csv",
+    "https://raw.githubusercontent.com/Zorinco96/F-14_Performance_Toolkit/main/data/dcs_airports.csv",
 ]
 PERF_PATHS = [
+    _os.path.join(_DATA_DIR, "f14_perf.csv"),
     "f14_perf.csv",
-    "https://raw.githubusercontent.com/Zorinco96/f14_takeoff_app.py/main/f14_perf.csv",
+    "https://raw.githubusercontent.com/Zorinco96/F-14_Performance_Toolkit/main/data/f14_perf.csv",
 ]
 
 airports = None
