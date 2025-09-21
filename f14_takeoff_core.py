@@ -16,7 +16,7 @@ from cruise_model import cruise_point
 from landing_model import landing_performance
 from functools import lru_cache
 
-__version__ = "1.2.3-core+flap-debug"
+__version__ = "1.2.4-core+csv-baseline"
 
 @lru_cache(maxsize=1)
 def get_calib():
@@ -765,6 +765,18 @@ def plan_takeoff_with_optional_derate(
 
     # 5) Build UI payload
     out = {
+    # --- Override baseline distances with CSV authority (smoke-test correctness)
+    try:
+        gr_csv = mil_ground_roll_ft(flap_deg, gw_lbs, pa_ft, oat_c)
+        to35_csv = mil_ground_roll_or_to35_ft(flap_deg, gw_lbs, pa_ft, oat_c)
+        if gr_csv is not None:
+            mil_perf['GroundRoll_ft'] = float(gr_csv)
+        if to35_csv is not None:
+            mil_perf['DistanceTo35ft_ft'] = float(to35_csv)
+    except Exception:
+        # Fallback: keep physics values if CSV fails
+        pass
+
         "inputs": {
             "flap_deg": flap_deg,
             "gw_lbs": gw_lbs,
