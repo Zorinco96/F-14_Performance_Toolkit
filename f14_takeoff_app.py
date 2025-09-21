@@ -991,6 +991,8 @@ st.session_state["req_climb_grad_ft_nm"] = int(req_grad)
 # (6) Takeoff Results
 # =========================
 st.header("Takeoff Results")
+st.caption("Runway safety factor applied: TODR/ASDR × 1.10 before comparison to TORA/ASDA.")
+
 
 def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
     """
