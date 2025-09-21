@@ -586,8 +586,7 @@ def _evaluate_candidate(flaps_label: str,
         vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
         if vs_tbl:
             if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
-    
-            if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
+                v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
                 v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
             if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
                 v_speeds["Vr_kts"] = float(vs_tbl["Vr_kts"])
@@ -614,8 +613,6 @@ def _evaluate_candidate(flaps_label: str,
         "v": v_speeds,
     }
 
-
-def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
 
 def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
     if from_percent is None: return None
