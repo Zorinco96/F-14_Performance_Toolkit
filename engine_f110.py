@@ -1,9 +1,8 @@
-
 from __future__ import annotations
-import os
-from pathlib import Path
+from typing import Optional
 import numpy as np
 import pandas as pd
+from data_loaders import resolve_data_path
 
 class F110Deck:
     """
@@ -12,26 +11,14 @@ class F110Deck:
       - data/f110_ff_to_rpm_knots.csv    (columns: FF_pph, RPM_pct)
     This replaces the old monolithic f110_engine.csv deck.
     """
-    def __init__(self, data_dir: str | None = None, ab_ratio: float | None = None):
-        here = Path(__file__).resolve().parent
-        self.data_dir = Path(data_dir) if data_dir else (here / "data")
-        # Load models
-        self.tff = pd.read_csv(self.data_path("f110_tff_model.csv"))
-        self.ff2rpm = pd.read_csv(self.data_path("f110_ff_to_rpm_knots.csv"))
+    def __init__(self, data_dir: Optional[str] = None, ab_ratio: Optional[float] = None):
+        # data_dir kept for API compatibility; files are resolved via resolve_data_path
+        self.tff = pd.read_csv(resolve_data_path("f110_tff_model.csv", "f110_tff_model.csv"))
+        self.ff2rpm = pd.read_csv(resolve_data_path("f110_ff_to_rpm_knots.csv", "f110_ff_to_rpm_knots.csv"))
         # Ensure sorted by altitude
         self.tff = self.tff.sort_values("alt_ft").reset_index(drop=True)
-        # AB thrust ratio relative to MIL. If not provided, use 1.695 taken from MIL/MAX at SL in legacy deck.
-        # (MAX should be refined later via cockpit sweeps; keeping here to avoid breaking MAX paths.)
+        # AB thrust ratio relative to MIL. Default kept until calibrated further.
         self.ab_ratio = float(ab_ratio if ab_ratio is not None else 1.695)
-
-    def data_path(self, name: str) -> str:
-        p = self.data_dir / name
-        if not p.exists():
-            # also try CWD/data for Streamlit working-dir runs
-            alt = Path.cwd() / "data" / name
-            if alt.exists():
-                return str(alt)
-        return str(p)
 
     # ---- Helpers ------------------------------------------------------------
     def _interp_on_alt(self, col: str, alt_ft: float) -> float:
@@ -47,10 +34,10 @@ class F110Deck:
         alpha = self._interp_on_alt("alpha", alt_ft)
         # simple model: T_mil(alt, M) = C(alt) * (1 + M)^alpha
         T_mil = C * (1.0 + float(mach)) ** alpha
-        if str(power).upper().startswith("MAX") or "AFTERBURNER" in str(power).upper():
+        pu = str(power).upper()
+        if pu.startswith("MAX") or "AFTERBURNER" in pu:
             return T_mil * self.ab_ratio
-        # include IDLE in same family: return a small fraction of MIL if ever asked
-        if str(power).upper().startswith("IDLE"):
+        if pu.startswith("IDLE"):
             return max(0.15 * T_mil, 500.0)
         return T_mil
 
@@ -58,14 +45,11 @@ class F110Deck:
         """MIL fuel flow scaled with thrust; MAX uses a simple multiplier (placeholder)."""
         base_ff = self._interp_on_alt("FF_MIL_pph", alt_ft)
         base_T = self._interp_on_alt("T_MIL_lbf", alt_ft)
-        T = self.thrust_lbf(alt_ft, mach, power if str(power).upper().startswith("MIL") else "MIL")
-        ff = 0.0
-        if base_T > 1.0:
-            ff = base_ff * (T / base_T)
-        else:
-            ff = base_ff
-        if str(power).upper().startswith("MAX") or "AFTERBURNER" in str(power).upper():
-            # crude MAX uplift; will be replaced by calibrated curve when available
+        # Use MIL mapping for scaling regardless of input power to avoid circularity
+        T = self.thrust_lbf(alt_ft, mach, "MIL")
+        ff = base_ff * (T / base_T) if base_T > 1.0 else base_ff
+        pu = str(power).upper()
+        if pu.startswith("MAX") or "AFTERBURNER" in pu:
             ff *= 1.85
         return float(ff)
 
