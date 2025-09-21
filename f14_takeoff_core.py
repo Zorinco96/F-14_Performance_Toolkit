@@ -1,6 +1,10 @@
-# f14_takeoff_core.py — v1.4.0
-# - Keeps accurate AEO (V2+15), Mach falloff, install drag
-# - Adds compare_all flag to always evaluate DERATE, MIL, (optional AB) for side-by-side comparison
+# f14_takeoff_core.py — v1.5.0
+# DERATE search with 1% resolution and flap priority:
+# - Search flaps in order [0, 20, 40]
+# - For each flap, try DERATE from floor..100% in 1% steps (start at 85% floor unless higher floor set)
+# - Prefer lower flap over lower thrust (never suggest low-thrust + full flaps if lower flap works)
+# - If no DERATE works at a flap, try MIL; if none across flaps, optionally escalate to AB
+# - Keeps V2+15 AEO, Mach falloff, install drag increments, runway scaling under derate
 
 from __future__ import annotations
 from dataclasses import dataclass, asdict
@@ -42,21 +46,16 @@ class CorePlanner:
         self.eng = F110Deck()
         self.k_mach = 0.35  # MIL thrust falloff with Mach
 
+    # ---------- Helpers ----------
     def _map_flap_to_config(self, flap_deg: int) -> str:
-        if flap_deg == 0:
-            return "CLEAN"
-        elif flap_deg == 20:
-            return "TO_PARTIAL"
-        elif flap_deg in (35, 40):
-            return "TO_FLAPS"
-        else:
-            return "CLEAN"
+        if flap_deg == 0: return "CLEAN"
+        if flap_deg == 20: return "TO_PARTIAL"
+        if flap_deg in (35, 40): return "TO_FLAPS"
+        return "CLEAN"
 
     def _cd0_increment(self, config: str) -> float:
-        if config == "CLEAN":
-            return 0.005
-        elif config in ("TO_PARTIAL", "TO_FLAPS"):
-            return 0.010
+        if config == "CLEAN": return 0.005
+        if config in ("TO_PARTIAL", "TO_FLAPS"): return 0.010
         return 0.0
 
     def _aeo_gradient(self, flap_deg: int, gw_lbs: float,
@@ -64,21 +63,16 @@ class CorePlanner:
                       thrust_mode: str, applied_pct: Optional[int],
                       want_debug: bool = False) -> (float, Dict[str,float]):
         Vref_kts = V2_kts + 15.0
-
-        # Atmosphere
         T, p, rho, a = isa_atm(pa_ft)
         Vtas = Vref_kts * KTS_TO_MS * (1.225 / rho) ** 0.5
         M = Vtas / a
 
-        # Engine thrust with Mach falloff
         power = "MIL" if thrust_mode in ("MILITARY", "DERATE") else "MAX"
         T_per_lbf = self.eng.thrust_lbf(pa_ft, M, power)
         T_per_lbf = T_per_lbf * max(0.7, (1.0 - self.k_mach * M))
-
         thrust_mult = (applied_pct / 100.0) if (thrust_mode == "DERATE" and applied_pct) else 1.0
         T_tot_N = T_per_lbf * 2 * 4.4482216153 * thrust_mult
 
-        # Aero polar
         config = self._map_flap_to_config(flap_deg)
         clmax, cd0, k = self.aero.polar(config, 20.0)
         cd0 += self._cd0_increment(config)
@@ -95,17 +89,20 @@ class CorePlanner:
 
         debug = {}
         if want_debug:
-            debug = {
-                "rho": float(rho), "Vtas_ms": float(Vtas), "Mach": float(M),
-                "T_per_lbf": float(T_per_lbf), "thrust_mult": float(thrust_mult),
-                "T_tot_N": float(T_tot_N),
-                "clmax": float(clmax), "cd0": float(cd0), "k": float(k),
-                "q": float(q), "CL_req": float(CL_req), "CL_used": float(CL),
-                "CD_used": float(CD), "D_N": float(D_N),
-                "excess_N": float(excess), "grad_ft_per_nm": float(grad),
-                "Vref_kts": float(Vref_kts)
-            }
+            debug = {"rho": float(rho), "Vtas_ms": float(Vtas), "Mach": float(M),
+                     "T_per_lbf": float(T_per_lbf), "thrust_mult": float(thrust_mult),
+                     "T_tot_N": float(T_tot_N), "clmax": float(clmax),
+                     "cd0": float(cd0), "k": float(k), "q": float(q),
+                     "CL_req": float(CL_req), "CL_used": float(CL), "CD_used": float(CD),
+                     "D_N": float(D_N), "excess_N": float(excess),
+                     "grad_ft_per_nm": float(grad), "Vref_kts": float(Vref_kts)}
         return grad, debug
+
+    def _scale_runway_for_derate(self, asd_ft: float, todr_ft: float, applied_pct: float) -> (float, float):
+        r = max(0.5, min(1.0, applied_pct / 100.0))
+        asd_scale = 1.0 / (r ** 1.1)
+        todr_scale = 1.0 / (r ** 1.6)
+        return asd_ft * asd_scale, todr_ft * todr_scale
 
     def _build_candidate(self, flap_deg:int, mode:str, gw_lbs:float, pa_ft:float, oat_c:float,
                          tora_ft:float, asda_ft:float, req_aeo:float,
@@ -118,10 +115,13 @@ class CorePlanner:
         if mode=="DERATE":
             if derate_pct is None: derate_pct = 95
             resolved_pct = int(derate_pct)
-            floor = int(self.derate.cfg.get("min_pct_by_flap_deg",
-                                            {"0":85,"20":88,"35":90,"40":90}).get(str(flap_deg),85))
-            clamped = bool(resolved_pct <= floor)
+            # Flap-based floors; can be externalized later
+            default_floors = {"0":85,"20":88,"35":90,"40":90}
+            floor = int(self.derate.cfg.get("min_pct_by_flap_deg", default_floors).get(str(flap_deg),85))
+            if resolved_pct < floor:
+                clamped = True
             applied_pct = max(resolved_pct, floor)
+            asd, todr = self._scale_runway_for_derate(asd, todr, applied_pct)
 
         aeo, dbg = self._aeo_gradient(flap_deg, gw_lbs, pa_ft, pt.V2_kts, base_thrust, applied_pct, want_debug)
         limiter = "BALANCED" if abs(asd - todr) / max(todr, 1.0) < 0.02 else ("ASD" if asd > todr else "TODR")
@@ -136,6 +136,7 @@ class CorePlanner:
             _debug=dbg if want_debug else None
         )
 
+    # ---------- Main planner with 1% DERATE search & flap priority ----------
     def plan_takeoff_with_optional_derate(self,
                                           flap_deg: int,
                                           gw_lbs: float,
@@ -147,44 +148,64 @@ class CorePlanner:
                                           required_aeo_ft_per_nm: float = 200.0,
                                           allow_ab: bool = False,
                                           debug: bool = False,
-                                          compare_all: bool = True) -> Dict[str, Any]:
+                                          compare_all: bool = True,
+                                          search_1pct: bool = True) -> Dict[str, Any]:
+
         pa_ft = field_elev_ft
         tried: List[CandidateResult] = []
+        flaps_priority = [0, 20, 40]  # prefer lower flap; 40° last resort
 
-        # Compute derate target first
-        mil = self.deck.lookup(flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c)
-        der = self.derate.compute_derate_from_groundroll(flap_deg, pa_ft,
-                                                         mil.AGD_ft/1.15,
-                                                         min(tora_ft, asda_ft),
-                                                         allow_ab)
-        # Always add DERATE
-        cand_der = self._build_candidate(flap_deg, "DERATE", gw_lbs, pa_ft, oat_c,
-                                         tora_ft, asda_ft, required_aeo_ft_per_nm,
-                                         der.get("derate_pct"), debug)
-        tried.append(cand_der)
+        # Floors per flap
+        default_floors = {"0":85,"20":88,"35":90,"40":90}
+        floors = self.derate.cfg.get("min_pct_by_flap_deg", default_floors)
 
-        # Always add MIL for comparison
-        cand_mil = self._build_candidate(flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c,
-                                         tora_ft, asda_ft, required_aeo_ft_per_nm,
-                                         None, debug)
-        tried.append(cand_mil)
+        best: Optional[CandidateResult] = None
 
-        # Optionally AB
-        cand_ab = None
-        if allow_ab:
-            cand_ab = self._build_candidate(flap_deg, "AFTERBURNER", gw_lbs, pa_ft, oat_c,
-                                            tora_ft, asda_ft, required_aeo_ft_per_nm,
-                                            None, debug)
-            tried.append(cand_ab)
+        for f in flaps_priority:
+            # 1) Try DERATE from floor..100 in 1% steps (ascending), as user requested
+            floor = int(floors.get(str(f), 85))
+            if search_1pct:
+                for pct in range(floor, 101):
+                    cand_der = self._build_candidate(f, "DERATE", gw_lbs, pa_ft, oat_c,
+                                                     tora_ft, asda_ft, required_aeo_ft_per_nm,
+                                                     pct, debug)
+                    if compare_all: tried.append(cand_der)
+                    if cand_der.dispatchable:
+                        best = cand_der
+                        break
+                if best:
+                    break  # stop at first flap that yields a dispatchable derate
+            else:
+                # fallback to previous heuristic
+                mil = self.deck.lookup(f, "MILITARY", gw_lbs, pa_ft, oat_c)
+                der_guess = self.derate.compute_derate_from_groundroll(f, pa_ft, mil.AGD_ft/1.15, min(tora_ft, asda_ft), allow_ab)
+                cand_der = self._build_candidate(f, "DERATE", gw_lbs, pa_ft, oat_c,
+                                                 tora_ft, asda_ft, required_aeo_ft_per_nm,
+                                                 der_guess.get("derate_pct"), debug)
+                if compare_all: tried.append(cand_der)
+                if cand_der.dispatchable:
+                    best = cand_der
+                    break
 
-        # Choose best (prefer DERATE if multiple are OK; else highest gradient that is dispatchable)
-        dispatchables = [c for c in tried if c.dispatchable]
-        if dispatchables:
-            # prefer DERATE > MIL > AB for noise/engine life
-            order = {"DERATE":0, "MILITARY":1, "AFTERBURNER":2}
-            best = sorted(dispatchables, key=lambda c: order.get(c.thrust_mode, 9))[0]
-        else:
-            best = None
+            # 2) If no DERATE works at this flap, try MIL at this flap
+            cand_mil = self._build_candidate(f, "MILITARY", gw_lbs, pa_ft, oat_c,
+                                             tora_ft, asda_ft, required_aeo_ft_per_nm,
+                                             None, debug)
+            if compare_all: tried.append(cand_mil)
+            if cand_mil.dispatchable:
+                best = cand_mil
+                break
+
+        # 3) Optional AB escalation if nothing worked
+        if not best and allow_ab:
+            for f in flaps_priority:
+                cand_ab = self._build_candidate(f, "AFTERBURNER", gw_lbs, pa_ft, oat_c,
+                                                tora_ft, asda_ft, required_aeo_ft_per_nm,
+                                                None, debug)
+                if compare_all: tried.append(cand_ab)
+                if cand_ab.dispatchable:
+                    best = cand_ab
+                    break
 
         verdict = "OK" if best else "NOT_DISPATCHABLE"
         return {
@@ -198,10 +219,11 @@ class CorePlanner:
 
 def plan_takeoff_with_optional_derate(**kwargs) -> Dict[str, Any]:
     accepted = {"flap_deg","gw_lbs","field_elev_ft","qnh_inhg","oat_c","tora_ft","asda_ft",
-                "required_aeo_ft_per_nm","allow_ab","debug","compare_all"}
+                "required_aeo_ft_per_nm","allow_ab","debug","compare_all","search_1pct"}
     filtered = {k: v for k, v in kwargs.items() if k in accepted}
     filtered.setdefault("required_aeo_ft_per_nm", 200.0)
     filtered.setdefault("allow_ab", False)
     filtered.setdefault("debug", False)
     filtered.setdefault("compare_all", True)
+    filtered.setdefault("search_1pct", True)
     return CorePlanner().plan_takeoff_with_optional_derate(**filtered)
