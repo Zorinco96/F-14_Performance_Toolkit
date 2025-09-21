@@ -1,11 +1,11 @@
-# test_app.py — v1.3.2 (debug-enabled)
-# Smoke test for CorePlanner with flap options (0/20/40) and a debug toggle.
+# test_app.py — v1.3.3
+# Smoke test with debug enabled for CorePlanner (UP/MANEUVER/FULL).
 
 import streamlit as st
 import f14_takeoff_core as core
 
 st.set_page_config(page_title="F-14 Toolkit — Smoke Test", layout="wide")
-st.title("F-14 Performance Toolkit — Smoke Test (v1.3.2)")
+st.title("F-14 Performance Toolkit — Smoke Test (v1.3.3)")
 
 flap_mode = st.sidebar.selectbox(
     "Flaps",
@@ -23,8 +23,6 @@ tora_ft = st.sidebar.number_input("TORA (ft)", value=8000, step=500)
 asda_ft = st.sidebar.number_input("ASDA (ft)", value=8000, step=500)
 allow_ab = st.sidebar.checkbox("Allow Afterburner escalation", value=False)
 
-debug = st.sidebar.checkbox("Include debug diagnostics", value=True)
-
 if st.button("Compute"):
     res = core.plan_takeoff_with_optional_derate(
         flap_deg=int(flap_deg),
@@ -35,7 +33,7 @@ if st.button("Compute"):
         tora_ft=int(tora_ft),
         asda_ft=int(asda_ft),
         allow_ab=bool(allow_ab),
-        debug=bool(debug),
+        debug=True,   # Always include debug diagnostics
     )
     st.subheader("Planner Output")
     st.json(res)
