@@ -764,7 +764,6 @@ def plan_takeoff_with_optional_derate(
             derate_debug = f'exception:{type(e).__name__}:{e}'
 
     # 5) Build UI payload
-    out = {
     # --- Override baseline distances with CSV authority (smoke-test correctness)
     try:
         gr_csv = mil_ground_roll_ft(flap_deg, gw_lbs, pa_ft, oat_c)
@@ -776,6 +775,8 @@ def plan_takeoff_with_optional_derate(
     except Exception:
         # Fallback: keep physics values if CSV fails
         pass
+    
+    out = {
 
         "inputs": {
             "flap_deg": flap_deg,
@@ -795,3 +796,38 @@ def plan_takeoff_with_optional_derate(
         "derate_debug": (None if der is not None else (derate_debug or ("disabled" if not do_derate else "unknown"))),
     }
     return out
+
+
+# -----------------------------
+# UI helpers (labels / display)
+# -----------------------------
+def resolve_thrust_display(thrust_label_or_mode: str, derate_pct: int | None = None) -> str:
+    """
+    Normalize a thrust display label for the UI.
+    - If derate_pct is in [85..99], returns 'DERATE (XX%)'.
+    - If label indicates afterburner ('AFTERBURNER'/'MAX'), returns 'AFTERBURNER'.
+    - If label indicates MIL or pct >= 100, returns 'MILITARY (100% RPM)'.
+    - Otherwise, returns the original label.
+    """
+    try:
+        label = (thrust_label_or_mode or "").strip().upper()
+        if derate_pct is not None:
+            try:
+                p = int(derate_pct)
+                if 85 <= p < 100:
+                    return f"DERATE ({p}%)"
+                if p >= 100:
+                    return "MILITARY (100% RPM)"
+            except Exception:
+                pass
+
+        if "AFTERBURNER" in label or label == "MAX":
+            return "AFTERBURNER"
+        if "MIL" in label or "100" in label:
+            return "MILITARY (100% RPM)"
+        if label.startswith("DERATE") and "(" in label and "%" in label:
+            # Keep the same formatting but normalize capitalization
+            return label.title().replace("100% Rpm", "100% RPM")
+        return thrust_label_or_mode
+    except Exception:
+        return str(thrust_label_or_mode or "MILITARY (100% RPM)")
