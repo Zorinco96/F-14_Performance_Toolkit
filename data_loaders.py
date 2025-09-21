@@ -1,13 +1,16 @@
-# data_loaders.py — v1.2.2-data
-# Path-hardening: all CSV loads default to ./data relative to this file.
-# New: smart fallback — if a caller passes a bare filename or a non-existent path,
-#      we transparently try ./data/<name> before failing.
+# data_loaders.py — v1.3.0-data
+# Path-hardening for CSV/JSON loads. Default root is ./data relative to this file.
+# New:
+#  - resolve_data_path(name): resolve a filename reliably to ./data/<name> (or existing absolute/relative path).
+#  - load_json_config(name): JSON loader with same resolution rules.
+#  - (Kept) CSV loaders for aero/calibration; removed outdated f110_engine.csv shim.
 
 from __future__ import annotations
 import os
+import json
 from functools import lru_cache
-import pandas as pd
 from typing import Optional
+import pandas as pd
 
 # Resolve ./data relative to this file (works in Streamlit Cloud, local, etc.)
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
@@ -15,57 +18,48 @@ _DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 def _csv_path(name: str) -> str:
     return os.path.join(_DATA_DIR, name)
 
-def _resolve_user_or_data(path: Optional[str], default_name: str) -> str:
+def resolve_data_path(path_or_name: Optional[str], default_name: Optional[str] = None) -> str:
     """
     Resolution rules:
-      1) If path is None → use ./data/<default_name>.
-      2) If path is absolute or has a directory and exists → use as-is.
-      3) If path is a bare filename (no dir) AND exists in CWD → use as-is.
-      4) Otherwise → try ./data/<basename(path or default_name)>.
-      5) If that still doesn't exist → raise FileNotFoundError (with both tried paths).
+      1) If path_or_name is None -> use ./data/<default_name> (if provided) or raise.
+      2) If path_or_name is an existing file (absolute or relative) -> use it.
+      3) Else, try ./data/<basename(path_or_name or default_name)>.
+      4) Else, raise FileNotFoundError listing attempted locations.
     """
     tried = []
-    if path is None:
+    # Case 1: None -> must have default_name
+    if path_or_name is None:
+        if not default_name:
+            raise FileNotFoundError("resolve_data_path: default_name is required when path_or_name is None")
         p = _csv_path(default_name)
         if os.path.isfile(p):
             return p
         tried.append(p)
-        raise FileNotFoundError(f"Missing required CSV: {p}")
+        raise FileNotFoundError(f"Missing required data file. Tried: {tried}")
 
     # Normalize
-    base = os.path.basename(path)
-    has_dir = (os.path.dirname(path) != "")
-    # Case A: given path exists → use it
-    if os.path.isfile(path):
-        return path
-    tried.append(path)
+    # If user provided a path and it exists, take it
+    if os.path.isfile(path_or_name):
+        return path_or_name
+    tried.append(path_or_name)
 
-    # Case B: caller passed a dir path but it doesn't exist; try ./data/<base>
+    base = os.path.basename(path_or_name if path_or_name else (default_name or ""))
     candidate = _csv_path(base)
     if os.path.isfile(candidate):
         return candidate
     tried.append(candidate)
 
-    # Case C: if caller passed a bare filename that also isn't in CWD, we already checked ./data/<base>.
-    # Nothing left to try:
     raise FileNotFoundError(f"No such file. Tried: {tried}")
 
 @lru_cache(maxsize=None)
-def load_engine_csv(path: str | None = None) -> pd.DataFrame:
+def load_json_config(path_or_name: Optional[str]) -> dict:
     """
-    F110 engine deck CSV loader.
-    Columns required: Altitude_ft, Mach, PowerSetting, Thrust_lbf, FuelFlow_pph
-    Default location: ./data/f110_engine.csv
-    Smart fallback: if a caller passes 'f110_engine.csv' or some bad relative path,
-                    we transparently try ./data/f110_engine.csv.
+    Load JSON config using resolve_data_path rules.
+    Typical: load_json_config('derate_config.json')
     """
-    resolved = _resolve_user_or_data(path, "f110_engine.csv")
-    df = pd.read_csv(resolved)
-    req = {"Altitude_ft", "Mach", "PowerSetting", "Thrust_lbf", "FuelFlow_pph"}
-    missing = req - set(df.columns)
-    if missing:
-        raise ValueError(f"Engine CSV missing columns: {missing}")
-    return df
+    p = resolve_data_path(path_or_name, "derate_config.json")
+    with open(p, "r") as f:
+        return json.load(f)
 
 @lru_cache(maxsize=None)
 def load_aero_csv(path: str | None = None) -> pd.DataFrame:
@@ -73,9 +67,8 @@ def load_aero_csv(path: str | None = None) -> pd.DataFrame:
     F-14 aero polar CSV loader.
     Columns required: Config, WingSweep_deg, CLmax, CD0, k
     Default location: ./data/f14_aero.csv
-    Smart fallback: as above.
     """
-    resolved = _resolve_user_or_data(path, "f14_aero.csv")
+    resolved = resolve_data_path(path, "f14_aero.csv")
     df = pd.read_csv(resolved)
     req = {"Config", "WingSweep_deg", "CLmax", "CD0", "k"}
     missing = req - set(df.columns)
@@ -88,10 +81,9 @@ def load_calibration_csv(path: str | None = None) -> dict:
     """
     Generic calibration table to dict.
     Columns required: Parameter, FAA_Default, DCS_Default
-    Default location: ./data/calibration.csv  (optional in some builds)
-    Smart fallback: as above.
+    Default location: ./data/calibration.csv
     """
-    resolved = _resolve_user_or_data(path, "calibration.csv")
+    resolved = resolve_data_path(path, "calibration.csv")
     df = pd.read_csv(resolved)
     req = {"Parameter", "FAA_Default", "DCS_Default"}
     if not set(req).issubset(df.columns):
