@@ -1,11 +1,36 @@
 {
+  "policy": {
+    "allow_ab": false,
+    "min_takeoff_rpm_pct": 85
+  },
+  "floors": {
+    "min_pct_by_flap_deg": {
+      "0": 85,
+      "20": 90,
+      "35": 96
+    }
+  },
+  "thrust_model": {
+    "thrust_exponent_m": {
+      "0": 0.75,
+      "20": 0.75,
+      "35": 0.75
+    },
+    "min_idle_ff_pph": 1200
+  },
+  "safety": {
+    "runway_factor": 1.1
+  },
   "allow_ab": false,
   "min_idle_ff_pph": 1200,
   "thrust_exponent_m": {
     "0": 0.75,
+    "20": 0.75,
     "35": 0.75
   },
-  "safety": {
-    "runway_margin_ft": 0.0
+  "min_pct_by_flap_deg": {
+    "0": 85,
+    "20": 90,
+    "35": 96
   }
 }
