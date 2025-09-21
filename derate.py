@@ -1,18 +1,20 @@
 """
-derate.py — F-14B derate helper  (v1.2.2-derate)
-Changes:
-- Adds flap-band derate floors via config (defaults: 0°→85, 35°→90).
-- Returns 'derate_pct' and 'clamped_to_floor' in output.
-- If computed RPM%/FF would imply < floor, we snap to the floor (and recompute).
+derate.py — F-14B derate helper  (v1.3.0-derate)
+Changes vs v1.2.2:
+- FIX: syntax error in _load_tff (alt_ft key).
+- Path hardened via data_loaders.resolve_data_path() for all CSV/JSON loads.
+- Keeps flap-band derate floors (defaults 0°→85, 35°→90), "clamped_to_floor" flag,
+  and rich outputs (FF/RPM/T required).
 """
 
 from __future__ import annotations
+import csv
 import json
+import bisect
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Tuple
-import bisect
-import math
-import csv
+
+from data_loaders import resolve_data_path, load_json_config
 
 @dataclass
 class TFFPoint:
@@ -37,11 +39,12 @@ class DerateModel:
 
     # ---------- Loading ----------
     def _load_tff(self, path: str) -> Dict[int, TFFPoint]:
+        resolved = resolve_data_path(path, "f110_tff_model.csv")
         by_alt: Dict[int, TFFPoint] = {}
-        with open(path, newline="") as f:
+        with open(resolved, newline="") as f:
             rdr = csv.DictReader(f)
             for row in rdr:
-                alt = int(float(row["alt_ft\]))
+                alt = int(float(row["alt_ft"]))
                 by_alt[alt] = TFFPoint(
                     alt_ft = alt,
                     C = float(row["C"]),
@@ -52,9 +55,10 @@ class DerateModel:
         return dict(sorted(by_alt.items()))
 
     def _load_knots(self, path: str) -> Tuple[List[float], List[float]]:
+        resolved = resolve_data_path(path, "f110_ff_to_rpm_knots.csv")
         ff: List[float] = []
         rpm: List[float] = []
-        with open(path, newline="") as f:
+        with open(resolved, newline="") as f:
             rdr = csv.DictReader(f)
             for row in rdr:
                 ff.append(float(row["FF_pph"]))
@@ -65,9 +69,10 @@ class DerateModel:
         return ff, rpm
 
     def _load_calibration(self, path: str) -> Dict[int, Dict[str, float]]:
+        resolved = resolve_data_path(path, "calibration_sl_summary.csv")
         out: Dict[int, Dict[str, float]] = {}
         try:
-            with open(path, newline="") as f:
+            with open(resolved, newline="") as f:
                 rdr = csv.DictReader(f)
                 for row in rdr:
                     flap = int(float(row["Flaps_deg"]))
@@ -90,10 +95,10 @@ class DerateModel:
 
     def _load_config(self, path: str) -> Dict:
         try:
-            with open(path) as f:
-                cfg = json.load(f)
+            cfg = load_json_config(path)
         except FileNotFoundError:
             cfg = self._default_config()
+        # defaults
         cfg.setdefault("min_idle_ff_pph", 1200)
         cfg.setdefault("thrust_exponent_m", { "0": 0.75, "35": 0.75 })
         cfg.setdefault("min_pct_by_flap_deg", { "0": 85, "35": 90 })
@@ -110,11 +115,18 @@ class DerateModel:
         return self.tff_by_alt[before] if (pa_ft - before) <= (after - pa_ft) else self.tff_by_alt[after]
 
     def thrust_to_ff(self, T_req_lbf: float, pa_ft: float) -> float:
+        # Inverse of T_mil ~ C*(1+M)^alpha, but we don't know Mach here; use calibration table at given alt_ft
         p = self._nearest_alt_point(pa_ft)
         T_req_lbf = max(T_req_lbf, 0.0)
-        FF = (T_req_lbf / max(p.C, 1e-6)) ** (1.0 / max(p.alpha, 1e-6))
+        # Scale FF proportional to required thrust vs MIL baseline
+        # Protect against division by zero if T_MIL_lbf not present
+        if p.T_MIL_lbf > 1.0 and p.FF_MIL_pph > 1.0:
+            FF = p.FF_MIL_pph * (T_req_lbf / p.T_MIL_lbf)
+        else:
+            # fallback: power law using C/alpha (very coarse)
+            FF = (T_req_lbf / max(p.C, 1e-6)) ** (1.0 / max(p.alpha, 1e-6))
         FF = max(FF, float(self.cfg.get("min_idle_ff_pph", 1000)))
-        return FF
+        return float(FF)
 
     def ff_to_rpm(self, ff_pph: float) -> float:
         x = self.knots_ff; y = self.knots_rpm
@@ -168,7 +180,7 @@ class DerateModel:
             clamped = True
 
         mult = pct / 100.0
-        T_required = mult * p.T_MIL_lbf
+        T_required = mult * (p.T_MIL_lbf if p.T_MIL_lbf > 0 else 0.0)
 
         FF_required = self.thrust_to_ff(T_required, pa_ft)
         RPM_required = self.ff_to_rpm(FF_required)
