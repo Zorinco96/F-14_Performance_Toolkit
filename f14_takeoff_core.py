@@ -1,5 +1,6 @@
-# f14_takeoff_core.py — v1.3.1
-# Core planner: integrates TakeoffDeck (0/20/40 flaps), DerateModel, climb gradient.
+# f14_takeoff_core.py — v1.3.1a (tolerant wrapper)
+# Same as v1.3.1, but the top-level function now accepts legacy kwargs
+# (e.g., headwind_kts_component, runway_slope) and ignores unknown keys.
 
 from __future__ import annotations
 from dataclasses import dataclass
@@ -41,7 +42,6 @@ class CorePlanner:
                           asda_ft: float,
                           required_aeo_ft_per_nm: float,
                           derate_pct: Optional[int] = None) -> CandidateResult:
-        # Base thrust mode
         base_thrust = "MILITARY" if thrust_mode in ("MILITARY","DERATE") else "AFTERBURNER"
         pt = self.deck.lookup(flap_deg, base_thrust, gw_lbs, pa_ft, oat_c)
 
@@ -58,7 +58,6 @@ class CorePlanner:
                                             {"0":85,"20":88,"35":90,"40":90}).get(str(flap_deg),85))
             clamped = resolved_pct <= floor
 
-        # AEO climb gate
         aeo = aeo_gradient_ft_per_nm_to_1000(gw_lbs, pa_ft, oat_c)
 
         limiter = "BALANCED" if abs(asd - todr) / max(todr, 1) < 0.02 else ("ASD" if asd > todr else "TODR")
@@ -95,7 +94,6 @@ class CorePlanner:
         tried: List[CandidateResult] = []
         best: Optional[CandidateResult] = None
 
-        # DERATE attempt
         mil = self.deck.lookup(flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c)
         der = self.derate.compute_derate_from_groundroll(flap_deg, pa_ft,
                                                          mil.AGD_ft/1.15,
@@ -109,7 +107,6 @@ class CorePlanner:
         if cand_der.dispatchable:
             best = cand_der
         else:
-            # MIL attempt
             cand_mil = self.compute_candidate(flap_deg, "MILITARY", gw_lbs, pa_ft, oat_c,
                                               tora_ft, asda_ft, required_aeo_ft_per_nm)
             tried.append(cand_mil)
@@ -132,5 +129,18 @@ class CorePlanner:
             "verdict": verdict
         }
 
+# ---- tolerant top-level wrapper ----
 def plan_takeoff_with_optional_derate(**kwargs) -> Dict[str, Any]:
-    return CorePlanner().plan_takeoff_with_optional_derate(**kwargs)
+    """
+    Tolerant wrapper that drops unknown legacy keys so older test_app pages keep working.
+    Accepted keys: flap_deg, gw_lbs, field_elev_ft, qnh_inhg, oat_c, tora_ft, asda_ft,
+                   required_aeo_ft_per_nm (optional), allow_ab (optional).
+    Everything else is ignored.
+    """
+    accepted = {"flap_deg","gw_lbs","field_elev_ft","qnh_inhg","oat_c","tora_ft","asda_ft",
+                "required_aeo_ft_per_nm","allow_ab"}
+    filtered = {k: v for k, v in kwargs.items() if k in accepted}
+    # defaults
+    filtered.setdefault("required_aeo_ft_per_nm", 200.0)
+    filtered.setdefault("allow_ab", False)
+    return CorePlanner().plan_takeoff_with_optional_derate(**filtered)
