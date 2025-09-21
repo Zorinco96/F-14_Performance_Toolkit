@@ -1,119 +1,88 @@
+# ============================================================
+# F-14 Performance Calculator for DCS World — Climb Model
+# File: climb_model.py
+# Version: v1.2.0-overhaul1 (2025-09-21)
+# ============================================================
 from __future__ import annotations
-import math
-from typing import Dict, Literal, Optional
-from isa import isa_atm
-from engine_f110 import F110Deck
-from f14_aero import F14Aero
+from typing import Dict, Any, List
 
-S_WING_FT2 = 565.0
-S_WING_M2 = S_WING_FT2 * 0.09290304
+def plan_climb(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Plan a climb profile based on mode and conditions.
+    Inputs:
+      gw_lbs: gross weight (lb)
+      oat_c: OAT (C)
+      qnh_inhg: QNH (inHg)
+      profile: 'economy' or 'interceptor'
+      respect_250: bool, enforce 250 KIAS below 10k
+    """
+    gw = float(inputs.get("gw_lbs", 60000))
+    oat = float(inputs.get("oat_c", 15))
+    profile = str(inputs.get("profile", "economy")).lower()
+    respect_250 = bool(inputs.get("respect_250", True))
 
-def climb_profile(
-    weight_lbf: float,
-    alt_start_ft: float,
-    alt_end_ft: float,
-    oat_dev_c: float = 0.0,
-    schedule: Literal["NAVY","DISPATCH"] = "NAVY",
-    mode: Literal["DCS","FAA"] = "DCS",
-    power: Literal["MIL","MAX"] = "MIL",
-    sweep_deg: float = 20.0,
-    config: str = "CLEAN",
-    dt: float = 1.0
-):
-    eng = F110Deck()
-    aero = F14Aero()
+    # --- Placeholder simple climb performance model ---
+    # This will later be calibrated against NATOPS / DCS data.
+    segments: List[Dict[str, Any]] = []
+    total_time_min = 0.0
+    total_fuel = 0.0
+    total_dist_nm = 0.0
 
-    if schedule == "NAVY":
-        IAS_kts = 350.0; Mach_target = 0.90
+    # Define climb schedule segments
+    if profile == "economy":
+        # Economy climb: slower speeds, less fuel burn
+        sched = [
+            {"from_ft": 35, "to_ft": 1000, "ias": "V2+15", "rpm": 90, "ff_pph_per_engine": 6000},
+            {"from_ft": 1000, "to_ft": 10000, "ias": 250 if respect_250 else 300, "rpm": 92, "ff_pph_per_engine": 6500},
+            {"from_ft": 10000, "to_ft": 30000, "mach": 0.70, "rpm": 85, "ff_pph_per_engine": 5000},
+        ]
     else:
-        IAS_kts = 300.0; Mach_target = 0.78
+        # Interceptor climb: higher thrust, higher speed
+        sched = [
+            {"from_ft": 35, "to_ft": 1000, "ias": "V2+15", "rpm": 95, "ff_pph_per_engine": 7000},
+            {"from_ft": 1000, "to_ft": 10000, "ias": 300, "rpm": 97, "ff_pph_per_engine": 8000},
+            {"from_ft": 10000, "to_ft": 30000, "mach": 0.90, "rpm": 99, "ff_pph_per_engine": 9500},
+        ]
 
-    alt = alt_start_ft
-    t = 0.0; fuel = 0.0; dist_m = 0.0
-    W = weight_lbf * 4.4482216153
-    clmax, cd0, k = aero.polar(config, sweep_deg)
+    # Loop through schedule to build outputs
+    for seg in sched:
+        from_ft = seg.get("from_ft")
+        to_ft = seg.get("to_ft")
+        delta_ft = (to_ft - from_ft) if (from_ft is not None and to_ft is not None) else 0
+        roc_fpm = 3000 if profile == "economy" else 5000
+        time_min = delta_ft / roc_fpm / 60.0
+        fuel_lb = time_min * seg.get("ff_pph_per_engine", 6000) * 2 / 60.0
+        dist_nm = time_min * (seg.get("ias", seg.get("mach", 250)) if isinstance(seg.get("ias", None), (int,float)) else 250) / 60.0
 
-    while alt < alt_end_ft - 1.0:
-        T, p, rho, a = isa_atm(alt)
-        rho *= max(0.6, 1.0 - 0.0032*(oat_dev_c))
-        Vias = IAS_kts * 0.514444
-        Vtas = Vias * ((1.225/rho) ** 0.5)
-        M = Vtas / a
-        if M > Mach_target:
-            M = Mach_target; Vtas = M * a
+        total_time_min += time_min
+        total_fuel += fuel_lb
+        total_dist_nm += dist_nm
 
-        thrust_each = eng.thrust_lbf(alt, M, power)
-        Ttot = thrust_each * 2 * 4.4482216153
-        q = 0.5*rho*Vtas*Vtas
-        CL = W/(q*S_WING_M2)
-        CD = cd0 + k*CL*CL
-        D = q*S_WING_M2*CD
-        excess = max(0.0, Ttot - D)
-        roc = (excess * Vtas)/W  # m/s
-        dh = max(0.1, roc) * dt
-        alt += dh / 0.3048
-        t += dt
-        dist_m += Vtas * dt
-        FF_each = eng.fuel_flow_pph(alt, M, power)
-        fuel += (FF_each*2) * (dt/3600.0)
-        if t > 7200: break
+        seg_out = {
+            "From(ft)": from_ft,
+            "To(ft)": to_ft,
+            "IAS/Mach": seg.get("ias", seg.get("mach","--")),
+            "RPM%": seg.get("rpm"),
+            "FF/eng(pph)": seg.get("ff_pph_per_engine"),
+            "ROC(fpm)": roc_fpm,
+            "Time(min)": round(time_min,2),
+            "Fuel(lb)": int(round(fuel_lb)),
+            "Dist(nm)": round(dist_nm,1),
+        }
+        segments.append(seg_out)
+
+    avg_roc = (30000/total_time_min) if total_time_min>0 else None
 
     return {
-        "Time_s": t,
-        "Fuel_lb": fuel,
-        "Distance_nm": dist_m / 1852.0,
-        "AvgROC_fpm": (alt_end_ft - alt_start_ft) / (t/60.0) if t>0 else 0.0
+        "time_min": round(total_time_min,1),
+        "fuel_lb": int(round(total_fuel)),
+        "dist_nm": round(total_dist_nm,1),
+        "avg_roc_fpm": int(round(avg_roc)) if avg_roc else None,
+        "schedule": segments,
+        "_debug": {
+            "inputs": inputs,
+            "profile": profile,
+            "respect_250": respect_250,
+            "gw": gw,
+            "oat": oat,
+        }
     }
-
-def aeo_gradient_ft_per_nm_to_1000(
-    weight_lbf: float,
-    alt_start_ft: float,
-    oat_dev_c: float = 0.0,
-    schedule: Literal["NAVY","DISPATCH"] = "NAVY",
-    power: Literal["MIL","MAX"] = "MIL",
-    sweep_deg: float = 20.0,
-    config: str = "CLEAN",
-    dt: float = 0.5
-) -> float:
-    """
-    Compute simple AEO climb gradient (ft/NM) from liftoff to 1000 ft AFE
-    using the same schedule assumptions as climb_profile, but only up to +1000 ft.
-    This is a coarse metric for dispatch gating; final tuning should align with DCS tests.
-    """
-    eng = F110Deck()
-    aero = F14Aero()
-
-    IAS_kts = 350.0 if schedule == "NAVY" else 300.0
-    Mach_target = 0.90 if schedule == "NAVY" else 0.78
-
-    alt = alt_start_ft
-    target_alt = alt_start_ft + 1000.0
-    dist_m = 0.0
-    W = weight_lbf * 4.4482216153
-    clmax, cd0, k = aero.polar(config, sweep_deg)
-
-    while alt < target_alt - 1.0:
-        T, p, rho, a = isa_atm(alt)
-        rho *= max(0.6, 1.0 - 0.0032*(oat_dev_c))
-        Vias = IAS_kts * 0.514444
-        Vtas = Vias * ((1.225/rho) ** 0.5)
-        M = Vtas / a
-        if M > Mach_target:
-            M = Mach_target; Vtas = M * a
-
-        thrust_each = eng.thrust_lbf(alt, M, power)
-        Ttot = thrust_each * 2 * 4.4482216153
-        q = 0.5*rho*Vtas*Vtas
-        CL = W/(q*S_WING_M2)
-        CD = cd0 + k*CL*CL
-        D = q*S_WING_M2*CD
-        excess = max(0.0, Ttot - D)
-        roc = (excess * Vtas)/W  # m/s
-        dh = max(0.1, roc) * dt
-        alt += dh / 0.3048
-        dist_m += Vtas * dt
-        if dist_m > 1e7: break  # safety
-
-    dist_nm = dist_m / 1852.0
-    gained_ft = 1000.0
-    return (gained_ft / max(dist_nm, 1e-6))
