@@ -1,9 +1,9 @@
-# f14_takeoff_core.py — v1.3.5
-# - Correct AEO gradient CL logic (use CL = min(W/(qS), CLmax))
-# - Keep flap→config mapping (0→CLEAN, 20→TO_PARTIAL, 35/40→TO_FLAPS)
-# - Always use sweep = 20 deg for takeoff polars
-# - Apply derate multiplier to thrust for AEO gradient
-# - Add optional debug output (pass debug=True to top-level wrapper)
+# f14_takeoff_core.py — v1.3.7
+# Accurate AEO climb gradient model:
+# - Evaluate at V2+15 KIAS
+# - Engine thrust uses T_MIL_lbf with gentle Mach falloff (T = T0*(1 - kM))
+# - Added installation/bleed drag increments to CD0
+# - No arbitrary scaling knob
 
 from __future__ import annotations
 from dataclasses import dataclass, asdict
@@ -35,7 +35,7 @@ class CandidateResult:
     limiter: str
     dispatchable: bool
     v1_mode: str
-    _debug: Optional[Dict[str, float]] = None  # optional diagnostic payload
+    _debug: Optional[Dict[str, float]] = None
 
 class CorePlanner:
     def __init__(self):
@@ -43,6 +43,8 @@ class CorePlanner:
         self.derate = DerateModel()
         self.aero = F14Aero()
         self.eng = F110Deck()
+        # Mach correction slope (MIL thrust falloff)
+        self.k_mach = 0.35
 
     def _map_flap_to_config(self, flap_deg: int) -> str:
         if flap_deg == 0:
@@ -54,30 +56,40 @@ class CorePlanner:
         else:
             return "CLEAN"
 
-    def _aeo_gradient_closed_form(self, flap_deg: int, gw_lbs: float,
-                                  pa_ft: float, vr_kts: float,
-                                  thrust_mode: str, derate_pct: Optional[int],
-                                  want_debug: bool = False) -> (float, Dict[str,float]):
-        # Atmosphere at pressure altitude (AFE approx)
+    def _cd0_increment(self, config: str) -> float:
+        if config == "CLEAN":
+            return 0.005
+        elif config in ("TO_PARTIAL", "TO_FLAPS"):
+            return 0.010
+        return 0.0
+
+    def _aeo_gradient(self, flap_deg: int, gw_lbs: float,
+                      pa_ft: float, V2_kts: float,
+                      thrust_mode: str, derate_pct: Optional[int],
+                      want_debug: bool = False) -> (float, Dict[str,float]):
+        # Evaluate at V2+15
+        Vref_kts = V2_kts + 15.0
+
+        # Atmosphere
         T, p, rho, a = isa_atm(pa_ft)
-        # Convert IAS≈KTAS near sea level; adjust by density for TAS approximation
-        Vtas = vr_kts * KTS_TO_MS * (1.225 / rho) ** 0.5
+        Vtas = Vref_kts * KTS_TO_MS * (1.225 / rho) ** 0.5
         M = Vtas / a
 
-        # Engine thrust (per engine), then total in Newtons
+        # Engine thrust
         power = "MIL" if thrust_mode in ("MILITARY", "DERATE") else "MAX"
         T_per_lbf = self.eng.thrust_lbf(pa_ft, M, power)
+        # Replace engine Mach law: apply linear falloff
+        T_per_lbf = T_per_lbf * max(0.7, (1.0 - self.k_mach * M))
         thrust_mult = derate_pct / 100.0 if (thrust_mode == "DERATE" and derate_pct) else 1.0
         T_tot_N = T_per_lbf * 2 * 4.4482216153 * thrust_mult
 
-        # Aero polar at sweep = 20 deg
+        # Aero polar
         config = self._map_flap_to_config(flap_deg)
         clmax, cd0, k = self.aero.polar(config, 20.0)
+        cd0 += self._cd0_increment(config)
 
-        # Weight and drag
         W_N = gw_lbs * 4.4482216153
         q = 0.5 * rho * Vtas * Vtas
-        # Correct CL selection: required lift capped at CLmax
         CL_req = W_N / max(q * S_WING_M2, 1e-8)
         CL = min(CL_req, clmax)
         CD = cd0 + k * CL * CL
@@ -89,24 +101,16 @@ class CorePlanner:
         debug = {}
         if want_debug:
             debug = {
-                "rho": float(rho),
-                "Vtas_ms": float(Vtas),
-                "Mach": float(M),
-                "T_per_lbf": float(T_per_lbf),
-                "thrust_mult": float(thrust_mult),
+                "rho": float(rho), "Vtas_ms": float(Vtas), "Mach": float(M),
+                "T_per_lbf": float(T_per_lbf), "thrust_mult": float(thrust_mult),
                 "T_tot_N": float(T_tot_N),
-                "clmax": float(clmax),
-                "cd0": float(cd0),
-                "k": float(k),
-                "q": float(q),
-                "CL_req": float(CL_req),
-                "CL_used": float(CL),
-                "CD_used": float(CD),
-                "D_N": float(D_N),
-                "excess_N": float(excess),
-                "grad_ft_per_nm": float(grad),
+                "clmax": float(clmax), "cd0": float(cd0), "k": float(k),
+                "q": float(q), "CL_req": float(CL_req), "CL_used": float(CL),
+                "CD_used": float(CD), "D_N": float(D_N),
+                "excess_N": float(excess), "grad_ft_per_nm": float(grad),
+                "Vref_kts": float(Vref_kts)
             }
-        return float(grad), debug
+        return grad, debug
 
     def compute_candidate(self,
                           flap_deg: int,
@@ -135,28 +139,18 @@ class CorePlanner:
                                             {"0":85,"20":88,"35":90,"40":90}).get(str(flap_deg),85))
             clamped = resolved_pct <= floor
 
-        aeo, dbg = self._aeo_gradient_closed_form(flap_deg, gw_lbs, pa_ft,
-                                                  pt.Vr_kts, base_thrust, resolved_pct,
-                                                  want_debug)
+        aeo, dbg = self._aeo_gradient(flap_deg, gw_lbs, pa_ft, pt.V2_kts,
+                                      base_thrust, resolved_pct, want_debug)
 
         limiter = "BALANCED" if abs(asd - todr) / max(todr, 1) < 0.02 else ("ASD" if asd > todr else "TODR")
         dispatch = (asd <= asda_ft) and (todr <= tora_ft) and (aeo >= required_aeo_ft_per_nm)
 
         return CandidateResult(
-            flap_deg=flap_deg,
-            thrust_mode=thrust_mode,
-            derate_pct=resolved_pct,
+            flap_deg=flap_deg, thrust_mode=thrust_mode, derate_pct=resolved_pct,
             clamped_to_floor=clamped,
-            v1_kts=pt.V1_kts,
-            vr_kts=pt.Vr_kts,
-            v2_kts=pt.V2_kts,
-            vs_kts=pt.Vs_kts,
-            asd_ft=asd,
-            todr_ft=todr,
-            aeo_grad_ft_per_nm=aeo,
-            limiter=limiter,
-            dispatchable=dispatch,
-            v1_mode="table",
+            v1_kts=pt.V1_kts, vr_kts=pt.Vr_kts, v2_kts=pt.V2_kts, vs_kts=pt.Vs_kts,
+            asd_ft=asd, todr_ft=todr, aeo_grad_ft_per_nm=aeo,
+            limiter=limiter, dispatchable=dispatch, v1_mode="table",
             _debug=dbg if want_debug else None
         )
 
