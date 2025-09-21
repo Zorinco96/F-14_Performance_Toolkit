@@ -586,110 +586,7 @@ def _evaluate_candidate(flaps_label: str,
         vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
         if vs_tbl:
             if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
-    """Derate-aware candidate evaluation using the core planner.
-    Returns a dict with distances, gates, margins, V-speeds and the planner output.
-    """
-    import re as _re
-
-    # Parse derate percent from label (e.g., "DERATE (92%)")
-    derate_pct = None
-    if isinstance(thrust_label, str) and "DERATE" in thrust_label.upper():
-        _m = _re.search(r"(\d{2,3})\s*%", thrust_label)
-        if _m:
-            derate_pct = max(85, min(100, int(_m.group(1))))
-    do_derate = (derate_pct is not None)
-
-    # Map flaps to core config
-    cfg = "TO_FLAPS" if flaps_label in ("MANEUVER", "FULL") else "CLEAN"
-
-    # Compose planner inputs
-    inputs = dict(
-        gw_lb=float(ctx["gw_lb"]),
-        field_elev_ft=float(ctx["field_elev_ft"]),
-        oat_c=float(ctx["oat_c"]),
-        headwind_kts=float(hw_eff_kts),
-        runway_slope=float(ctx.get("runway_slope", 0.0)),
-        stores=list(ctx.get("stores", [])),
-        mode=str(ctx.get("mode", "DCS")),
-        config=str(cfg),
-        sweep_deg=20.0,
-        available_tora_ft=float(ctx.get("available_tora_ft", 0.0)),
-        available_asda_ft=float(ctx.get("available_asda_ft", 0.0)),
-        req_grad_ft_nm=float(ctx.get("req_grad_ft_nm", 200.0)),
-        flaps_label=str(flaps_label),
-        thrust_mode=str("MAX" if thrust_mode == "MAX" else "MIL"),
-        thrust_label=str(thrust_label),
-        derate_pct=int(derate_pct) if derate_pct is not None else None,
-        do_derate=bool(do_derate),
-    )
-
-    # Prefer derate-aware core planner
-    plan = None
-    try:
-        plan = core.plan_takeoff_with_optional_derate(**inputs)
-    except Exception:
-        plan = None
-
-    # Fallback: cached MIL/MAX perf so app never breaks
-    if not isinstance(plan, dict) or not plan:
-        t_res_fb = cached_perf_takeoff(
-            gw_lb=inputs["gw_lb"],
-            field_elev_ft=inputs["field_elev_ft"],
-            oat_c=inputs["oat_c"],
-            headwind_kts=inputs["headwind_kts"],
-            runway_slope=inputs["runway_slope"],
-            thrust_mode=inputs["thrust_mode"],
-            mode=inputs["mode"],
-            config=inputs["config"],
-            sweep_deg=inputs["sweep_deg"],
-            stores=tuple(ctx.get("stores", [])),
-        )
-        plan = dict(inputs=inputs, baseline_MIL=t_res_fb, derate={}, derate_debug="fallback=cached_perf_takeoff")
-
-    # Choose branch
-    branch = plan.get("derate") if do_derate and isinstance(plan.get("derate"), dict) and plan.get("derate") else plan.get("baseline_MIL", {})
-    t_res = dict(branch) if isinstance(branch, dict) else {}
-
-    # Distances
-    gr  = float(t_res.get("GroundRoll_ft", 0.0) or 0.0)
-    d35 = float(t_res.get("DistanceTo35ft_ft", 0.0) or 0.0)
-    asdr_ft = float(t_res.get("ASDR_ft", 0.0) or 0.0) or (gr * 1.15 if gr > 0 else d35 * 1.10)
-    todr_ft = float(t_res.get("TODR_OEI_35ft_ft", 0.0) or 0.0) or d35
-
-    # Balanced-Field diff ratio
-    _den = max(asdr_ft, todr_ft) if max(asdr_ft, todr_ft) > 0 else 1.0
-    diff_ratio = abs(asdr_ft - todr_ft) / _den
-
-    # Climb AEO ft/NM
-    aeo_grad = None
-    _explicit = t_res.get("AEO_min_grad_ft_per_nm_to_1000") or t_res.get("Grad_ft_per_nm")
-    if _explicit is not None:
-        try:
-            aeo_grad = float(_explicit)
-        except Exception:
-            aeo_grad = None
-    if aeo_grad is None:
-        _d_nm = float(t_res.get("Distance_nm", 0.0) or 0.0)
-        aeo_grad = (1000.0 / _d_nm) if _d_nm > 0 else None
-
-    # Gates
-    tora = float(ctx.get("available_tora_ft", 0.0))
-    asda = float(ctx.get("available_asda_ft", tora))
-    req_grad = float(ctx.get("req_grad_ft_nm", 200.0))
-    pass_runway = (todr_ft <= tora) and (asdr_ft <= asda)
-    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)
-    dispatchable = pass_runway and pass_climb
-
-    # V-speeds (planner or fallback), then CSV override
-    v_speeds = {
-        "V1_kts": float(t_res.get("V1_kts", t_res.get("VR_kts", 0.0)) or 0.0),
-        "Vr_kts": float(t_res.get("VR_kts", 0.0) or 0.0),
-        "V2_kts": float(t_res.get("V2_kts", 0.0) or 0.0),
-        "Vfs_kts": float(max((t_res.get("V2_kts") or 0.0) * 1.1, (t_res.get("VLOF_kts") or 0.0) * 1.15)),
-    }
-    try:
-        vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, inputs["thrust_mode"])
-        if vs_tbl:
+    
             if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
                 v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
             if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
@@ -704,7 +601,7 @@ def _evaluate_candidate(flaps_label: str,
     return {
         "flaps": flaps_label,
         "thrust_label": thrust_label,
-        "thrust_mode": inputs["thrust_mode"],
+        "thrust_mode": ("MAX" if thrust_mode == "MAX" else "MIL"),
         "t_res": t_res,
         "todr_ft": todr_ft,
         "asdr_ft": asdr_ft,
@@ -715,8 +612,10 @@ def _evaluate_candidate(flaps_label: str,
         "dispatchable": dispatchable,
         "margins": {"tora_margin_ft": tora - todr_ft, "asda_margin_ft": asda - asdr_ft},
         "v": v_speeds,
-        "planner": plan,
     }
+
+
+def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
 
 def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
     if from_percent is None: return None
