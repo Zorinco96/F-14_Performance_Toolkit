@@ -1,4 +1,6 @@
-# f14_takeoff_core.py — v1.3.2 (AEO gradient fix)
+# f14_takeoff_core.py — v1.3.4
+# Core planner with corrected flap→config mapping and AEO gradient fix.
+
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, List
@@ -36,35 +38,45 @@ class CorePlanner:
         self.aero = F14Aero()
         self.eng = F110Deck()
 
-    def _aeo_gradient_closed_form(self, flap_deg: int, gw_lbs: float, pa_ft: float, oat_c: float, vr_kts: float, thrust_mode: str) -> float:
-        """Compute AEO climb gradient at rotation using excess-thrust ratio:
-           grad(ft/NM) ≈ 6076 * (T - D)/W . Evaluate at Vr and sea-level segment.
-        """
-        # Atmosphere at PA (approx AFE)
+    def _map_flap_to_config(self, flap_deg: int) -> str:
+        if flap_deg == 0:
+            return "CLEAN"
+        elif flap_deg == 20:
+            return "TO_PARTIAL"
+        elif flap_deg in (35, 40):  # Treat 35≈40 for now
+            return "TO_FLAPS"
+        else:
+            return "CLEAN"
+
+    def _aeo_gradient_closed_form(self, flap_deg: int, gw_lbs: float,
+                                  pa_ft: float, oat_c: float,
+                                  vr_kts: float, thrust_mode: str,
+                                  derate_pct: Optional[int]) -> float:
+        """Compute AEO climb gradient (ft/NM) ≈ 6076 * (T − D)/W at Vr."""
+        # Atmosphere
         T, p, rho, a = isa_atm(pa_ft)
-        # Convert speed
-        Vtas = vr_kts * 0.514444 * (1.225 / rho) ** 0.5  # kts IAS to TAS (approx)
+        Vtas = vr_kts * 0.514444 * (1.225 / rho) ** 0.5
         M = Vtas / a
-        power = "MIL" if thrust_mode in ("MILITARY","DERATE") else "MAX"
+
+        # Engine thrust
+        power = "MIL" if thrust_mode in ("MILITARY", "DERATE") else "MAX"
+        T_per = self.eng.thrust_lbf(pa_ft, M, power)
+        thrust_mult = derate_pct / 100.0 if (thrust_mode == "DERATE" and derate_pct) else 1.0
+        T_tot_N = T_per * 2 * 4.4482216153 * thrust_mult
+
         # Aero polar
-        config = "CLEAN" if flap_deg == 0 else "TAKEOFF"
+        config = self._map_flap_to_config(flap_deg)
         clmax, cd0, k = self.aero.polar(config, 20.0)
-        # Weight & coefficients
+
+        # Weight
         W_N = gw_lbs * 4.4482216153
         q = 0.5 * rho * Vtas * Vtas
-        # Assume CL sufficient to hold near-lift-off (use 0.9*CLmax to avoid stall-side artifacts)
-        CL = min(0.9 * clmax, W_N / max(q * S_WING_M2, 1e-3))
+        CL = min(0.9 * clmax, W_N / max(q * S_WING_M2, 1e-6))
         CD = cd0 + k * CL * CL
         D_N = q * S_WING_M2 * CD
-        # Thrust
-        T_per = self.eng.thrust_lbf(pa_ft, M, power)
-        if thrust_mode == "DERATE":
-            # estimate derate multiplier via config floor; refined value applied via candidate derate_pct
-            pass
-        T_tot_N = T_per * 2 * 4.4482216153
+
         excess = max(0.0, T_tot_N - D_N)
-        grad_ft_per_nm = 6076.0 * (excess / max(W_N, 1.0))
-        return float(grad_ft_per_nm)
+        return 6076.0 * (excess / max(W_N, 1.0))
 
     def compute_candidate(self,
                           flap_deg: int,
@@ -76,7 +88,7 @@ class CorePlanner:
                           asda_ft: float,
                           required_aeo_ft_per_nm: float,
                           derate_pct: Optional[int] = None) -> CandidateResult:
-        base_thrust = "MILITARY" if thrust_mode in ("MILITARY","DERATE") else "AFTERBURNER"
+        base_thrust = "MILITARY" if thrust_mode in ("MILITARY", "DERATE") else "AFTERBURNER"
         pt = self.deck.lookup(flap_deg, base_thrust, gw_lbs, pa_ft, oat_c)
 
         asd = pt.ASD_ft
@@ -89,11 +101,12 @@ class CorePlanner:
                 derate_pct = 95
             resolved_pct = derate_pct
             floor = int(self.derate.cfg.get("min_pct_by_flap_deg",
-                                            {"0":85,"20":88,"35":90,"40":90}).get(str(flap_deg),85))
+                                            {"0": 85, "20": 88, "35": 90, "40": 90}).get(str(flap_deg), 85))
             clamped = resolved_pct <= floor
 
-        # AEO gradient at Vr using closed-form excess thrust ratio
-        aeo = self._aeo_gradient_closed_form(flap_deg, gw_lbs, pa_ft, oat_c, pt.Vr_kts, base_thrust)
+        # AEO gradient
+        aeo = self._aeo_gradient_closed_form(flap_deg, gw_lbs, pa_ft, oat_c,
+                                             pt.Vr_kts, base_thrust, resolved_pct)
 
         limiter = "BALANCED" if abs(asd - todr) / max(todr, 1) < 0.02 else ("ASD" if asd > todr else "TODR")
         dispatch = (asd <= asda_ft) and (todr <= tora_ft) and (aeo >= required_aeo_ft_per_nm)
