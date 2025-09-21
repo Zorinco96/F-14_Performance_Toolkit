@@ -1,199 +1,127 @@
-"""
-derate.py — F-14B derate helper  (v1.3.0-derate)
-Changes vs v1.2.2:
-- FIX: syntax error in _load_tff (alt_ft key).
-- Path hardened via data_loaders.resolve_data_path() for all CSV/JSON loads.
-- Keeps flap-band derate floors (defaults 0°→85, 35°→90), "clamped_to_floor" flag,
-  and rich outputs (FF/RPM/T required).
-"""
 
+# ============================================================
+# F-14 Performance Calculator for DCS World — Derate Policy
+# File: derate.py
+# Version: v1.2.0-overhaul1 (2025-09-21)
+# ============================================================
 from __future__ import annotations
-import csv
 import json
-import bisect
 from dataclasses import dataclass
-from typing import Dict, Optional, List, Tuple
+from functools import lru_cache
+from typing import Dict, Any, Tuple
 
-from data_loaders import resolve_data_path, load_json_config
+DEFAULT_CFG_PATH = "data/derate_config.json"
 
-@dataclass
-class TFFPoint:
-    alt_ft: int
-    C: float
-    alpha: float
-    T_MIL_lbf: float
-    FF_MIL_pph: float
+# --- Helpers ---
 
-class DerateModel:
-    def __init__(
-        self,
-        tff_model_csv: str = "f110_tff_model.csv",
-        ff_rpm_knots_csv: str = "f110_ff_to_rpm_knots.csv",
-        calibration_sl_csv: Optional[str] = "calibration_sl_summary.csv",
-        config_json: Optional[str] = "derate_config.json",
-    ):
-        self.tff_by_alt = self._load_tff(tff_model_csv)
-        self.knots_ff, self.knots_rpm = self._load_knots(ff_rpm_knots_csv)
-        self.cal_sl = self._load_calibration(calibration_sl_csv) if calibration_sl_csv else {}
-        self.cfg = self._load_config(config_json) if config_json else self._default_config()
+def _nearest_flap_key(deg: float) -> str:
+    """Return the nearest flap key among {'0','20','35'} for a given flap angle in degrees."""
+    targets = [0.0, 20.0, 35.0]
+    nearest = min(targets, key=lambda t: abs((deg or 0.0) - t))
+    return str(int(nearest))
 
-    # ---------- Loading ----------
-    def _load_tff(self, path: str) -> Dict[int, TFFPoint]:
-        resolved = resolve_data_path(path, "f110_tff_model.csv")
-        by_alt: Dict[int, TFFPoint] = {}
-        with open(resolved, newline="") as f:
-            rdr = csv.DictReader(f)
-            for row in rdr:
-                alt = int(float(row["alt_ft"]))
-                by_alt[alt] = TFFPoint(
-                    alt_ft = alt,
-                    C = float(row["C"]),
-                    alpha = float(row["alpha"]),
-                    T_MIL_lbf = float(row.get("T_MIL_lbf", "0") or 0),
-                    FF_MIL_pph = float(row.get("FF_MIL_pph", "0") or 0),
-                )
-        return dict(sorted(by_alt.items()))
-
-    def _load_knots(self, path: str) -> Tuple[List[float], List[float]]:
-        resolved = resolve_data_path(path, "f110_ff_to_rpm_knots.csv")
-        ff: List[float] = []
-        rpm: List[float] = []
-        with open(resolved, newline="") as f:
-            rdr = csv.DictReader(f)
-            for row in rdr:
-                ff.append(float(row["FF_pph"]))
-                rpm.append(float(row["RPM_pct"]))
-        pairs = sorted(zip(ff, rpm), key=lambda x: x[0])
-        ff = [p[0] for p in pairs]
-        rpm = [p[1] for p in pairs]
-        return ff, rpm
-
-    def _load_calibration(self, path: str) -> Dict[int, Dict[str, float]]:
-        resolved = resolve_data_path(path, "calibration_sl_summary.csv")
-        out: Dict[int, Dict[str, float]] = {}
-        try:
-            with open(resolved, newline="") as f:
-                rdr = csv.DictReader(f)
-                for row in rdr:
-                    flap = int(float(row["Flaps_deg"]))
-                    out[flap] = {
-                        "bias_factor": float(row.get("bias_factor", "1.0") or 1.0),
-                        "delta_to35_ft": float(row.get("delta_to35_ft", "0.0") or 0.0),
-                    }
-        except FileNotFoundError:
-            pass
-        return out
-
-    def _default_config(self) -> Dict:
+@lru_cache(maxsize=1)
+def _load_cfg(path: str = DEFAULT_CFG_PATH) -> Dict[str, Any]:
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except Exception:
+        # Minimal safe fallback
         return {
+            "policy": {"allow_ab": False, "min_takeoff_rpm_pct": 85},
+            "floors": {"min_pct_by_flap_deg": {"0": 85, "20": 90, "35": 96}},
+            "thrust_model": {"thrust_exponent_m": {"0": 0.75, "20": 0.75, "35": 0.75}, "min_idle_ff_pph": 1200},
+            "safety": {"runway_factor": 1.10},
+            # legacy mirrors
             "allow_ab": False,
             "min_idle_ff_pph": 1200,
-            "thrust_exponent_m": { "0": 0.75, "35": 0.75 },
-            "min_pct_by_flap_deg": { "0": 85, "35": 90 },
-            "safety": { "runway_margin_ft": 0.0 },
+            "thrust_exponent_m": {"0": 0.75, "20": 0.75, "35": 0.75},
+            "min_pct_by_flap_deg": {"0": 85, "20": 90, "35": 96},
         }
 
-    def _load_config(self, path: str) -> Dict:
-        try:
-            cfg = load_json_config(path)
-        except FileNotFoundError:
-            cfg = self._default_config()
-        # defaults
-        cfg.setdefault("min_idle_ff_pph", 1200)
-        cfg.setdefault("thrust_exponent_m", { "0": 0.75, "35": 0.75 })
-        cfg.setdefault("min_pct_by_flap_deg", { "0": 85, "35": 90 })
-        cfg.setdefault("safety", { "runway_margin_ft": 0.0 })
-        return cfg
+def _get_section(cfg: Dict[str, Any], path_keys, legacy_key=None, default=None):
+    node = cfg
+    for k in path_keys:
+        if not isinstance(node, dict) or k not in node:
+            node = None
+            break
+        node = node[k]
+    if node is not None:
+        return node
+    # fallback to legacy flat key if provided
+    if legacy_key and isinstance(cfg, dict):
+        return cfg.get(legacy_key, default)
+    return default
 
-    # ---------- Core transforms ----------
-    def _nearest_alt_point(self, pa_ft: float) -> TFFPoint:
-        alts = list(self.tff_by_alt.keys())
-        idx = bisect.bisect_left(alts, pa_ft)
-        if idx == 0: return self.tff_by_alt[alts[0]]
-        if idx == len(alts): return self.tff_by_alt[alts[-1]]
-        before = alts[idx-1]; after = alts[idx]
-        return self.tff_by_alt[before] if (pa_ft - before) <= (after - pa_ft) else self.tff_by_alt[after]
+# --- Policy Accessors ---
 
-    def thrust_to_ff(self, T_req_lbf: float, pa_ft: float) -> float:
-        # Inverse of T_mil ~ C*(1+M)^alpha, but we don't know Mach here; use calibration table at given alt_ft
-        p = self._nearest_alt_point(pa_ft)
-        T_req_lbf = max(T_req_lbf, 0.0)
-        # Scale FF proportional to required thrust vs MIL baseline
-        # Protect against division by zero if T_MIL_lbf not present
-        if p.T_MIL_lbf > 1.0 and p.FF_MIL_pph > 1.0:
-            FF = p.FF_MIL_pph * (T_req_lbf / p.T_MIL_lbf)
-        else:
-            # fallback: power law using C/alpha (very coarse)
-            FF = (T_req_lbf / max(p.C, 1e-6)) ** (1.0 / max(p.alpha, 1e-6))
-        FF = max(FF, float(self.cfg.get("min_idle_ff_pph", 1000)))
-        return float(FF)
+def allow_ab(path: str = DEFAULT_CFG_PATH) -> bool:
+    cfg = _load_cfg(path)
+    val = _get_section(cfg, ["policy", "allow_ab"], legacy_key="allow_ab", default=False)
+    return bool(val)
 
-    def ff_to_rpm(self, ff_pph: float) -> float:
-        x = self.knots_ff; y = self.knots_rpm
-        if ff_pph <= x[0]: return y[0]
-        if ff_pph >= x[-1]: return y[-1]
-        i = bisect.bisect_left(x, ff_pph)
-        x0, x1 = x[i-1], x[i]
-        y0, y1 = y[i-1], y[i]
-        t = (ff_pph - x0) / (x1 - x0)
-        return y0 + t * (y1 - y0)
+def min_takeoff_rpm_pct(path: str = DEFAULT_CFG_PATH) -> int:
+    cfg = _load_cfg(path)
+    val = _get_section(cfg, ["policy", "min_takeoff_rpm_pct"], default=85)
+    return int(val)
 
-    # ---------- Ground-roll driven derate ----------
-    def solve_thrust_multiplier_from_groundroll(self, mil_ground_roll_ft: float, target_ground_roll_ft: float, flap_deg: int) -> float:
-        m_map = self.cfg.get("thrust_exponent_m", {})
-        m = float(m_map.get(str(int(flap_deg)), m_map.get("0", 0.75)))
-        m = max(min(m, 2.0), 0.2)
-        gr_mil = max(mil_ground_roll_ft, 1.0)
-        gr_target = max(target_ground_roll_ft, 1.0)
-        mult = (gr_mil / gr_target) ** (1.0 / m)
-        return max(mult, 0.0)
+def runway_factor(path: str = DEFAULT_CFG_PATH) -> float:
+    cfg = _load_cfg(path)
+    val = _get_section(cfg, ["safety", "runway_factor"], default=1.10)
+    return float(val)
 
-    def _min_pct_for_flaps(self, flap_deg: int) -> int:
-        table = self.cfg.get("min_pct_by_flap_deg", {"0": 85, "35": 90})
-        return int(table.get(str(int(flap_deg)), 85))
+def floor_pct_for_flaps(flap_deg: float, path: str = DEFAULT_CFG_PATH) -> int:
+    cfg = _load_cfg(path)
+    key = _nearest_flap_key(flap_deg)
+    floors = _get_section(cfg, ["floors", "min_pct_by_flap_deg"], legacy_key="min_pct_by_flap_deg", default={})
+    floor = floors.get(key, 85)
+    # Enforce absolute minimum RPM for takeoff
+    floor = max(int(floor), min_takeoff_rpm_pct(path))
+    return int(floor)
 
-    def compute_derate_from_groundroll(
-        self,
-        flap_deg: int,
-        pa_ft: float,
-        mil_ground_roll_ft: float,
-        runway_available_ft: float,
-        allow_ab: Optional[bool] = None
-    ) -> Dict[str, float]:
-        if allow_ab is None: allow_ab = bool(self.cfg.get("allow_ab", False))
-        margin = float(self.cfg.get("safety", {}).get("runway_margin_ft", 0.0))
-        target = max(runway_available_ft - margin, 1.0)
+def m_exponent_for_flaps(flap_deg: float, path: str = DEFAULT_CFG_PATH) -> float:
+    cfg = _load_cfg(path)
+    key = _nearest_flap_key(flap_deg)
+    m_map = _get_section(cfg, ["thrust_model", "thrust_exponent_m"], legacy_key="thrust_exponent_m", default={})
+    return float(m_map.get(key, 0.75))
 
-        mult = self.solve_thrust_multiplier_from_groundroll(mil_ground_roll_ft, target, flap_deg)
+def min_idle_ff_pph(path: str = DEFAULT_CFG_PATH) -> int:
+    cfg = _load_cfg(path)
+    val = _get_section(cfg, ["thrust_model", "min_idle_ff_pph"], legacy_key="min_idle_ff_pph", default=1200)
+    return int(val)
 
-        p = self._nearest_alt_point(pa_ft)
-        floor_pct = self._min_pct_for_flaps(flap_deg)
+# --- Clamp Utility ---
 
-        pct = int(round(mult * 100.0))
-        clamped = False
+@dataclass
+class ClampResult:
+    requested_pct: float
+    applied_pct: float
+    floor_pct: int
+    clamped_to_floor: bool
 
-        if not allow_ab:
-            pct = min(pct, 100)
+def clamp_derate_pct(requested_pct: float, flap_deg: float, path: str = DEFAULT_CFG_PATH) -> ClampResult:
+    """Clamp a requested %RPM to the flap-specific floor and absolute minimum takeoff RPM.
+    Returns the applied value and whether we clamped to a floor.
+    """
+    floor = floor_pct_for_flaps(flap_deg, path)
+    applied = max(float(requested_pct or 0.0), float(floor))
+    return ClampResult(
+        requested_pct=float(requested_pct or 0.0),
+        applied_pct=applied,
+        floor_pct=int(floor),
+        clamped_to_floor=(applied > (requested_pct or 0.0))
+    )
 
-        if pct < floor_pct:
-            pct = floor_pct
-            clamped = True
+# --- Convenience API for UI/Core ---
 
-        mult = pct / 100.0
-        T_required = mult * (p.T_MIL_lbf if p.T_MIL_lbf > 0 else 0.0)
-
-        FF_required = self.thrust_to_ff(T_required, pa_ft)
-        RPM_required = self.ff_to_rpm(FF_required)
-
-        return {
-            "thrust_multiplier": float(mult),
-            "derate_pct": int(pct),
-            "clamped_to_floor": bool(clamped),
-            "T_required_lbf": float(T_required),
-            "FF_required_pph": float(FF_required),
-            "RPM_required_pct": float(RPM_required),
-            "T_MIL_lbf": float(p.T_MIL_lbf),
-            "FF_MIL_pph": float(p.FF_MIL_pph),
-            "alpha_used": float(p.alpha),
-            "alt_used_ft": int(p.alt_ft),
-        }
+def get_policy_snapshot(path: str = DEFAULT_CFG_PATH) -> Dict[str, Any]:
+    """Return a single dict snapshot the UI can display in debug/calibration."""
+    cfg = _load_cfg(path)
+    return {
+        "allow_ab": allow_ab(path),
+        "min_takeoff_rpm_pct": min_takeoff_rpm_pct(path),
+        "floors": _get_section(cfg, ["floors", "min_pct_by_flap_deg"], legacy_key="min_pct_by_flap_deg", default={}),
+        "thrust_exponent_m": _get_section(cfg, ["thrust_model", "thrust_exponent_m"], legacy_key="thrust_exponent_m", default={}),
+        "min_idle_ff_pph": min_idle_ff_pph(path),
+        "runway_factor": runway_factor(path),
+    }
