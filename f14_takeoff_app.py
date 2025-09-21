@@ -1,4 +1,3 @@
-
 # ============================================================
 # F-14 Performance Calculator for DCS World — UI-first build
 # File: f14_takeoff_app.py
@@ -32,53 +31,10 @@ import streamlit as st
 # Robust import for Streamlit Cloud
 try:
     import f14_takeoff_core as core
-
-
-
 except Exception:
     import sys, os, importlib
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     core = importlib.import_module("f14_takeoff_core")
-
-
-# --- Safe wrappers if core helpers are absent -------------------------------
-def _safe_parse_derate_from_label(label: str) -> int:
-    """Parse 'DERATE (xx%)' robustly; fall back to 100 for MIL/AB/Auto."""
-    try:
-        fn = getattr(core, "_parse_derate_from_label", None)
-        if callable(fn):
-            return int(fn(label))
-    except Exception:
-        pass
-    import re as _re
-    s = (label or "").upper()
-    if "DERATE" in s:
-        m = _re.search(r"(\d{2,3})\s*%", s)
-        if m:
-            return max(0, min(100, int(m.group(1))))
-        return 95
-    return 100
-
-def _safe_resolve_thrust_display(sel: str, derate_pct: int) -> str:
-    """Build a display label when core.resolve_thrust_display is unavailable."""
-    try:
-        fn = getattr(core, "resolve_thrust_display", None)
-        if callable(fn):
-            return str(fn(sel, int(derate_pct)))
-    except Exception:
-        pass
-    s = (sel or "").upper()
-    d = int(max(0, min(100, derate_pct or 100)))
-    if "AFTERBURNER" in s or "MAX" in s:
-        return "AFTERBURNER"
-    if "MIL" in s:
-        return "MILITARY" if d >= 100 else f"DERATE ({d}%)"
-    if "DERATE" in s:
-        return f"DERATE ({d}%)"
-    if "AUTO" in s:
-        return f"DERATE ({d}%)" if d < 100 else "MILITARY"
-    return f"DERATE ({d}%)" if d < 100 else "MILITARY"
-# ---------------------------------------------------------------------------
 
 # (Optional) show where Python loaded the core from for quick sanity-check
 try:
@@ -94,56 +50,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# --- Data path helpers (local-first with optional dev fallback) ---
-from pathlib import Path as _Path
-_APP_DIR = _Path(__file__).resolve().parent
-_DATA_DIR = _APP_DIR / "data"
-_DATA_DIR.mkdir(parents=True, exist_ok=True)
-def ensure_csv(name: str, allow_fallback: bool = False) -> str:
-    p = _DATA_DIR / name
-    if p.exists():
-        return str(p)
-    if not allow_fallback:
-        try:
-            contents = sorted([x.name for x in _DATA_DIR.iterdir()])
-        except Exception:
-            contents = ["<unavailable>"]
-        raise FileNotFoundError(
-            "Required data file not found.\n"
-            f"Expected file: {p}\n"
-            f"Data folder:   {_DATA_DIR}\n"
-            f"Folder exists: {_DATA_DIR.exists()}\n"
-            f"Contents:      {contents}\n\n"
-            "Fix: add the CSV to your repo at F-14_Performance_Toolkit/data/<name> "
-            "and redeploy. Alternatively, enable the sidebar toggle "
-            "'Allow network fallback (dev)' to fetch from GitHub raw."
-        )
-    try:
-        import requests as _requests
-        raw_url = ("https://raw.githubusercontent.com/"
-                   "Zorinco96/F-14_Performance_Toolkit/refs/heads/main/data/"
-                   + name)
-        r = _requests.get(raw_url, timeout=15); r.raise_for_status()
-        p.write_bytes(r.content)
-        return str(p)
-    except Exception as e:
-        try: st.warning(f"Dev fallback failed for {name}: {e}")
-        except Exception: pass
-        raise
-try:
-    _DEV_FALLBACK = st.sidebar.toggle("Allow network fallback (dev)", value=False,
-        help="If a CSV is missing under ./data, fetch from GitHub raw and cache it.")
-except Exception:
-    _DEV_FALLBACK = False
-with st.sidebar.expander("Diagnostics", expanded=False):
-    st.write("App dir:", _APP_DIR); st.write("Data dir:", _DATA_DIR)
-    try:
-        st.write("Data dir exists:", _DATA_DIR.exists())
-        st.write("Data dir contents:", sorted([p.name for p in _DATA_DIR.iterdir()]))
-    except Exception as _e:
-        st.write("Cannot list data dir:", _e)
-    st.write("Dev fallback enabled:", _DEV_FALLBACK)
 
 # =========================
 # Constants (UI placeholders)
@@ -262,20 +168,6 @@ def _series_max(df: pd.DataFrame, col: str):
         return pd.to_numeric(df[col], errors="coerce").max(skipna=True)
     return None
 
-def _calibration_badge(text: str, tone: str = "warning"):
-    palette = {
-        "warning": ("#664200", "#FFF4CC", "#FFD666"),
-        "ok":      ("#0B5E29", "#E5F7EC", "#6ED69E"),
-        "info":    ("#133C7A", "#E7F1FF", "#86B7FE"),
-        "error":   ("#7A1F1F", "#FFE8E6", "#FFA39E"),
-    }
-    fg, bg, bd = palette.get(tone, palette["info"])
-    st.caption(
-        f"<span style='color:{fg};background:{bg};border:1px solid {bd};"
-        f"padding:2px 6px;border-radius:6px;font-size:12px;'>{text}</span>",
-        unsafe_allow_html=True
-    )
-
 # =========================
 # Data loading (CSV only)
 # =========================
@@ -295,15 +187,31 @@ def load_perf(path_or_url: str) -> pd.DataFrame:
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
-# Local-first CSV (with optional dev fallback)
-try:
-    airports = load_airports(ensure_csv("dcs_airports.csv", allow_fallback=_DEV_FALLBACK))
-except FileNotFoundError as e:
-    st.error("Airport database missing."); st.code(str(e)); st.stop()
-try:
-    perf = load_perf(ensure_csv("f14_perf.csv", allow_fallback=_DEV_FALLBACK))
-except FileNotFoundError as e:
-    st.error("Performance table missing."); st.code(str(e)); st.stop()
+AIRPORTS_PATHS = [
+    "dcs_airports.csv",
+    "https://raw.githubusercontent.com/Zorinco96/f14_takeoff_app.py/main/dcs_airports.csv",
+]
+PERF_PATHS = [
+    "f14_perf.csv",
+    "https://raw.githubusercontent.com/Zorinco96/f14_takeoff_app.py/main/f14_perf.csv",
+]
+
+airports = None
+for p in AIRPORTS_PATHS:
+    try:
+        airports = load_airports(p); break
+    except Exception:
+        continue
+if airports is None:
+    st.error("Could not load dcs_airports.csv. Ensure it exists locally or in GitHub.")
+    st.stop()
+
+perf = None
+for p in PERF_PATHS:
+    try:
+        perf = load_perf(p); break
+    except Exception:
+        continue
 # =========================
 # Reference V-speed helpers (from f14_perf.csv)
 # =========================
@@ -580,30 +488,118 @@ def apply_wind_policy(hw_raw_kts: float, use_50_150: bool) -> float:
         return 0.0 * max(hw_raw_kts, 0.0) + 1.5 * min(hw_raw_kts, 0.0)
 
 # --- Evaluate one (flaps, thrust) candidate against gates --------------------
-
 def _evaluate_candidate(flaps_label: str,
                         thrust_label: str,   # "DERATE (xx%)", "MILITARY", or "AFTERBURNER (required)"
                         thrust_mode: str,    # "MIL" or "MAX" for perf engine
                         hw_eff_kts: float,
                         ctx: dict) -> dict:
     """
-    Route through core.plan_takeoff_with_optional_derate so manual derate and MIL/AB
-    actually affect performance calculations. Preserves UI contract.
+    Returns a dict with:
+      - todr_ft, asdr_ft, diff_ratio
+      - pass_runway, pass_climb, dispatchable
+      - v_speeds dict
+    Uses perf_* wrappers directly (cached).
     """
-    # Resolve derate percent from label if present (e.g., "DERATE (92%)")
-    import re as _re
-    derate_pct = None
-    m = _re.search(r"(\\d{2,3})\\s*%", str(thrust_label))
-    if m:
-        derate_pct = max(85, min(100, int(m.group(1))))
-
-    # Decide whether to apply derate inside core based on thrust label
-    do_derate = ("DERATE" in str(thrust_label).upper()) and (derate_pct is not None)
-
-    # Map flaps to config expected by core
     cfg = "TO_FLAPS" if flaps_label in ("MANEUVER", "FULL") else "CLEAN"
 
-    # Build the inputs payload expected by the core planner
+    # TAKEOFF perf (memoized wrapper)
+    t_res = cached_perf_takeoff(
+        gw_lb=ctx["gw_lb"],
+        field_elev_ft=ctx["field_elev_ft"],
+        oat_c=ctx["oat_c"],
+        headwind_kts=hw_eff_kts,
+        runway_slope=ctx["runway_slope"],
+        thrust_mode=("MAX" if thrust_mode == "MAX" else "MIL"),
+        mode=ctx["mode"],
+        config=cfg,
+        sweep_deg=20.0,
+        stores=tuple(ctx["stores"]),
+    )
+
+    # Distances
+    gr  = float(t_res.get("GroundRoll_ft", 0.0) or 0.0)
+    d35 = float(t_res.get("DistanceTo35ft_ft", 0.0) or 0.0)
+
+    # Prefer true ASDR if core exposes; else surrogate
+    asdr_ft = float(t_res.get("ASDR_ft", 0.0) or 0.0)
+    if asdr_ft <= 0.0:
+        asdr_ft = gr * 1.15 if gr > 0 else d35 * 1.10
+
+    # Prefer explicit OEI TODR if available; else AEO d35 baseline
+    todr_ft = float(t_res.get("TODR_OEI_35ft_ft", 0.0) or 0.0)
+    if todr_ft <= 0.0:
+        todr_ft = d35
+
+    # Balanced-Field diff ratio
+    m = max(asdr_ft, todr_ft) if max(asdr_ft, todr_ft) > 0 else 1.0
+    diff_ratio = abs(asdr_ft - todr_ft) / m
+
+    # CLIMB perf (AEO gradient to 1000 ft) — only if runway gates pass
+    aeo_grad = None
+    tora = float(ctx.get("available_tora_ft", 0.0))
+    asda = float(ctx.get("available_asda_ft", tora))
+    pass_runway_precheck = (todr_ft <= tora) and (asdr_ft <= asda)
+
+    if pass_runway_precheck:
+        try:
+            cres = cached_perf_climb(
+                gw_lb=ctx["gw_lb"],
+                alt_start_ft=max(0.0, ctx["field_elev_ft"]),
+                alt_end_ft=max(1000.0 + ctx["field_elev_ft"], ctx["field_elev_ft"] + 1.0),
+                oat_dev_c=0.0,
+                schedule="NAVY",
+                mode="DCS",
+                power=("MAX" if thrust_mode == "MAX" else "MIL"),
+                sweep_deg=20.0,
+                config=("CLEAN" if cfg == "CLEAN" else "TO_FLAPS"),
+            )
+            # Prefer explicit gradient if provided; else simple estimate from distance
+            explicit = cres.get("AEO_min_grad_ft_per_nm_to_1000") or cres.get("Grad_ft_per_nm")
+            if explicit is not None:
+                aeo_grad = float(explicit)
+            else:
+                d_nm = float(cres.get("Distance_nm", 0.0) or 0.0)
+                aeo_grad = (1000.0 / d_nm) if d_nm > 0 else None
+        except Exception:
+            aeo_grad = None
+
+    # Gates
+    req_grad = float(ctx.get("req_grad_ft_nm", 200.0))
+    pass_runway = pass_runway_precheck
+    pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)  # unknown climb => pass
+
+    dispatchable = pass_runway and pass_climb
+
+    # Base V-speeds from engine result
+    v_speeds = {
+        "V1_kts": float(t_res.get("VR_kts", 0.0) or 0.0),  # placeholder = Vr until explicit V1 provided
+        "Vr_kts": float(t_res.get("VR_kts", 0.0) or 0.0),
+        "V2_kts": float(t_res.get("V2_kts", 0.0) or 0.0),
+        "Vfs_kts": float(max(
+            (t_res.get("V2_kts") or 0.0) * 1.1,
+            (t_res.get("VLOF_kts") or 0.0) * 1.15
+        )),
+    }
+
+    # Gentle override from f14_perf.csv (if available)
+    try:
+        vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, thrust_mode)
+        if vs_tbl:
+            if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
+    # --- Derate-aware planner path ---
+    import re as _re
+
+    # Parse derate percent from "DERATE (xx%)" labels if present
+    derate_pct = None
+    if isinstance(thrust_label, str) and "DERATE" in thrust_label.upper():
+        m = _re.search(r"(\d{2,3})\s*%", thrust_label)
+        if m:
+            derate_pct = max(85, min(100, int(m.group(1))))
+
+    do_derate = (derate_pct is not None)
+
+    cfg = "TO_FLAPS" if flaps_label in ("MANEUVER", "FULL") else "CLEAN"
+
     inputs = dict(
         gw_lb=float(ctx["gw_lb"]),
         field_elev_ft=float(ctx["field_elev_ft"]),
@@ -624,12 +620,14 @@ def _evaluate_candidate(flaps_label: str,
         do_derate=bool(do_derate),
     )
 
-    # Call core planner (derate-aware). Fall back to cached wrapper on error.
     plan = None
     try:
         plan = core.plan_takeoff_with_optional_derate(**inputs)
     except Exception:
-        # Fallback to cached perf if planner unavailable
+        plan = None
+
+    # Fallback to cached perf if planner unavailable
+    if not isinstance(plan, dict) or not plan:
         t_res = cached_perf_takeoff(
             gw_lb=inputs["gw_lb"],
             field_elev_ft=inputs["field_elev_ft"],
@@ -642,29 +640,28 @@ def _evaluate_candidate(flaps_label: str,
             sweep_deg=inputs["sweep_deg"],
             stores=tuple(ctx.get("stores", [])),
         )
-        # Synthesize a minimal plan-like object
+        # minimal emulation
         plan = dict(
             inputs=inputs,
             baseline_MIL=t_res,
-            derate=dict(),
-            derate_debug="fallback=cached_perf_takeoff",
+            derate={},
+            derate_debug="fallback=cached_perf_takeoff"
         )
 
-    # Prefer derate branch if do_derate, otherwise baseline_MIL
-    branch = plan.get("derate") if inputs["do_derate"] and isinstance(plan.get("derate"), dict) and plan.get("derate") else plan.get("baseline_MIL", {})
+    # Choose branch
+    branch = plan.get("derate") if do_derate and isinstance(plan.get("derate"), dict) and plan.get("derate") else plan.get("baseline_MIL", {})
     t_res = dict(branch) if isinstance(branch, dict) else {}
 
-    # Extract distances (robust to missing fields)
+    # Distances
     gr  = float(t_res.get("GroundRoll_ft", 0.0) or 0.0)
     d35 = float(t_res.get("DistanceTo35ft_ft", 0.0) or 0.0)
     asdr_ft = float(t_res.get("ASDR_ft", 0.0) or 0.0) or (gr * 1.15 if gr > 0 else d35 * 1.10)
     todr_ft = float(t_res.get("TODR_OEI_35ft_ft", 0.0) or 0.0) or d35
 
-    # Balanced-Field diff ratio
     mden = max(asdr_ft, todr_ft) if max(asdr_ft, todr_ft) > 0 else 1.0
     diff_ratio = abs(asdr_ft - todr_ft) / mden
 
-    # Climb gradient (AEO) — prefer explicit ft/NM; otherwise estimate
+    # Climb AEO ft/NM
     aeo_grad = None
     explicit = t_res.get("AEO_min_grad_ft_per_nm_to_1000") or t_res.get("Grad_ft_per_nm")
     if explicit is not None:
@@ -676,7 +673,6 @@ def _evaluate_candidate(flaps_label: str,
         d_nm = float(t_res.get("Distance_nm", 0.0) or 0.0)
         aeo_grad = (1000.0 / d_nm) if d_nm > 0 else None
 
-    # Gates
     tora = float(ctx.get("available_tora_ft", 0.0))
     asda = float(ctx.get("available_asda_ft", tora))
     req_grad = float(ctx.get("req_grad_ft_nm", 200.0))
@@ -684,7 +680,7 @@ def _evaluate_candidate(flaps_label: str,
     pass_climb  = (aeo_grad is None) or (aeo_grad >= req_grad)
     dispatchable = pass_runway and pass_climb
 
-    # V-speeds (planner may already include calibrated values)
+    # V-speeds from plan if present; else from cached perf; override by table
     v_speeds = {
         "V1_kts": float(t_res.get("V1_kts", t_res.get("VR_kts", 0.0)) or 0.0),
         "Vr_kts": float(t_res.get("VR_kts", 0.0) or 0.0),
@@ -695,7 +691,7 @@ def _evaluate_candidate(flaps_label: str,
         )),
     }
 
-    # Gentle CSV override if available (reuse existing helper)
+    # Existing CSV override helper (light-touch)
     try:
         vs_tbl = _vs_lookup_from_perf_table(ctx["gw_lb"], flaps_label, inputs["thrust_mode"])
         if vs_tbl:
@@ -703,7 +699,7 @@ def _evaluate_candidate(flaps_label: str,
                 v_speeds["Vs_kts"] = float(vs_tbl["Vs_kts"])
             if not pd.isna(vs_tbl.get("Vr_kts", float("nan"))):
                 v_speeds["Vr_kts"] = float(vs_tbl["Vr_kts"])
-                v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])  # until explicit V1 modeling is wired
+                v_speeds["V1_kts"] = float(vs_tbl["Vr_kts"])
             if not pd.isna(vs_tbl.get("V2_kts", float("nan"))):
                 v_speeds["V2_kts"] = float(vs_tbl["V2_kts"])
                 v_speeds["Vfs_kts"] = float(max(
@@ -729,6 +725,7 @@ def _evaluate_candidate(flaps_label: str,
         "v": v_speeds,
         "planner": plan,
     }
+    
 
 def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
     if from_percent is None: return None
@@ -1100,22 +1097,6 @@ st.session_state["req_climb_grad_ft_nm"] = int(req_grad)
 # =========================
 st.header("Takeoff Results")
 
-
-# --- Resolved thrust display for guidance table (manual DERATE honored) ---
-def _resolved_thrust_display(thrust_choice: str, derate_slider_val):
-    t = (thrust_choice or "").upper()
-    if "DERATE" in t:
-        try:
-            pct = int(derate_slider_val if derate_slider_val is not None else 95)
-        except Exception:
-            pct = 95
-        pct = max(85, min(100, pct))
-        return (f"DERATE ({pct}%)", pct)
-    if "AFTERBURNER" in t:
-        return ("AFTERBURNER", 100)
-    if "MILITARY" in t:
-        return ("MILITARY", 100)
-    return (thrust_choice, 100)
 def build_engine_table(thrust_sel: str, derate_pct: int) -> pd.DataFrame:
     """
     Builds a simple N1 / FF(pph per engine) guidance table based on the
@@ -1472,11 +1453,11 @@ def _parse_derate_from_label(lbl: str) -> int:
 if thrust == "DERATE (Manual)":
     # Always honor the slider in Manual mode
     _derate_effective = int(locals().get("derate", 95))
-    thrust_display = _safe_resolve_thrust_display("MIL", _derate_effective)
+    thrust_display = core.resolve_thrust_display("MIL", _derate_effective)
 else:
     # Auto-Select or MIL/AB paths
     _derate_effective = _parse_derate_from_label(thrust_display or thrust or "MILITARY")
-    thrust_display = _safe_resolve_thrust_display(thrust_display or thrust, _derate_effective)
+    thrust_display = core.resolve_thrust_display(thrust_display or thrust, _derate_effective)
 
 engine_df = build_engine_table(thrust_display or thrust or "MILITARY", int(_derate_effective))
 st.dataframe(engine_df, hide_index=True, use_container_width=True)
