@@ -1,5 +1,5 @@
-# engine_f110.py — v1.1 (patched)
-# Corrects thrust scaling: use T_MIL_lbf column from CSV as base thrust, then apply Mach correction and AB ratio.
+# engine_f110.py — v1.2
+# Corrected thrust scaling: use T_MIL_lbf from CSV with Mach falloff law, AB ratio applied.
 
 import pandas as pd
 from data_loaders import resolve_data_path
@@ -9,6 +9,7 @@ class F110Deck:
         self.df = pd.read_csv(resolve_data_path(csv_file, "f110_tff_model.csv"))
         self.df = self.df.sort_values("alt_ft")
         self.ab_ratio = 1.95  # MAX/AB relative to MIL, approx from NATOPS
+        self.k_mach = 0.35    # MIL thrust falloff with Mach
 
     def _interp_on_alt(self, column: str, alt_ft: float) -> float:
         """Simple 1D interpolation on altitude for given column."""
@@ -25,12 +26,12 @@ class F110Deck:
     def thrust_lbf(self, alt_ft: float, mach: float, power: str) -> float:
         """Return per-engine thrust in pounds at given altitude, Mach, and power setting."""
         base_T = self._interp_on_alt("T_MIL_lbf", alt_ft)
-        alpha = self._interp_on_alt("alpha", alt_ft)
-        T_mil = base_T * (1.0 + float(mach)) ** alpha
+        # Apply Mach falloff (linear, clamp at 70% minimum)
+        base_T = base_T * max(0.7, (1.0 - self.k_mach * float(mach)))
 
         pu = str(power).upper()
         if pu.startswith("MAX") or "AFTERBURNER" in pu:
-            return T_mil * self.ab_ratio
+            return base_T * self.ab_ratio
         if pu.startswith("IDLE"):
-            return max(0.15 * T_mil, 500.0)
-        return T_mil
+            return max(0.15 * base_T, 500.0)
+        return base_T
