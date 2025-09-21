@@ -1,53 +1,80 @@
-
+# ============================================================
+# F-14 Performance Calculator for DCS World — Landing Model
+# File: landing_model.py
+# Version: v1.2.0-overhaul1 (2025-09-21)
+# ============================================================
 from __future__ import annotations
-import math
-from typing import Dict, Optional, Literal
-from isa import isa_atm
-from f14_aero import F14Aero
+import os, math, pandas as pd
+from typing import Dict, Any
 
-S_WING_FT2 = 565.0
-S_WING_M2 = S_WING_FT2 * 0.09290304
-G = 9.80665
+CSV_PATH = "data/f14_landing_natops.csv"
+FAA_FACTOR = 1.67
 
-def landing_performance(
-    weight_lbf: float,
-    alt_ft: float,
-    oat_c: float,
-    headwind_kts: float,
-    mode: Literal["DCS","FAA"] = "DCS",
-    calib: Optional[Dict[str, Dict[str,float]]] = None,
-    config: str = "LDG_FLAPS",
-    sweep_deg: float = 20.0
-):
-    T, p, rho, a = isa_atm(alt_ft)
-    rho *= max(0.6, 1.0 - 0.0032*(oat_c - 15.0))
-    aero = F14Aero()
-    CLmax, CD0, k = aero.polar(config, sweep_deg)
+def compute_vref_and_ldr(gw_lbs: float, flaps: str, table: pd.DataFrame|None):
+    vref = None
+    ldr = None
+    if table is not None and not table.empty:
+        df = table.copy()
+        df["gross_weight_lbs"] = pd.to_numeric(df["gross_weight_lbs"], errors="coerce")
+        df = df[df["flap_setting"].str.upper() == flaps.upper()]
+        if not df.empty:
+            wdiff = (df["gross_weight_lbs"] - gw_lbs).abs()
+            row = df.iloc[wdiff.idxmin()]
+            vref = float(row.get("vref_kts", float("nan")))
+            ldr = float(row.get("ground_roll_ft_unfactored", float("nan")))
+    if (vref is None) or math.isnan(vref):
+        vs0 = 110.0; w0 = 50000.0
+        vs = vs0 * math.sqrt(max(gw_lbs,1.0)/w0)
+        vref = 1.3*vs
+    if (ldr is None) or math.isnan(ldr):
+        base = 4500.0; w0 = 50000.0
+        ldr = base * (max(gw_lbs,1.0)/w0)**1.1
+    return int(round(vref)), int(round(ldr))
 
-    W = weight_lbf * 4.4482216153
-    Vs = ((2*W)/(rho*S_WING_M2*CLmax))**0.5
-    Vref = 1.3*Vs
-    TAS = max(0.1, Vref - headwind_kts*0.514444)
+def plan_landing(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Plan landing scenarios A/B/C.
+    Inputs:
+      gw_lbs: current gross weight
+      lda_ft: landing distance available
+    """
+    gw = float(inputs.get("gw_lbs",60000))
+    lda_ft = int(inputs.get("lda_ft",8000))
 
-    def get(name, default):
-        if calib and name in calib: return calib[name].get(mode, default)
-        return default
-    mu_b = get("BrakeCoefficient", 0.30 if mode=="DCS" else 0.40)
-    brake_lag = get("BrakeLag_sec", 0.5 if mode=="DCS" else 0.3)
-    anti_skid = get("AntiSkidEffectiveness", 0.85 if mode=="DCS" else 0.95)
-    spoiler_cd0 = get("SpoilerBrake_CD0", 0.008 if mode=="DCS" else 0.006)
+    data = None
+    if os.path.exists(CSV_PATH):
+        try:
+            data = pd.read_csv(CSV_PATH)
+        except Exception:
+            data = None
 
-    s_air = Vref*4.0
-    q = 0.5*rho*Vref*Vref
-    CD = CD0 + spoiler_cd0
-    D = q*S_WING_M2*CD
-    a_decel = (mu_b * W * anti_skid + D) / (W/9.80665)
-    t_brake = Vref/max(0.5, a_decel)
-    s_brake = 0.5*Vref*t_brake
+    results = {}
+    scenarios = {}
 
-    return {
-        "Vref_kts": Vref/0.514444,
-        "Airborne_ft": s_air/0.3048,
-        "GroundRoll_ft": s_brake/0.3048,
-        "Total_ft": (s_air + s_brake)/0.3048
-    }
+    # Scenario A: 3000 lb fuel + stores kept
+    gw_a = max(40000, gw-3000)
+    vref_a, ldr_a = compute_vref_and_ldr(gw_a,"DOWN",data)
+    fact_a = int(round(ldr_a*FAA_FACTOR))
+    scenarios["A"] = {"gw":gw_a,"flaps":"DOWN","vref":vref_a,"ldr":ldr_a,"factored":fact_a,
+        "dispatchable": fact_a<=lda_ft}
+
+    # Scenario B: 3000 lb fuel + weapons expended, pods/tanks kept
+    gw_b = max(40000, gw-3000)
+    vref_b, ldr_b = compute_vref_and_ldr(gw_b,"DOWN",data)
+    fact_b = int(round(ldr_b*FAA_FACTOR))
+    scenarios["B"] = {"gw":gw_b,"flaps":"DOWN","vref":vref_b,"ldr":ldr_b,"factored":fact_b,
+        "dispatchable": fact_b<=lda_ft}
+
+    # Scenario C: custom
+    gw_c = float(inputs.get("gw_custom",gw-3000))
+    flaps_c = str(inputs.get("flaps_custom","DOWN")).upper()
+    vref_c, ldr_c = compute_vref_and_ldr(gw_c,flaps_c,data)
+    fact_c = int(round(ldr_c*FAA_FACTOR))
+    scenarios["C"] = {"gw":gw_c,"flaps":flaps_c,"vref":vref_c,"ldr":ldr_c,"factored":fact_c,
+        "dispatchable": fact_c<=lda_ft}
+
+    results.update({
+        "lda_ft": lda_ft,
+        "scenarios": scenarios,
+        "_debug": {"source":"NATOPS CSV" if data is not None else "fallback"}
+    })
+    return results
