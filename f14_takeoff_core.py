@@ -1,7 +1,8 @@
-# f14_takeoff_core.py — v1.5.1
-# - AEO uses *ambient* atmosphere from QNH & OAT (not ISA-only)
-# - Engine deck lookup uses computed Pressure Altitude (PA = elev + (29.92-QNH)*1000)
-# - Keeps 1% DERATE search, flap priority, runway scaling, Mach falloff, install drag
+# f14_takeoff_core.py — v1.5.2
+# - Adds ambient thrust sensitivity in AEO via density/temperature correction
+#   T_corrected = T_deck * (sigma^a) * (1/theta^b), with a=0.6, b=0.2 (tunable)
+# - Keeps v1.5.1 features: ambient atmosphere for rho/a, PA for deck lookup,
+#   1% DERATE search, flap priority, runway scaling for derate.
 
 from __future__ import annotations
 from dataclasses import dataclass, asdict
@@ -21,21 +22,15 @@ GAMMA = 1.4
 R_AIR = 287.05
 LAPSE = 0.0065          # K/m
 T0_K = 288.15           # ISA sea-level temperature
+RHO0 = 1.225            # ISA SL density (kg/m^3)
 INHG_TO_PA = 3386.389
 
 def pressure_altitude_ft(field_elev_ft: float, qnh_inhg: float) -> float:
-    """PA ≈ Elev + (29.92 - QNH)*1000 (standard practical formula)."""
     return float(field_elev_ft + (29.92 - float(qnh_inhg)) * 1000.0)
 
 def ambient_atm(field_elev_ft: float, qnh_inhg: float, oat_c: float) -> Dict[str, float]:
-    """
-    Use QNH (sea-level pressure) and elevation to compute station pressure,
-    combine with OAT to get density and speed of sound.
-    """
     h_m = float(field_elev_ft) * 0.3048
-    p0 = float(qnh_inhg) * INHG_TO_PA  # sea-level pressure from QNH
-    # Barometric formula with standard lapse to get station pressure from p0
-    # p = p0 * (1 - L*h/T0)^(g/(R*L))
+    p0 = float(qnh_inhg) * INHG_TO_PA
     expo = 9.80665 / (R_AIR * LAPSE)
     p = p0 * pow(max(1.0 - LAPSE * h_m / T0_K, 0.5), expo)
     T = float(oat_c) + 273.15
@@ -68,6 +63,9 @@ class CorePlanner:
         self.aero = F14Aero()
         self.eng = F110Deck()
         self.k_mach = 0.35  # MIL thrust falloff with Mach
+        # ambient thrust sensitivity exponents (tunable during calibration)
+        self.a_sigma = 0.6
+        self.b_theta = 0.2
 
     # ---------- Helpers ----------
     def _map_flap_to_config(self, flap_deg: int) -> str:
@@ -90,9 +88,11 @@ class CorePlanner:
 
         amb = ambient_atm(field_elev_ft, qnh_inhg, oat_c)
         rho = amb["rho"]; a = amb["a"]
+        sigma = rho / RHO0
+        theta = amb["T_K"] / T0_K
 
         # Convert KIAS to KTAS via rho; then to m/s
-        Vtas = Vref_kts * KTS_TO_MS * math.sqrt(1.225 / rho)
+        Vtas = Vref_kts * KTS_TO_MS * math.sqrt(RHO0 / rho)
         M = Vtas / a
 
         # Engine thrust with Mach falloff; use *pressure altitude* for deck lookup
@@ -100,6 +100,9 @@ class CorePlanner:
         power = "MIL" if thrust_mode in ("MILITARY", "DERATE") else "MAX"
         T_per_lbf = self.eng.thrust_lbf(pa_ft, M, power)
         T_per_lbf = T_per_lbf * max(0.7, (1.0 - self.k_mach * M))
+
+        # Ambient sensitivity (reduced thrust in hot/thin air)
+        T_per_lbf = T_per_lbf * (sigma ** self.a_sigma) * (theta ** (-self.b_theta))
 
         thrust_mult = (applied_pct / 100.0) if (thrust_mode == "DERATE" and applied_pct) else 1.0
         T_tot_N = T_per_lbf * 2 * 4.4482216153 * thrust_mult
@@ -121,14 +124,15 @@ class CorePlanner:
 
         debug = {}
         if want_debug:
-            debug = {"rho": float(rho), "Vtas_ms": float(Vtas), "Mach": float(M),
-                     "T_per_lbf": float(T_per_lbf), "thrust_mult": float(thrust_mult),
-                     "T_tot_N": float(T_tot_N), "clmax": float(clmax),
-                     "cd0": float(cd0), "k": float(k), "q": float(q),
+            debug = {"rho": float(rho), "sigma": float(sigma), "theta": float(theta),
+                     "Vtas_ms": float(Vtas), "Mach": float(M),
+                     "T_per_lbf_after_mach": float(self.eng.thrust_lbf(pa_ft, M, power) * max(0.7, (1.0 - self.k_mach * M))),
+                     "T_per_lbf_final": float(T_per_lbf),
+                     "thrust_mult": float(thrust_mult), "T_tot_N": float(T_tot_N),
+                     "clmax": float(clmax), "cd0": float(cd0), "k": float(k), "q": float(q),
                      "CL_req": float(CL_req), "CL_used": float(CL), "CD_used": float(CD),
                      "D_N": float(D_N), "excess_N": float(excess),
                      "grad_ft_per_nm": float(grad), "Vref_kts": float(Vref_kts),
-                     "p_Pa": float(amb["p_Pa"]), "T_K": float(amb["T_K"]), "a_mps": float(a),
                      "PA_ft": float(pa_ft)}
         return grad, debug
 
@@ -142,7 +146,6 @@ class CorePlanner:
                          field_elev_ft: float, qnh_inhg: float, oat_c: float,
                          tora_ft:float, asda_ft:float, req_aeo:float,
                          derate_pct: Optional[int], want_debug:bool) -> CandidateResult:
-        # Use PA for table lookup (matches deck expectations)
         pa_ft = pressure_altitude_ft(field_elev_ft, qnh_inhg)
         base_thrust = "MILITARY" if mode in ("MILITARY", "DERATE") else "AFTERBURNER"
         pt = self.deck.lookup(flap_deg, base_thrust, gw_lbs, pa_ft, oat_c)
@@ -187,7 +190,7 @@ class CorePlanner:
                                           search_1pct: bool = True) -> Dict[str, Any]:
 
         tried: List[CandidateResult] = []
-        flaps_priority = [0, 20, 40]  # prefer lower flap; 40° last resort
+        flaps_priority = [0, 20, 40]
 
         default_floors = {"0":85,"20":88,"35":90,"40":90}
         floors = self.derate.cfg.get("min_pct_by_flap_deg", default_floors)
@@ -209,7 +212,6 @@ class CorePlanner:
                 if best:
                     break
             else:
-                # heuristic path (unused now but kept for completeness)
                 pa_ft = pressure_altitude_ft(field_elev_ft, qnh_inhg)
                 mil = self.deck.lookup(f, "MILITARY", gw_lbs, pa_ft, oat_c)
                 der_guess = self.derate.compute_derate_from_groundroll(f, pa_ft, mil.AGD_ft/1.15,
@@ -223,7 +225,6 @@ class CorePlanner:
                     best = cand_der
                     break
 
-            # Try MIL at this flap
             cand_mil = self._build_candidate(f, "MILITARY", gw_lbs,
                                              field_elev_ft, qnh_inhg, oat_c,
                                              tora_ft, asda_ft, required_aeo_ft_per_nm,
