@@ -587,9 +587,7 @@ def _evaluate_candidate(flaps_label: str,
         if vs_tbl:
             if not pd.isna(vs_tbl.get("Vs_kts", float("nan"))):
     """Derate-aware candidate evaluation using the core planner.
-    Returns:
-      dict: {todr_ft, asdr_ft, diff_ratio, pass_runway, pass_climb, dispatchable,
-             margins:{tora_margin_ft, asda_margin_ft}, v:{...}, t_res, planner, ...}
+    Returns a dict with distances, gates, margins, V-speeds and the planner output.
     """
     import re as _re
 
@@ -604,6 +602,7 @@ def _evaluate_candidate(flaps_label: str,
     # Map flaps to core config
     cfg = "TO_FLAPS" if flaps_label in ("MANEUVER", "FULL") else "CLEAN"
 
+    # Compose planner inputs
     inputs = dict(
         gw_lb=float(ctx["gw_lb"]),
         field_elev_ft=float(ctx["field_elev_ft"]),
@@ -624,7 +623,7 @@ def _evaluate_candidate(flaps_label: str,
         do_derate=bool(do_derate),
     )
 
-    # Primary: derate-aware core planner
+    # Prefer derate-aware core planner
     plan = None
     try:
         plan = core.plan_takeoff_with_optional_derate(**inputs)
@@ -647,7 +646,7 @@ def _evaluate_candidate(flaps_label: str,
         )
         plan = dict(inputs=inputs, baseline_MIL=t_res_fb, derate={}, derate_debug="fallback=cached_perf_takeoff")
 
-    # Choose the branch
+    # Choose branch
     branch = plan.get("derate") if do_derate and isinstance(plan.get("derate"), dict) and plan.get("derate") else plan.get("baseline_MIL", {})
     t_res = dict(branch) if isinstance(branch, dict) else {}
 
@@ -661,7 +660,7 @@ def _evaluate_candidate(flaps_label: str,
     _den = max(asdr_ft, todr_ft) if max(asdr_ft, todr_ft) > 0 else 1.0
     diff_ratio = abs(asdr_ft - todr_ft) / _den
 
-    # Climb AEO ft/NM (prefer explicit)
+    # Climb AEO ft/NM
     aeo_grad = None
     _explicit = t_res.get("AEO_min_grad_ft_per_nm_to_1000") or t_res.get("Grad_ft_per_nm")
     if _explicit is not None:
@@ -718,6 +717,7 @@ def _evaluate_candidate(flaps_label: str,
         "v": v_speeds,
         "planner": plan,
     }
+
 
 def compute_total_fuel_lb(from_percent: Optional[float], ext_left_full: bool, ext_right_full: bool) -> Optional[float]:
     if from_percent is None: return None
