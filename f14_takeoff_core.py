@@ -1,8 +1,15 @@
-# f14_takeoff_core.py — v1.5.2
-# - Adds ambient thrust sensitivity in AEO via density/temperature correction
-#   T_corrected = T_deck * (sigma^a) * (1/theta^b), with a=0.6, b=0.2 (tunable)
-# - Keeps v1.5.1 features: ambient atmosphere for rho/a, PA for deck lookup,
-#   1% DERATE search, flap priority, runway scaling for derate.
+# f14_takeoff_core.py — v1.6.0
+# Adds a configurable drag increment model to depress optimistic performance:
+# - Config-driven CD0 increments by flap config (CLEAN / TO_PARTIAL / TO_FLAPS)
+# - Optional "stores" CD0 increment applied to all configs (placeholder, tunable)
+# - Richer debug: report cd0_base, cd0_inc_config, cd0_inc_stores, cd0_total
+# Keeps:
+# - 1% DERATE search with flap priority (0 -> 20 -> 40)
+# - Ambient atmosphere (QNH+OAT), PA engine lookup, Mach falloff, temp/density thrust sensitivity
+# - Runway distance scaling under derate
+#
+# NOTE on "placeholders": defaults here are conservative and clearly labeled,
+# meant to be calibration knobs; see DRAG_CFG below.
 
 from __future__ import annotations
 from dataclasses import dataclass, asdict
@@ -24,6 +31,18 @@ LAPSE = 0.0065          # K/m
 T0_K = 288.15           # ISA sea-level temperature
 RHO0 = 1.225            # ISA SL density (kg/m^3)
 INHG_TO_PA = 3386.389
+
+# ---- Drag Increment Configuration (CALIBRATION KNOBS) ----
+DRAG_CFG = {
+    # Increment added to CD0 based on flap config mapping
+    "base_cd0_inc": {
+        "CLEAN": 0.010,       # baseline "installed" / pylons / bleed
+        "TO_PARTIAL": 0.015,  # maneuver flaps down, more exposed bits
+        "TO_FLAPS": 0.020     # full flaps, max incremental drag
+    },
+    # Global "stores" increment (e.g., pylons, tanks). Tune with DCS/NATOPS.
+    "stores_cd0_inc": 0.000   # start at zero; raise to 0.005–0.015 if needed
+}
 
 def pressure_altitude_ft(field_elev_ft: float, qnh_inhg: float) -> float:
     return float(field_elev_ft + (29.92 - float(qnh_inhg)) * 1000.0)
@@ -62,10 +81,15 @@ class CorePlanner:
         self.derate = DerateModel()
         self.aero = F14Aero()
         self.eng = F110Deck()
-        self.k_mach = 0.35  # MIL thrust falloff with Mach
-        # ambient thrust sensitivity exponents (tunable during calibration)
+
+        # MIL thrust Mach falloff factor
+        self.k_mach = 0.35
+        # Ambient thrust sensitivity exponents (tunable)
         self.a_sigma = 0.6
         self.b_theta = 0.2
+
+        # Drag increments (can be externalized later)
+        self.drag_cfg = DRAG_CFG.copy()
 
     # ---------- Helpers ----------
     def _map_flap_to_config(self, flap_deg: int) -> str:
@@ -74,10 +98,12 @@ class CorePlanner:
         if flap_deg in (35, 40): return "TO_FLAPS"
         return "CLEAN"
 
-    def _cd0_increment(self, config: str) -> float:
-        if config == "CLEAN": return 0.005
-        if config in ("TO_PARTIAL", "TO_FLAPS"): return 0.010
-        return 0.0
+    def _cd0_increment_config(self, config: str) -> float:
+        base = self.drag_cfg.get("base_cd0_inc", {})
+        return float(base.get(config, 0.0))
+
+    def _cd0_increment_stores(self) -> float:
+        return float(self.drag_cfg.get("stores_cd0_inc", 0.0))
 
     def _aeo_gradient(self, flap_deg: int, gw_lbs: float,
                       field_elev_ft: float, qnh_inhg: float, oat_c: float,
@@ -107,16 +133,18 @@ class CorePlanner:
         thrust_mult = (applied_pct / 100.0) if (thrust_mode == "DERATE" and applied_pct) else 1.0
         T_tot_N = T_per_lbf * 2 * 4.4482216153 * thrust_mult
 
-        # Aero polar
+        # Aero polar with drag increments
         config = self._map_flap_to_config(flap_deg)
-        clmax, cd0, k = self.aero.polar(config, 20.0)
-        cd0 += self._cd0_increment(config)
+        clmax, cd0_base, k = self.aero.polar(config, 20.0)
+        cd0_inc_cfg = self._cd0_increment_config(config)
+        cd0_inc_store = self._cd0_increment_stores()
+        cd0_total = cd0_base + cd0_inc_cfg + cd0_inc_store
 
         W_N = gw_lbs * 4.4482216153
         q = 0.5 * rho * Vtas * Vtas
         CL_req = W_N / max(q * S_WING_M2, 1e-8)
         CL = min(CL_req, clmax)
-        CD = cd0 + k * CL * CL
+        CD = cd0_total + k * CL * CL
         D_N = q * S_WING_M2 * CD
 
         excess = max(0.0, T_tot_N - D_N)
@@ -126,10 +154,14 @@ class CorePlanner:
         if want_debug:
             debug = {"rho": float(rho), "sigma": float(sigma), "theta": float(theta),
                      "Vtas_ms": float(Vtas), "Mach": float(M),
-                     "T_per_lbf_after_mach": float(self.eng.thrust_lbf(pa_ft, M, power) * max(0.7, (1.0 - self.k_mach * M))),
                      "T_per_lbf_final": float(T_per_lbf),
                      "thrust_mult": float(thrust_mult), "T_tot_N": float(T_tot_N),
-                     "clmax": float(clmax), "cd0": float(cd0), "k": float(k), "q": float(q),
+                     "clmax": float(clmax),
+                     "cd0_base": float(cd0_base),
+                     "cd0_inc_config": float(cd0_inc_cfg),
+                     "cd0_inc_stores": float(cd0_inc_store),
+                     "cd0_total": float(cd0_total),
+                     "k": float(k), "q": float(q),
                      "CL_req": float(CL_req), "CL_used": float(CL), "CD_used": float(CD),
                      "D_N": float(D_N), "excess_N": float(excess),
                      "grad_ft_per_nm": float(grad), "Vref_kts": float(Vref_kts),
