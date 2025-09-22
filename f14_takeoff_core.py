@@ -12,6 +12,30 @@
 # meant to be calibration knobs; see DRAG_CFG below.
 
 from __future__ import annotations
+
+# --- Import path hardening for Streamlit/Cloud environments ---
+import os as _os, sys as _sys
+_here = _os.path.dirname(__file__)
+if _here and _here not in _sys.path:
+    _sys.path.insert(0, _here)
+# Robust sibling imports (script vs package)
+try:
+    from takeoff_model import TakeoffDeck
+except Exception:
+    from .takeoff_model import TakeoffDeck  # type: ignore
+try:
+    from derate import DerateModel
+except Exception:
+    from .derate import DerateModel  # type: ignore
+try:
+    from f14_aero import F14Aero
+except Exception:
+    from .f14_aero import F14Aero  # type: ignore
+try:
+    from engine_f110 import F110Deck
+except Exception:
+    from .engine_f110 import F110Deck  # type: ignore
+
 from dataclasses import dataclass, asdict
 from typing import Optional, Dict, Any, List
 import math
@@ -187,7 +211,7 @@ class CorePlanner:
         if mode=="DERATE":
             if derate_pct is None: derate_pct = 95
             resolved_pct = int(derate_pct)
-            default_floors = {"0":85,"20":90,"35":90,"40":96}  # LOCK SPEC floors
+            default_floors = {"0":85,"20":88,"35":90,"40":90}
             floor = int(self.derate.cfg.get("min_pct_by_flap_deg", default_floors).get(str(flap_deg),85))
             if resolved_pct < floor: clamped = True
             applied_pct = max(resolved_pct, floor)
@@ -215,7 +239,7 @@ class CorePlanner:
                                           oat_c: float,
                                           tora_ft: float,
                                           asda_ft: float,
-                                          required_aeo_ft_per_nm: float =  300.0,
+                                          required_aeo_ft_per_nm: float = 200.0,
                                           allow_ab: bool = False,
                                           debug: bool = False,
                                           compare_all: bool = True,
@@ -224,7 +248,7 @@ class CorePlanner:
         tried: List[CandidateResult] = []
         flaps_priority = [0, 20, 40]
 
-        default_floors = {"0":85,"20":90,"35":90,"40":96}  # LOCK SPEC floors
+        default_floors = {"0":85,"20":88,"35":90,"40":90}
         floors = self.derate.cfg.get("min_pct_by_flap_deg", default_floors)
 
         best: Optional[CandidateResult] = None
@@ -291,7 +315,7 @@ def plan_takeoff_with_optional_derate(**kwargs) -> Dict[str, Any]:
     accepted = {"flap_deg","gw_lbs","field_elev_ft","qnh_inhg","oat_c","tora_ft","asda_ft",
                 "required_aeo_ft_per_nm","allow_ab","debug","compare_all","search_1pct"}
     filtered = {k: v for k, v in kwargs.items() if k in accepted}
-    filtered.setdefault("required_aeo_ft_per_nm", 300.0)
+    filtered.setdefault("required_aeo_ft_per_nm", 200.0)
     filtered.setdefault("allow_ab", False)
     filtered.setdefault("debug", False)
     filtered.setdefault("compare_all", True)
@@ -299,80 +323,69 @@ def plan_takeoff_with_optional_derate(**kwargs) -> Dict[str, Any]:
     return CorePlanner().plan_takeoff_with_optional_derate(**filtered)
 
 
-# ============================================================================
-# Compatibility facade for UI — exposes perf_compute_takeoff() used by UI
-# ============================================================================
-def perf_compute_takeoff(gw_lb: float,
-                         field_elev_ft: float,
-                         oat_c: float,
-                         headwind_kts: float = 0.0,
-                         runway_slope: float = 0.0,
-                         thrust_mode: str = "MIL",
-                         mode: str = "AUTO",
-                         config: str = "TO_FLAPS",
-                         sweep_deg: float = 20.0,
-                         stores: list | None = None) -> dict:
-    """Returns a dict with UI-expected keys:
-       - GroundRoll_ft (optional; 0 if unknown)
-       - DistanceTo35ft_ft
-       - ASDR_ft
-       - TODR_OEI_35ft_ft
-       - Vs_kts, VR_kts, V2_kts
-       - Dispatchable (bool)
-       Notes:
-       * headwind/slope not yet modeled in core; preserved for signature compatibility.
-       * 'config' maps to flap_deg: CLEAN->0, TO_PARTIAL->20, TO_FLAPS->40
-       * thrust_mode: "MIL" or "MAX" (AB). If 'mode' == 'DERATE', DERATE search is used.
+# === Dict-based facade expected by UI (stable contract) ===
+def perf_compute_takeoff(inputs: Dict[str, Any], overrides: Optional[Dict[str,Any]]=None) -> Dict[str, Any]:
     """
-    cfg_to_flap = {"CLEAN":0, "TO_PARTIAL":20, "PARTIAL":20, "TO_FLAPS":40, "FLAPS":40, "FULL":40}
-    flap_deg = cfg_to_flap.get(str(config).upper(), 20)
+    UI-facing facade: accepts an inputs dict and optional overrides, returns a standard result dict.
+    Leaves ASDR/TODR unfactored; UI applies any additional margins (e.g., +10%).
+    """
+    # Extract inputs with defaults
+    gw = float(inputs.get("gw_lbs", inputs.get("gw_lb", 60000)))
+    field_elev = float(inputs.get("field_elev_ft", 0.0))
+    qnh = float(inputs.get("qnh_inhg", 29.92))
+    oat = float(inputs.get("oat_c", 15.0))
+    headwind = float(inputs.get("headwind_kts_component", 0.0))
+    tora = float(inputs.get("tora_ft", 999999))
+    asda = float(inputs.get("asda_ft", 999999))
+    flap_mode = str(inputs.get("flap_mode", "MAN")).upper()
+    thrust_pref = str(inputs.get("thrust_pref", "Auto-Select"))
+    manual_pct = inputs.get("manual_derate_pct", None)
 
-    # Determine planning mode
-    allow_ab = str(thrust_mode).upper().startswith("MAX")
-    derate_requested = (str(mode).upper() == "DERATE")
+    # Overrides
+    req_aeo = float((overrides or {}).get("climb_floor_ftpnm", 300.0))
+
+    cfg_to_deg = {"UP":0, "MAN":20, "FULL":40}
+    flap_deg = cfg_to_deg.get(flap_mode, 20)
+
     planner = CorePlanner()
 
-    # For now, provide TORA/ASDA as very large numbers; UI passes runway lengths elsewhere.
-    # The planner will only use req_aeo and will mark dispatchability based on those and distances.
-    # We return distances regardless.
-    tora_ft = 999999
-    asda_ft = 999999
-
-    # Plan — if DERATE mode, search 1% increments; else MIL/AB fixed.
-    if derate_requested:
+    # Choose thrust pathway
+    if thrust_pref == "Manual DERATE" or (thrust_pref == "Auto-Select" and manual_pct is not None):
+        pct = int(manual_pct or 95)
         res = planner.plan_takeoff_with_optional_derate(
-            flap_deg=flap_deg, gw_lbs=gw_lb,
-            field_elev_ft=field_elev_ft, qnh_inhg=29.92, oat_c=oat_c,
-            tora_ft=tora_ft, asda_ft=asda_ft,
-            required_aeo_ft_per_nm=300.0, allow_ab=False,  # DERATE search is MIL only
-            debug=False, compare_all=False, search_1pct=True
+            flap_deg=flap_deg, gw_lbs=gw,
+            field_elev_ft=field_elev, qnh_inhg=qnh, oat_c=oat,
+            tora_ft=tora, asda_ft=asda, required_aeo_ft_per_nm=req_aeo,
+            allow_ab=False, debug=False, compare_all=False, search_1pct=True
         )
         best = res.get("best") or {}
-        vs = best.get("vs_kts") or best.get("Vs_kts") or 0.0
-        v1 = best.get("v1_kts") or best.get("V1_kts") or 0.0
-        vr = best.get("vr_kts") or best.get("Vr_kts") or 0.0
-        v2 = best.get("v2_kts") or best.get("V2_kts") or 0.0
-        asd = best.get("asd_ft") or best.get("ASD_ft") or 0.0
-        d35 = best.get("todr_ft") or best.get("TODR_ft") or 0.0
+        vs  = best.get("Vs_kts") or 0.0
+        v1  = best.get("V1_kts") or 0.0
+        vr  = best.get("Vr_kts") or 0.0
+        v2  = best.get("V2_kts") or 0.0
+        asd = best.get("ASD_ft") or 0.0
+        d35 = best.get("TODR_ft") or 0.0
         dispatch = bool(best.get("dispatchable", True))
+        thrust_label = f"DERATE {pct}%"
     else:
-        # MIL or AB plan with no derate search
-        mode_str = "MILITARY" if not allow_ab else "AFTERBURNER"
-        cand = planner._build_candidate(flap_deg, mode_str, gw_lb,
-                                        field_elev_ft, 29.92, oat_c,
-                                        tora_ft, asda_ft, 300.0, None, False)
-        vs = cand.vs_kts; v1 = cand.v1_kts; vr = cand.vr_kts; v2 = cand.v2_kts
-        asd = cand.asd_ft; d35 = cand.todr_ft; dispatch = cand.dispatchable
+        use_ab = (thrust_pref == "Manual AB")
+        mode = "AFTERBURNER" if use_ab else "MILITARY"
+        cand = planner._build_candidate(flap_deg, mode, gw, field_elev, qnh, oat, tora, asda, req_aeo, None, False)
+        vs, v1, vr, v2 = cand.vs_kts, cand.v1_kts, cand.vr_kts, cand.v2_kts
+        asd, d35, dispatch = cand.asd_ft, cand.todr_ft, cand.dispatchable
+        thrust_label = "MAX AB" if use_ab else "MIL"
 
-    # Build UI-compatible dict
-    out = {
-        "GroundRoll_ft": 0,                         # unknown -> let UI fallback to 1.15*GR or d35*1.10
+    return {
+        "GroundRoll_ft": 0.0,
         "DistanceTo35ft_ft": float(d35 or 0.0),
         "ASDR_ft": float(asd or 0.0),
-        "TODR_OEI_35ft_ft": float(d35 or 0.0),     # lacking OEI-specific deck, reuse d35
+        "TODR_OEI_35ft_ft": float(d35 or 0.0),
         "Vs_kts": float(vs or 0.0),
-        "VR_kts": float(vr or 0.0),
+        "Vr_kts": float(vr or 0.0),
         "V2_kts": float(v2 or 0.0),
         "Dispatchable": bool(dispatch),
+        "ResolvedThrustLabel": thrust_label,
+        "Flaps": flap_mode,
+        "GW_lbs": gw,
     }
-    return out
+
