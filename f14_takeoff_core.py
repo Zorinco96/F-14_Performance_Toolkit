@@ -13,38 +13,23 @@
 
 from __future__ import annotations
 
-# --- Import path hardening for Streamlit/Cloud environments ---
-import os as _os, sys as _sys
-_here = _os.path.dirname(__file__)
-if _here and _here not in _sys.path:
-    _sys.path.insert(0, _here)
-# Robust sibling imports (script vs package)
-try:
-    from takeoff_model import TakeoffDeck
-except Exception:
-    from .takeoff_model import TakeoffDeck  # type: ignore
-try:
-    from derate import DerateModel
-except Exception:
-    from .derate import DerateModel  # type: ignore
-try:
-    from f14_aero import F14Aero
-except Exception:
-    from .f14_aero import F14Aero  # type: ignore
-try:
-    from engine_f110 import F110Deck
-except Exception:
-    from .engine_f110 import F110Deck  # type: ignore
+# Dynamic sibling imports (avoid fragile 'from X import Y' issues on Cloud)
+import importlib as _importlib
+def _import_symbol(_mod, *_names):
+    m = _importlib.import_module(_mod)
+    for _n in _names:
+        if hasattr(m, _n):
+            return getattr(m, _n)
+    raise ImportError(f"{_mod} missing symbols {_names}")
+
+TakeoffDeck = _import_symbol('takeoff_model', 'TakeoffDeck', 'TakeoffModel', 'TakeoffTable')
+DerateModel = _import_symbol('derate', 'DerateModel', 'Derate')
+F14Aero     = _import_symbol('f14_aero', 'F14Aero', 'F14AeroModel')
+F110Deck    = _import_symbol('engine_f110', 'F110Deck', 'EngineF110', 'F110Model')
 
 from dataclasses import dataclass, asdict
 from typing import Optional, Dict, Any, List
 import math
-
-from takeoff_model import TakeoffDeck
-from derate import DerateModel
-from f14_aero import F14Aero
-from engine_f110 import F110Deck
-
 S_WING_FT2 = 565.0
 S_WING_M2 = S_WING_FT2 * 0.09290304
 KTS_TO_MS = 0.514444
@@ -321,71 +306,3 @@ def plan_takeoff_with_optional_derate(**kwargs) -> Dict[str, Any]:
     filtered.setdefault("compare_all", True)
     filtered.setdefault("search_1pct", True)
     return CorePlanner().plan_takeoff_with_optional_derate(**filtered)
-
-
-# === Dict-based facade expected by UI (stable contract) ===
-def perf_compute_takeoff(inputs: Dict[str, Any], overrides: Optional[Dict[str,Any]]=None) -> Dict[str, Any]:
-    """
-    UI-facing facade: accepts an inputs dict and optional overrides, returns a standard result dict.
-    Leaves ASDR/TODR unfactored; UI applies any additional margins (e.g., +10%).
-    """
-    # Extract inputs with defaults
-    gw = float(inputs.get("gw_lbs", inputs.get("gw_lb", 60000)))
-    field_elev = float(inputs.get("field_elev_ft", 0.0))
-    qnh = float(inputs.get("qnh_inhg", 29.92))
-    oat = float(inputs.get("oat_c", 15.0))
-    headwind = float(inputs.get("headwind_kts_component", 0.0))
-    tora = float(inputs.get("tora_ft", 999999))
-    asda = float(inputs.get("asda_ft", 999999))
-    flap_mode = str(inputs.get("flap_mode", "MAN")).upper()
-    thrust_pref = str(inputs.get("thrust_pref", "Auto-Select"))
-    manual_pct = inputs.get("manual_derate_pct", None)
-
-    # Overrides
-    req_aeo = float((overrides or {}).get("climb_floor_ftpnm", 300.0))
-
-    cfg_to_deg = {"UP":0, "MAN":20, "FULL":40}
-    flap_deg = cfg_to_deg.get(flap_mode, 20)
-
-    planner = CorePlanner()
-
-    # Choose thrust pathway
-    if thrust_pref == "Manual DERATE" or (thrust_pref == "Auto-Select" and manual_pct is not None):
-        pct = int(manual_pct or 95)
-        res = planner.plan_takeoff_with_optional_derate(
-            flap_deg=flap_deg, gw_lbs=gw,
-            field_elev_ft=field_elev, qnh_inhg=qnh, oat_c=oat,
-            tora_ft=tora, asda_ft=asda, required_aeo_ft_per_nm=req_aeo,
-            allow_ab=False, debug=False, compare_all=False, search_1pct=True
-        )
-        best = res.get("best") or {}
-        vs  = best.get("Vs_kts") or 0.0
-        v1  = best.get("V1_kts") or 0.0
-        vr  = best.get("Vr_kts") or 0.0
-        v2  = best.get("V2_kts") or 0.0
-        asd = best.get("ASD_ft") or 0.0
-        d35 = best.get("TODR_ft") or 0.0
-        dispatch = bool(best.get("dispatchable", True))
-        thrust_label = f"DERATE {pct}%"
-    else:
-        use_ab = (thrust_pref == "Manual AB")
-        mode = "AFTERBURNER" if use_ab else "MILITARY"
-        cand = planner._build_candidate(flap_deg, mode, gw, field_elev, qnh, oat, tora, asda, req_aeo, None, False)
-        vs, v1, vr, v2 = cand.vs_kts, cand.v1_kts, cand.vr_kts, cand.v2_kts
-        asd, d35, dispatch = cand.asd_ft, cand.todr_ft, cand.dispatchable
-        thrust_label = "MAX AB" if use_ab else "MIL"
-
-    return {
-        "GroundRoll_ft": 0.0,
-        "DistanceTo35ft_ft": float(d35 or 0.0),
-        "ASDR_ft": float(asd or 0.0),
-        "TODR_OEI_35ft_ft": float(d35 or 0.0),
-        "Vs_kts": float(vs or 0.0),
-        "Vr_kts": float(vr or 0.0),
-        "V2_kts": float(v2 or 0.0),
-        "Dispatchable": bool(dispatch),
-        "ResolvedThrustLabel": thrust_label,
-        "Flaps": flap_mode,
-        "GW_lbs": gw,
-    }
-
