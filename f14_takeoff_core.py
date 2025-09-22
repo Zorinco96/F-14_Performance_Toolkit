@@ -13,23 +13,50 @@
 
 from __future__ import annotations
 
-# Dynamic sibling imports (avoid fragile 'from X import Y' issues on Cloud)
-import importlib as _importlib
-def _import_symbol(_mod, *_names):
-    m = _importlib.import_module(_mod)
-    for _n in _names:
-        if hasattr(m, _n):
-            return getattr(m, _n)
-    raise ImportError(f"{_mod} missing symbols {_names}")
-
-TakeoffDeck = _import_symbol('takeoff_model', 'TakeoffDeck', 'TakeoffModel', 'TakeoffTable')
-DerateModel = _import_symbol('derate', 'DerateModel', 'Derate')
-F14Aero     = _import_symbol('f14_aero', 'F14Aero', 'F14AeroModel')
-F110Deck    = _import_symbol('engine_f110', 'F110Deck', 'EngineF110', 'F110Model')
+# --- Import path hardening for Streamlit/Cloud environments ---
+import os as _os, sys as _sys
+_here = _os.path.dirname(__file__)
+if _here and _here not in _sys.path:
+    _sys.path.insert(0, _here)
 
 from dataclasses import dataclass, asdict
 from typing import Optional, Dict, Any, List
 import math
+
+from derate import DerateModel
+from f14_aero import F14Aero
+from engine_f110 import F110Deck
+
+# --- Adapter: wrap takeoff_model's functional API with a TakeoffDeck-like class ---
+try:
+    import takeoff_model as _to
+except Exception as _e:
+    _to = None
+
+class TakeoffDeck:
+    class _Result:
+        def __init__(self, asd_ft, todr_ft):
+            self.ASD_ft = float(asd_ft)
+            self.TODR_ft = float(todr_ft)
+            # placeholder for accelerate-go ground roll (not available): use TODR as proxy
+            self.AGD_ft = float(todr_ft)
+
+    def lookup(self, flap_deg: float, base_thrust: str, gw_lbs: float, pa_ft: float, oat_c: float):
+        if _to is None:
+            raise ImportError("takeoff_model module not available")
+        thrust_pct = 100.0  # assume 100% for MIL/AB lookup; derates handled elsewhere
+        payload = _to.solve_bfv1({
+            "gw_lbs": gw_lbs,
+            "flap_deg": flap_deg,
+            "thrust_pct": thrust_pct,
+            "oat_c": oat_c,
+            "qnh_inhg": 29.92,
+            "field_elevation_ft": pa_ft
+        })
+        asd = payload.get("asd_ft_raw", 0.0)
+        todr = payload.get("todr_ft_raw", 0.0)
+        return self._Result(asd, todr)
+
 S_WING_FT2 = 565.0
 S_WING_M2 = S_WING_FT2 * 0.09290304
 KTS_TO_MS = 0.514444
